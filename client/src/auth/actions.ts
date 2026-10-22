@@ -7,7 +7,7 @@
  */
 export type AuthResult<T> = { ok: true; data: T } | { ok: false; error: string };
 
-const NOT_READY = '登录通道尚未就绪：请确认已在 WorkBuddy 云服务中开启 Auth';
+const NOT_READY = '登录通道未就绪：拿不到云服务配置（/api/auth-config 返回空）或 Auth 未开启';
 
 interface CloudAuth {
   sendOtp(payload: Record<string, unknown>): Promise<unknown>;
@@ -20,6 +20,13 @@ let cached: CloudAuth | null | undefined;
 async function getAuth(): Promise<CloudAuth | null> {
   if (cached !== undefined) return cached;
   try {
+    /* 配置由服务端下发：endpoint 与 publishableKey 都是可公开值 */
+    const res = await fetch('/api/auth-config');
+    const cfg = (await res.json()) as { endpoint?: string | null; publishableKey?: string | null };
+    if (!cfg.endpoint || !cfg.publishableKey) {
+      cached = null;
+      return null;
+    }
     const mod = (await import('@tencent-ai/workbuddy-cloud-sdk')) as unknown as {
       createWorkBuddyCloud?: (options: Record<string, unknown>) => { auth?: CloudAuth };
     };
@@ -28,8 +35,7 @@ async function getAuth(): Promise<CloudAuth | null> {
       cached = null;
       return null;
     }
-    /* 前端只用可公开的 publishableKey；endpoint 由同源推断 */
-    const client = factory({ endpoint: window.location.origin });
+    const client = factory({ endpoint: cfg.endpoint, publishableKey: cfg.publishableKey });
     cached = client.auth ?? null;
     return cached;
   } catch {
