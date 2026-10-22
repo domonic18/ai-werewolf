@@ -137,12 +137,20 @@ export interface NightRecord {
   saved: boolean;
   /** 毒药目标 */
   poisonTarget: { playerId: number; name: string } | null;
-  /** 当晚实际出局及其死因 */
-  deaths: { playerId: number; name: string; seat: number; cause: 'wolf' | 'poison' }[];
+  /** 当晚实际出局及其死因（hunter = 被猎人带走；vote = 被放逐） */
+  deaths: { playerId: number; name: string; seat: number; cause: 'wolf' | 'poison' | 'hunter' | 'vote' }[];
   /** 当天放逐结果；平票为 null */
   exiled: { playerId: number; name: string; role: RoleKey; votes: number } | null;
   /** 当天是否平票 */
   tie: boolean;
+  /** 守卫守了谁（上帝视角） */
+  guardTarget: { playerId: number; name: string } | null;
+  /** 守卫是否真的防住了这一刀 */
+  guarded: boolean;
+  /** 同守同救（奶穿）：守卫 + 解药同时生效，目标仍然死亡 */
+  pierced: boolean;
+  /** 猎人开枪记录；压枪（不开枪）时 target 为 null */
+  hunterShot: { hunterId: number; name: string; targetId: number | null; targetName: string | null } | null;
 }
 
 /** 玩家可见的复盘：只知道谁出局、谁被放逐，不知道死因与用药 */
@@ -174,6 +182,7 @@ export interface EventPayloads {
   'speech-order': { round: number; order: { id: number; name: string; emoji: string }[] };
   'ai-thinking': { playerId: number; label: string };
   vote: { voter: number; target: number };
+  'hunter-shot': { hunterId: number; hunterName: string; targetId: number | null; targetName: string | null };
   'vote-result': VoteResultPayload;
   log: { text: string; tone?: string };
   'game-over': {

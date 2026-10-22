@@ -101,6 +101,10 @@ export class GameEngine implements GameView {
   private nightKill: number | null = null;
   private saved = false;
   private poisonId: number | null = null;
+  /** 本夜守卫目标 */
+  private guardedId: number | null = null;
+  /** 上一夜守卫目标（不能连续两晚守同一人） */
+  private lastGuardedId: number | null = null;
 
   constructor({ playerName, deck, llm, emit, pace = 1 }: EngineOptions) {
     this.id = 'g' + Date.now().toString(36) + crypto.randomBytes(3).toString('hex');
@@ -403,8 +407,17 @@ export class GameEngine implements GameView {
     }
 
     /* 5. 天亮，结算（死讯统一公布，不披露死因与用药） */
+    const guarded = this.guardedId != null && this.guardedId === this.nightKill;
+    const savedKill = this.saved && this.nightKill != null;
+    /**
+     * 同守同救（奶穿）：守卫守护与女巫解药同时作用于同一人时，该玩家依然死亡。
+     * 依据官方赛事规则与百科口径——「守卫和女巫同时对其守护和使用解药，该名玩家依然会死亡」。
+     */
+    const pierced = guarded && savedKill;
+    const wolfKillLands = this.nightKill != null && (pierced || (!savedKill && !guarded));
+
     const dead: Player[] = [];
-    if (this.nightKill != null && !this.saved) {
+    if (wolfKillLands && this.nightKill != null) {
       const victim = this.byId(this.nightKill);
       if (victim) dead.push(victim);
     }
@@ -414,22 +427,111 @@ export class GameEngine implements GameView {
     }
     for (const p of dead) this.kill(p);
 
-    /* 复盘记录：狼刀/解药/毒药/死因全部留档（只在观战投影里对外，玩家视角会被裁剪） */
+    /* 复盘记录：狼刀/解药/毒药/守卫/死因全部留档（观战可见，玩家视角会被裁剪） */
     const record = this.recordOf(this.round);
     const wolfVictim = this.nightKill != null ? this.byId(this.nightKill) : undefined;
     const poisonVictim = this.poisonId != null ? this.byId(this.poisonId) : undefined;
+    const guardVictim = this.guardedId != null ? this.byId(this.guardedId) : undefined;
     record.wolfTarget = wolfVictim ? { playerId: wolfVictim.id, name: wolfVictim.name } : null;
     record.saved = this.saved;
     record.poisonTarget = poisonVictim ? { playerId: poisonVictim.id, name: poisonVictim.name } : null;
-    record.deaths = dead.map((p) => ({
+    record.guardTarget = guardVictim ? { playerId: guardVictim.id, name: guardVictim.name } : null;
+    record.guarded = guarded && !pierced;
+    record.pierced = pierced;
+
+    /* 猎人：被毒杀不能开枪；被刀可以开枪（当场结算） */
+    const shotDeaths = await this.resolveHunterDeaths(dead);
+    const allDead = [...dead, ...shotDeaths];
+
+    record.deaths = allDead.map((p) => ({
       playerId: p.id,
       name: p.name,
       seat: p.seat,
-      cause: p.id === this.poisonId && p.id !== this.nightKill ? 'poison' : 'wolf',
+      cause: this.deathCauseOf(p, { wolfKillLands, shotByHunter: shotDeaths.includes(p) }),
     }));
 
-    this.lastNightText = dead.length ? `${dead.map((p) => p.name).join('、')} 出局` : '平安夜';
-    this.pushEvent('night-settle', { dead: dead.map((p) => p.id), text: this.lastNightText });
+    this.lastGuardedId = this.guardedId;
+    this.lastNightText = allDead.length ? `${allDead.map((p) => p.name).join('、')} 出局` : '平安夜';
+    this.pushEvent('night-settle', { dead: allDead.map((p) => p.id), text: this.lastNightText });
+  }
+
+  /** 死因标注：毒 > 猎人 > 刀（后两者同时成立时按猎人算，因为枪是直接原因） */
+  private deathCauseOf(
+    player: Player,
+    ctx: { wolfKillLands: boolean; shotByHunter: boolean },
+  ): 'wolf' | 'poison' | 'hunter' | 'vote' {
+    if (ctx.shotByHunter) return 'hunter';
+    if (player.id === this.poisonId) return 'poison';
+    if (ctx.wolfKillLands && player.id === this.nightKill) return 'wolf';
+    return 'wolf';
+  }
+
+  /**
+   * 结算死讯后处理猎人开枪（Q7：当场开枪）。
+   * 规则：除被毒杀外，以任何方式出局都可开枪，也可以压枪不开。
+   * 返回被枪带走的人（可能为空）。
+   */
+  private async resolveHunterDeaths(dead: Player[]): Promise<Player[]> {
+    const shot: Player[] = [];
+
+    for (const player of dead) {
+      if (player.role !== 'hunter') continue;
+      /* 被毒杀一律不能开枪（官方规则：被毒杀者不能发动技能） */
+      if (player.id === this.poisonId) {
+        this.log(`${player.name} 是猎人，但被毒杀无法开枪`, 'sys');
+        this.recordOf(this.round).hunterShot = {
+          hunterId: player.id,
+          name: player.name,
+          targetId: null,
+          targetName: null,
+        };
+        continue;
+      }
+
+      let target: Player | null = null;
+      if (player.isHuman) {
+        const candidates = this.alivePlayers().filter((p) => p.id !== player.id);
+        const value = await this.waitHuman(
+          'pick',
+          {
+            title: '猎人开枪（只有你能决定）',
+            html: `你出局了，可以开枪带走一名存活玩家，也可以压枪不开。<br><span style="color:var(--muted)">带错人会直接改变局势</span>`,
+            confirm: null,
+          },
+          [{ label: '压枪不开', value: '' }, ...candidates.map((p) => ({ label: `带走 ${p.emoji} ${p.name}`, value: p.id }))],
+        );
+        target = typeof value === 'number' ? this.byId(value) ?? null : null;
+      } else {
+        const result = await new AIPlayer(player, this.llm).hunterShot(this);
+        target = result ? this.byId(result.target) ?? null : null;
+        if (result) player.thoughts.push({ round: this.round, phase: '昼', text: result.reason });
+      }
+
+      const record = this.recordOf(this.round);
+      if (!target || !target.alive) {
+        this.log(`${player.name}（猎人）选择压枪不开`, 'sys');
+        record.hunterShot = { hunterId: player.id, name: player.name, targetId: null, targetName: null };
+        continue;
+      }
+
+      this.kill(target);
+      shot.push(target);
+      record.hunterShot = {
+        hunterId: player.id,
+        name: player.name,
+        targetId: target.id,
+        targetName: target.name,
+      };
+      this.log(`${player.name}（猎人）开枪带走了 ${target.name}`, 'death');
+      this.pushEvent('hunter-shot', {
+        hunterId: player.id,
+        hunterName: player.name,
+        targetId: target.id,
+        targetName: target.name,
+      });
+    }
+
+    return shot;
   }
 
   /** 法官口令（夜晚唯一允许的事件类型，不含玩家名与行动者） */
@@ -462,6 +564,11 @@ export class GameEngine implements GameView {
       setPoison: (id) => {
         this.poisonId = id;
       },
+      getGuarded: () => this.guardedId,
+      setGuarded: (id) => {
+        this.guardedId = id;
+      },
+      getLastGuarded: () => this.lastGuardedId,
     };
   }
 
@@ -478,6 +585,10 @@ export class GameEngine implements GameView {
         deaths: [],
         exiled: null,
         tie: false,
+        guardTarget: null,
+        guarded: false,
+        pierced: false,
+        hunterShot: null,
       };
       this.timeline.push(record);
     }
@@ -628,10 +739,10 @@ export class GameEngine implements GameView {
       }
     }
 
-    this.resolveVotes(votes);
+    await this.resolveVotes(votes);
   }
 
-  private resolveVotes(votes: { voter: number; target: number }[]): void {
+  private async resolveVotes(votes: { voter: number; target: number }[]): Promise<void> {
     if (!votes.length) return;
 
     const counts = new Map<number, number>();
@@ -662,6 +773,17 @@ export class GameEngine implements GameView {
     out.deadRound = this.round;
     const name = ROLES[out.role].name;
     this.recordOf(this.round).exiled = { playerId: out.id, name: out.name, role: out.role, votes: max };
+
+    /* Q7：被放逐时当场开枪（猎人不在此列的话这里是空操作） */
+    const shot = await this.resolveHunterDeaths([out]);
+    for (const p of shot) {
+      this.recordOf(this.round).deaths.push({
+        playerId: p.id,
+        name: p.name,
+        seat: p.seat,
+        cause: 'hunter',
+      });
+    }
     this.log(`${out.name} 被放逐，身份是${name}`, 'death');
     this.publicLog.push(`第${this.round}天 ${out.name} 被放逐，身份：${name}`);
     this.pushEvent('vote-result', {

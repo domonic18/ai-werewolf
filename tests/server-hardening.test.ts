@@ -272,10 +272,11 @@ describe('角色库接口', () => {
     expect(body.players).toBe(8);
     const total = body.recommended.reduce((a, s) => a + s.count, 0);
     expect(total).toBe(8);
-    /* 猎人未实装：不应出现在推荐里，但应出现在锁定列表 */
-    expect(body.recommended.some((s) => s.key === 'hunter')).toBe(false);
-    expect(body.available.map((c) => c.key)).not.toContain('hunter');
-    expect(body.locked.map((c) => c.key)).toContain('hunter');
+    /* 8 人局已实装猎人：推荐里应有它；长老未实装，应在锁定列表 */
+    expect(body.recommended.some((s) => s.key === 'hunter')).toBe(true);
+    expect(body.available.map((c) => c.key)).toContain('hunter');
+    expect(body.available.map((c) => c.key)).not.toContain('elder');
+    expect(body.locked.map((c) => c.key)).toContain('elder');
   });
 
   it('人数越界会被夹到 6~12，而不是报错', async () => {
@@ -324,11 +325,23 @@ describe('按人数/牌组开局', () => {
       playerName: '非法2',
       deck: [
         { key: 'wolf', count: 2 },
-        { key: 'hunter', count: 1 },
+        { key: 'elder', count: 1 },
         { key: 'villager', count: 3 },
       ],
     });
     expect(notImplemented.status).toBe(400);
     expect(notImplemented.body.error).toContain('尚未开放');
+
+    /* 猎人在 6 人局人数不够 */
+    const tooFew = await create({
+      playerName: '非法3',
+      deck: [
+        { key: 'wolf', count: 2 },
+        { key: 'hunter', count: 1 },
+        { key: 'villager', count: 3 },
+      ],
+    });
+    expect(tooFew.status).toBe(400);
+    expect(tooFew.body.error).toContain('至少 8 人');
   });
 });

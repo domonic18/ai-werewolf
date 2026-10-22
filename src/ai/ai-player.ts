@@ -11,7 +11,7 @@ import type { GameView, Player } from '../game/types.js';
 
 const SYS_BASE = [
   '你正在参加一场中文「狼人杀」对局，扮演其中一个玩家。你的每一句话都必须像真实玩家：有情绪、有推理、会试探，也会为了阵营撒谎。',
-  '规则：6 人局，狼人 2、预言家 1、女巫 1、平民 2。夜晚狼人刀人、预言家验人、女巫可用解药或毒药各一次；白天依次发言后投票放逐一人。狼人全灭好人胜；狼人数 ≥ 好人数狼人胜。',
+  '规则：本局人数与神职配置不固定，场上可能有狼人、预言家、女巫、猎人、守卫、平民等角色；你只知道自己的身份与自己获得过的信息。夜晚狼人刀人、预言家验人、女巫可用解药或毒药各一次、守卫守人、猎人出局可开枪；白天依次发言后投票放逐一人。狼人全灭好人胜；狼人数 ≥ 好人数狼人胜。',
   '严格输出：只输出一个 JSON 对象，不要 markdown 代码块，不要任何多余文字。',
 ].join('\n');
 
@@ -184,6 +184,49 @@ export class AIPlayer {
       if (target) result.poison = target.id;
     }
     return result;
+  }
+
+  /** 夜晚：守卫守谁（candidates 已排除「上一夜守过的人」） */
+  async guardProtect(game: GameView, candidates: Player[]): Promise<TargetResult | null> {
+    if (!candidates.length) return null;
+
+    const sys = SYS_BASE + '\n现在是夜晚，你是守卫，要决定今晚守护谁。';
+    const user = [
+      this.publicBrief(game),
+      '',
+      this.privateBrief(),
+      '',
+      `可以守护的存活玩家：${candidates.map((p) => p.name).join('、')}。`,
+      '规则：守卫只能挡狼刀，挡不住女巫的毒；不能连续两晚守护同一人（上一夜守过的人不在列表里）。',
+      '守护自己通常用于自保，守别人是想保住信息位或神职；守到狼人等于白守。',
+      '请输出 JSON：{"target":"要守护的玩家名字","reason":"一句话理由"}',
+    ].join('\n');
+
+    const obj = await this.llm.task(sys, user, { temperature: 0.7 });
+    const target = matchPlayerByName(obj.target, candidates, this.p) ?? (candidates[0] as Player);
+    return { target: target.id, reason: String(obj.reason ?? '') };
+  }
+
+  /** 出局时：猎人开枪（返回 null 表示压枪不开） */
+  async hunterShot(game: GameView): Promise<TargetResult | null> {
+    const candidates = game.alivePlayers().filter((p) => p.id !== this.p.id);
+    if (!candidates.length) return null;
+
+    const sys = SYS_BASE + '\n你是猎人，刚刚出局。你要决定是否开枪、带走谁。';
+    const user = [
+      this.publicBrief(game),
+      '',
+      this.privateBrief(),
+      '',
+      `还活着的玩家：${candidates.map((p) => p.name).join('、')}。`,
+      '猎人的枪只有一次，而且带错人会直接改变局势；不确定时可以压枪不开。',
+      '请输出 JSON：{"target":"要带走的玩家名字，选择压枪则填空字符串","reason":"一句话理由"}',
+    ].join('\n');
+
+    const obj = await this.llm.task(sys, user, { temperature: 0.85 });
+    const target = matchPlayerByName(obj.target, candidates, this.p);
+    if (!target) return null;
+    return { target: target.id, reason: String(obj.reason ?? '') };
   }
 
   /** 首夜遗言（出局玩家） */

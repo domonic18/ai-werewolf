@@ -14,17 +14,17 @@
 
 ## Phase 2: 守卫（US3）
 
-- [ ] T005 `src/game/types.ts` 增加 `guarded?: boolean` / 引擎维护 `lastGuarded`（0.3d）
-- [ ] T006 `src/game/behaviors.ts` 新增 `guardBehavior`：口令「守卫请睁眼，选择今晚守护的人…」；不能连守同一人（1d）
-- [ ] T007 `NightHost` 扩展 `getLastGuarded()` / `setGuarded()`；夜晚结算时守卫目标免于狼刀（0.5d）
-- [ ] T008 [P] 单测：守中不亡、连守无效、守自己不违规、守卫不防毒（1d）
-- [ ] T009 复盘时间轴增加 `guarded` 记录，观战可见、玩家不可见（0.5d）
+- [x] T005 `src/game/types.ts` 增加 `guarded?: boolean` / 引擎维护 `lastGuarded`（0.3d）
+- [x] T006 `src/game/behaviors.ts` 新增 `guardBehavior`：口令「守卫请睁眼，选择今晚守护的人…」；不能连守同一人（1d）
+- [x] T007 `NightHost` 扩展 `getLastGuarded()` / `setGuarded()`；夜晚结算时守卫目标免于狼刀（0.5d）
+- [x] T008 [P] 单测：守中不亡、连守无效、守自己不违规、守卫不防毒（1d）
+- [x] T009 复盘时间轴增加 `guarded` 记录，观战可见、玩家不可见（0.5d）
 
 ## Phase 3: 猎人（US3）
 
-- [ ] T010 `src/game/behaviors.ts` 新增 `DeathHook` 类型与 `hunterBehavior.onDeath`：非毒杀可开枪（1d）
-- [ ] T011 引擎在「死讯公布后、判胜负前」调用死亡钩子；开枪结果写入事件与时间轴（0.5d）
-- [ ] T012 [P] 单测：被刀可开枪、被放逐可开枪、被毒不能开枪、猎人开枪带走最后一狼判好人胜（1d）
+- [x] T010 `src/game/behaviors.ts` 新增 `DeathHook` 类型与 `hunterBehavior.onDeath`：非毒杀可开枪（1d）
+- [x] T011 引擎在「死讯公布后、判胜负前」调用死亡钩子；开枪结果写入事件与时间轴（0.5d）
+- [x] T012 [P] 单测：被刀可开枪、被放逐可开枪、被毒不能开枪、猎人开枪带走最后一狼判好人胜（1d）
 - [ ] T013 前端：猎人开枪的选项面板复用 `pendingAction`，文案与选项由服务端给（0.5d）
 
 ## Phase 4: 建局配置页（US2）

@@ -90,6 +90,21 @@ export function buildStage(events: GameEvent[], context: StageContext): StageVie
           ),
           tone: 'vote',
         };
+      case 'hunter-shot':
+        return {
+          title: '🔫 猎人开枪',
+          body: event.payload.targetName ? (
+            <>
+              <b>{event.payload.hunterName}</b>（猎人）出局后开枪，带走了{' '}
+              <b style={{ color: 'var(--wolf)' }}>{event.payload.targetName}</b>。
+            </>
+          ) : (
+            <>
+              <b>{event.payload.hunterName}</b>（猎人）出局后选择压枪不开。
+            </>
+          ),
+          tone: 'dawn',
+        };
       case 'aborted':
         return {
           title: 'AI 掉线了',

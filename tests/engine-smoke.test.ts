@@ -159,24 +159,36 @@ describe('复盘记录与实际行动一致（用药 / 死因）', () => {
           poisonSeen += 1;
           expect(deathIds).toContain(rec.poisonTarget.playerId);
           const poisonDeath = rec.deaths.find((d) => d.playerId === rec.poisonTarget?.playerId);
-          /* 同一个人既被刀又被毒时只记一条，死因记「刀」（先发生的解释优先） */
-          const sameAsWolf = rec.wolfTarget?.playerId === rec.poisonTarget.playerId && !rec.saved;
-          expect(poisonDeath?.cause).toBe(sameAsWolf ? 'wolf' : 'poison');
+          /* 同一个人既被刀又被毒时只记一条；死因以「毒」为准（女巫是明确下手的动作），
+             被猎人开枪带走则记 hunter */
+          expect(['poison', 'hunter']).toContain(poisonDeath?.cause);
           /* 用了解药就不能再用毒药 */
           expect(rec.saved).toBe(false);
         }
 
         /* 没被救、也没被毒顶掉的狼刀目标，必须出现在死亡名单且死因为刀 */
-        if (rec.wolfTarget && !rec.saved) {
+        if (rec.wolfTarget && !rec.saved && !rec.guarded) {
           const wolfDeath = rec.deaths.find((d) => d.playerId === rec.wolfTarget?.playerId);
-          if (wolfDeath) expect(wolfDeath.cause).toBe('wolf');
-          else expect(rec.poisonTarget?.playerId).toBe(rec.wolfTarget.playerId);
+          if (wolfDeath) {
+            /* 同一人被刀又被毒时死因记为 poison（女巫是明确动作） */
+            const alsoPoisoned = rec.poisonTarget?.playerId === rec.wolfTarget.playerId;
+            expect(wolfDeath.cause).toBe(alsoPoisoned ? 'poison' : 'wolf');
+          } else {
+            /* 没死，说明被解药救下或被守卫挡下 */
+            expect(rec.saved || rec.guarded || rec.pierced).toBe(true);
+          }
         }
 
-        /* 每条死亡记录的死因必须能在场上找到解释 */
+        /* 每条死亡记录的死因必须能在场上找到解释（hunter = 被猎人开枪带走） */
         for (const death of rec.deaths) {
-          const explainedByWolf = rec.wolfTarget?.playerId === death.playerId && !rec.saved;
+          if (death.cause === 'hunter') {
+            expect(rec.hunterShot?.targetId).toBe(death.playerId);
+            continue;
+          }
+          const explainedByWolf = rec.wolfTarget?.playerId === death.playerId && !rec.saved && !rec.guarded;
           const explainedByPoison = rec.poisonTarget?.playerId === death.playerId;
+          /* 同守同救（奶穿）也算「有解释」的死亡 */
+          if (rec.pierced && rec.wolfTarget?.playerId === death.playerId) continue;
           expect(
             explainedByWolf || explainedByPoison,
             `第 ${rec.round} 轮的死亡 ${death.name} 找不到死因解释`,

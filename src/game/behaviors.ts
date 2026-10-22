@@ -32,6 +32,10 @@ export interface NightHost {
   getSaved(): boolean;
   setSaved(saved: boolean): void;
   setPoison(id: number | null): void;
+  getGuarded(): number | null;
+  setGuarded(id: number | null): void;
+  /** 上一夜守过谁（不能连续两晚守同一人） */
+  getLastGuarded(): number | null;
 }
 
 export interface RoleBehavior {
@@ -187,5 +191,43 @@ const witchBehavior: RoleBehavior = {
   },
 };
 
-/** 夜间睁眼顺序即数组顺序：狼人 → 预言家 → 女巫 */
-export const NIGHT_BEHAVIORS: readonly RoleBehavior[] = [wolfBehavior, seerBehavior, witchBehavior];
+/* ---------- 守卫：每晚守一人，不能连守同一人，可守自己，可空守 ---------- */
+const guardBehavior: RoleBehavior = {
+  role: 'guard',
+  openCue: '守卫请睁眼，选择今晚守护的人…',
+  closeCue: '守卫请闭眼',
+  async act(host, actor) {
+    const lastGuarded = host.getLastGuarded();
+    /* 不能连续两晚守同一人；能守的只剩「上一夜守过的人」时就只能空守 */
+    const candidates = host.alivePlayers().filter((p) => p.id !== lastGuarded);
+    if (!candidates.length) return;
+
+    if (actor.isHuman) {
+      const value = await host.waitHuman(
+        'pick',
+        {
+          title: '守卫的夜晚（只有你知道）',
+          html:
+            `今晚要守谁？守卫只能挡狼刀，挡不住毒。<br>` +
+            `<span style="color:var(--muted)">不能连续两晚守同一人${lastGuarded != null ? '（上一夜守过的人已排除）' : ''}</span>`,
+          confirm: null,
+        },
+        [{ label: '今晚空守', value: '' }, ...candidates.map((p) => ({ label: `守 ${p.name}`, value: p.id }))],
+      );
+      host.setGuarded(typeof value === 'number' ? value : null);
+      return;
+    }
+
+    const result = await new AIPlayer(actor, host.llm).guardProtect(host.game, candidates);
+    host.setGuarded(result ? result.target : null);
+    if (result) actor.thoughts.push({ round: host.round, phase: '夜', text: result.reason });
+  },
+};
+
+/** 夜间睁眼顺序即数组顺序：狼人 → 守卫 → 预言家 → 女巫 */
+export const NIGHT_BEHAVIORS: readonly RoleBehavior[] = [
+  wolfBehavior,
+  guardBehavior,
+  seerBehavior,
+  witchBehavior,
+];
