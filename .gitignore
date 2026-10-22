@@ -3,3 +3,7 @@ node_modules/
 *.log
 .env
 config/cloud.json
+
+# 项目文档需要入库（覆盖全局 *.md 忽略规则）
+!README.md
+!docs/**/*.md
