@@ -71,6 +71,7 @@ npm run dev        # 前端 HMR（:5173，/api 代理到 :8787）
 npm run dev:server # 后端热重载（tsx watch，默认 :3000，可 PORT=8787）
 npm test           # vitest：单元 + 引擎冒烟 + API 全链路（Mock LLM，无需网络）
 npm run typecheck  # 前后端类型检查
+npm run smoke:live # 线上回归：对已部署实例跑 19 项检查（发版后必跑，失败退出码非 0）
 
 # 以测试环境启动（页面显示 STAGING 徽章，且默认不写生产战绩表）
 WB_ENV=staging npm start
@@ -112,6 +113,7 @@ WB_ENV=staging WB_WRITE_MATCHES=1 npm start
 3. **服务端权威 + 投影隔离**：玩家快照与观战投影是两个函数，语义互斥；夜晚事件流只有法官口令，不含「谁在行动」
 4. **观战零成本**：观战只读事件流，不触发任何 LLM 调用
 5. **测试不依赖网络**：引擎与 API 测试注入 Mock LLM，并支持 `pace` 系数压缩演出等待（10 局冒烟 ~1.3s）
+6. **两层回归**：`npm test` 用 Mock LLM 验逻辑（不耗额度）；`npm run smoke:live` 对已部署实例验「发上去到底能不能用」——首页与产物、404 语义、凭证隔离、真实 LLM 发言、观战投影，共 19 项
 
 ## 云资源
 

@@ -58,9 +58,9 @@ description: "Task list for 001 游戏大厅与对局观战"
 
 - [x] T014 [US2] `src/game/engine.js` 新增 `spectateSnapshot()`：全量 `role/camp`、`factions`、`tally`、`timeline`、`visibleAt`，**不含** `pendingAction` 内部结构与"谁正在行动"（1d）
 - [x] T015 [US2] `src/server/routes.js` `/spectate`：登记 `client`、返回 `snapshot`+`spectators`、保留旧 `events`（0.5d）
-- [ ] T016 [US2] `src/server/routes.js` 写操作守卫：请求带观战标识或房间内无该玩家会话时 `/action`、`/quit` 返回 403（0.5d）
-- [ ] T017 [P] [US2] `tests/api-selftest.test.js` 新增隐私断言：观战快照能读到他人 `role`；玩家快照 `players[].role` 不存在；夜晚事件流无「玩家名+行为词」共现（1d）
-- [ ] T018 [P] [US2] `tests/api-selftest.test.js` 新增观战写断言：观战者 `POST /action` → 403，且 `version` 不变（0.3d）
+- [x] T016 [US2] 写操作守卫：`/action`、`/quit` 校验 `X-Player-Token`，无凭证 401（实现为 P0-a 一次性凭证，比 403 更严格）（0.5d）
+- [x] T017 [P] [US2] `tests/server-hardening.test.ts` 新增隐私断言：观战快照能读到他人 `role`；玩家快照 `players[].role` 不存在；夜晚事件流无「玩家名+行为词」共现（1d）
+- [x] T018 [P] [US2] `tests/server-hardening.test.ts` 新增观战写断言：观战者 `POST /action` → 403，且 `version` 不变（0.3d）
 - [ ] T019 [US2] 观战视图前端：身份座位卡（阵营色）、阵营存活进度条、夜晚时间轴、「延迟/实时」标注（1.5d）
 - [ ] T020 [US2] 观战终局与失效：`game-over`/`aborted`/404 三态切换与回大厅入口（0.5d）
 
@@ -95,7 +95,7 @@ description: "Task list for 001 游戏大厅与对局观战"
 - [ ] T029 [P] 更新 `docs/PRD.md`：R3.2 状态改为已实现，路线图 v1.4 打勾（0.2d）
 - [ ] T030 [P] 更新 `AGENTS.md`：若新增目录（`public/assets/lobby.js` 等）需登记职责（0.1d）
 - [ ] T031 全量回归：`npm test` 三层 + 隐私审计 + 390px 手动走查清单留档（0.5d）
-- [ ] T032 部署验证：线上核对版本号、`/api/live` 新字段、观战链路（0.3d）
+- [x] T032 部署验证：`tools/live-smoke.mjs` 自动核对首页/产物/404/凭证/真实发言/观战投影共 19 项（0.3d）
 
 ---
 

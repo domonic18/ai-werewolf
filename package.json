@@ -18,7 +18,8 @@
     "start": "node dist-server/server/index.js",
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.server.json --noEmit",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "smoke:live": "node tools/live-smoke.mjs"
   },
   "dependencies": {
     "@tencent-ai/workbuddy-cloud-sdk": "dev",
