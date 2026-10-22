@@ -13,6 +13,17 @@ import { useGameStore } from './store/gameStore';
 
 type Screen = 'home' | 'lobby' | 'setup' | 'login';
 
+/**
+ * 页面与地址栏 hash 同步：刷新后停在原页面，深链也能直达（#lobby / #setup / #login）。
+ * 用 replaceState 而不是 pushState —— 这几屏是同一页内的分屏，不该占浏览器历史。
+ */
+const SCREENS: readonly Screen[] = ['home', 'lobby', 'setup', 'login'];
+
+function screenFromHash(): Screen {
+  const raw = window.location.hash.replace(/^#\/?/, '');
+  return SCREENS.includes(raw as Screen) ? (raw as Screen) : 'home';
+}
+
 export function App(): JSX.Element {
   const gameId = useGameStore((s) => s.gameId);
   const snapshot = useGameStore((s) => s.snapshot);
@@ -21,7 +32,32 @@ export function App(): JSX.Element {
   const open = useGameStore((s) => s.open);
   const { lost, reason } = useMatchPolling();
 
-  const [screen, setScreen] = useState<Screen>('home');
+  const [screen, setScreen] = useState<Screen>(() => screenFromHash());
+
+  /* 地址栏跟着当前分屏走（replaceState：不产生历史记录，但刷新后能回到这一屏） */
+  useEffect(() => {
+    /* 观战深链 #watch=… 优先，别被分屏同步覆盖掉 */
+    if (/^#watch=/.test(window.location.hash)) return;
+    const target = screen === 'home' ? window.location.pathname : `#${screen}`;
+    if (screen === 'home' ? !window.location.hash : window.location.hash === `#${screen}`) return;
+    window.history.replaceState({}, '', `${target}${window.location.search}`);
+  }, [screen]);
+
+  /* 用户手改 hash / 浏览器后退时，把页面切回去 */
+  useEffect(() => {
+    const onHashChange = (): void => setScreen(screenFromHash());
+    window.addEventListener('hashchange', onHashChange);
+    return () => window.removeEventListener('hashchange', onHashChange);
+  }, []);
+
+  /*
+   * 观战深链：#watch=<gameId> 直接进上帝视角。
+   * 观战不需要凭证，所以这个链接可以直接分享给别人。
+   */
+  useEffect(() => {
+    const matched = window.location.hash.match(/^#watch=([\w-]+)$/);
+    if (matched?.[1]) open(matched[1], { watching: true });
+  }, [open]);
   /* 第三方登录回调失败要说出来，不能让用户以为「点了没反应」 */
   const [oauthError, setOauthError] = useState<string | null>(null);
   /* 观战用的是上帝视角投影，玩家用私有快照 —— 判断「结束」要按当前视角取，否则观战永远看不到结算页 */

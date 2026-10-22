@@ -1,21 +1,16 @@
+import { useState } from 'react';
 import type { LobbyGame } from '@shared/types';
 import { useLobby } from '../hooks/useLobby';
 import type { LobbyState } from '../hooks/useLobby';
-import { Footer } from '../components/Footer';
 import { readSavedGame } from '../lib/storage';
 
 const APP_VERSION = __APP_VERSION__;
 
-const FILTERS: { key: LobbyState['filter']; label: string }[] = [
+const FILTERS: { key: NonNullable<LobbyState['filter']>; label: string }[] = [
   { key: 'all', label: '全部' },
+  { key: 'mine', label: '我的' },
   { key: 'human', label: '真人局' },
   { key: 'final', label: '决赛圈' },
-  { key: 'mine', label: '我的对局' },
-];
-
-const SORTS: { key: LobbyState['sort']; label: string }[] = [
-  { key: 'spectators', label: '按热度' },
-  { key: 'created', label: '按开局时间' },
 ];
 
 interface LobbyPageProps {
@@ -26,215 +21,236 @@ interface LobbyPageProps {
   onStart: () => void;
 }
 
-/** 一局一行：密度高时用这个；少于 6 局时用卡片，避免列表行在大片空白里显得空 */
+/** 阶段胶囊的配色：决赛圈/投票红、刚开局绿、夜里灰 */
+function stageClass(game: LobbyGame): string {
+  if (game.round === 0) return 'lb-stage night'; /* 准备中：还没开局，别用「刚开局」的绿 */
+  if (game.isFinal || game.phase === 'vote') return 'lb-stage';
+  if (game.phase === 'night') return 'lb-stage night';
+  return 'lb-stage good';
+}
+
+/** 一局一行（设计稿 row：头像组 + 名称/人数 + 阶段/存活 + 观战人数） */
 function GameRow({
   game,
-  onWatch,
-  onResume,
   mine,
+  onOpen,
 }: {
   game: LobbyGame;
-  onWatch: (id: string) => void;
-  onResume: (id: string) => void;
   mine: boolean;
+  onOpen: (game: LobbyGame) => void;
 }): JSX.Element {
-  const aliveRatio = game.players > 0 ? game.alive / game.players : 0;
-  const classes = ['lobby-row'];
-  if (game.isFinal) classes.push('hot');
-  if (game.spectators >= 3) classes.push('hot');
-
   return (
-    <button className={classes.join(' ')} onClick={() => (mine ? onResume(game.gameId) : onWatch(game.gameId))}>
-      <span className="lobby-row-main">
-        <span className="lobby-host">
-          👤 {game.host} 的对局
-          {game.isFinal ? <em className="lobby-flag">决赛圈</em> : null}
-          {!game.hasHuman ? <em className="lobby-flag ghost">全 AI</em> : null}
-        </span>
-        <span className="lobby-meta">
-          <span className="tag phase">{game.phaseLabel}</span>
-          <span className="lobby-alive">
-            存活 {game.alive}/{game.players}
-            <span className="lobby-alive-track">
-              <span className="lobby-alive-fill" style={{ width: `${Math.round(aliveRatio * 100)}%` }} />
+    <button className="lb-row" onClick={() => onOpen(game)}>
+      <div className="lb-row-left">
+        <div className="lb-avas">
+          <div className={mine ? 'lb-ava me' : 'lb-ava'}>{mine ? '🙋' : '🕶️'}</div>
+          <div className="lb-ava">🍊</div>
+          <div className="lb-ava">🧊</div>
+        </div>
+        <div className="lb-info">
+          <div className="lb-line">
+            <span className="lb-name">{game.host} 的局</span>
+            <span className="lb-size">{game.players} 人</span>
+          </div>
+          <div className="lb-line">
+            <span className={stageClass(game)}>{game.phaseLabel}</span>
+            <span className="lb-alive">
+              存活 {game.alive}/{game.players}
             </span>
-          </span>
-        </span>
-      </span>
-      <span className="lobby-side">
-        <span className="lobby-eye">👁 {game.spectators}</span>
-        <span className="lobby-watch">{mine ? '继续 ›' : '观战 ›'}</span>
-      </span>
+          </div>
+        </div>
+      </div>
+      <div className="lb-right">
+        <span className="lb-view-count">👁 {game.spectators}</span>
+        <span className="lb-arrow">›</span>
+      </div>
     </button>
   );
 }
 
+/** 网格视图：两列卡片，信息量与行视图一致 */
 function GameCard({
   game,
-  onWatch,
-  onResume,
   mine,
+  onOpen,
 }: {
   game: LobbyGame;
-  onWatch: (id: string) => void;
-  onResume: (id: string) => void;
   mine: boolean;
+  onOpen: (game: LobbyGame) => void;
 }): JSX.Element {
-  const aliveRatio = game.players > 0 ? game.alive / game.players : 0;
   return (
-    <button
-      className={`lobby-card ${game.isFinal ? 'hot' : ''}`}
-      onClick={() => (mine ? onResume(game.gameId) : onWatch(game.gameId))}
-    >
-      <span className="lobby-card-top">
-        <span className="lobby-host">👤 {game.host}</span>
-        <span className="tag phase">{game.phaseLabel}</span>
-      </span>
-      <span className="lobby-alive">
-        存活 {game.alive}/{game.players}
-        <span className="lobby-alive-track">
-          <span className="lobby-alive-fill" style={{ width: `${Math.round(aliveRatio * 100)}%` }} />
+    <button className="lb-row" style={{ height: 'auto', flexDirection: 'column', alignItems: 'stretch', gap: 8, padding: 11 }} onClick={() => onOpen(game)}>
+      <div className="lb-line" style={{ justifyContent: 'space-between' }}>
+        <span className={stageClass(game)}>{game.phaseLabel}</span>
+        <span className="lb-view-count">👁 {game.spectators}</span>
+      </div>
+      <div className="lb-avas">
+        <div className={mine ? 'lb-ava me' : 'lb-ava'}>{mine ? '🙋' : '🕶️'}</div>
+        <div className="lb-ava">🍊</div>
+        <div className="lb-ava">🧊</div>
+      </div>
+      <span className="lb-name">{game.host} 的局</span>
+      <div className="lb-line" style={{ justifyContent: 'space-between' }}>
+        <span className="lb-size">{game.players} 人</span>
+        <span className="lb-alive">
+          {game.alive}/{game.players}
         </span>
-      </span>
-      <span className="lobby-card-bottom">
-        <span className="lobby-eye">👁 {game.spectators} 人在看</span>
-        <span className="lobby-watch">{mine ? '继续 ›' : '观战 ›'}</span>
-      </span>
+      </div>
     </button>
   );
 }
 
+/**
+ * 游戏大厅：逐项对齐 docs/designs/06-lobby.html。
+ * 结构 = 返回栏 / 概览卡（进行中·观战·决赛圈）/ 筛选 chips（带角标）/
+ *        排序 + 视图切换 / 对局列表 / 加载更多 / 页脚。
+ */
 export function LobbyPage({ onBack, onWatch, onResume, onStart }: LobbyPageProps): JSX.Element {
   const lobby = useLobby();
+  const [grid, setGrid] = useState(false);
   const mineId = readSavedGame()?.id ?? null;
   const watching = lobby.games.reduce((sum, game) => sum + game.spectators, 0);
-  /* 密度自适应：局多的时候卡片太占屏幕，换成紧凑行 */
-  const dense = lobby.games.length >= 6;
+  const finals = lobby.games.filter((g) => g.isFinal).length;
+  const remaining = Math.max(0, lobby.total - lobby.games.length);
+
+  const open = (game: LobbyGame): void => {
+    if (game.gameId === mineId) onResume(game.gameId);
+    else onWatch(game.gameId);
+  };
+
+  const emptyText =
+    lobby.filter === 'mine'
+      ? '还没有属于你的进行中对局'
+      : lobby.filter === 'final'
+        ? '现在没有决赛圈的对局'
+        : lobby.filter === 'human'
+          ? '现在没有真人局'
+          : '现在没有进行中的对局';
 
   return (
-    <section className="screen">
-      <div className="topbar">
-        <button className="btn ghost small" onClick={onBack}>
-          ‹ 返回
+    <section className="screen page-lobby">
+      <div className="d-nav lb-nav">
+        <button className="d-back" onClick={onBack} aria-label="返回">
+          ←
         </button>
-        <div className="lobby-title">游戏大厅</div>
-        <button className="btn ghost small" onClick={() => void lobby.reload()} disabled={lobby.loading}>
-          {lobby.loading ? '刷新中' : '刷新'}
+        <p className="lb-nav-title">游戏大厅</p>
+        <button className="lb-search" onClick={() => void lobby.reload()} disabled={lobby.loading} aria-label="刷新">
+          ↻
         </button>
       </div>
 
-      <div className="lobby-stats">
-        <div className="lobby-stat">
-          <b>{lobby.total}</b>
-          <span>进行中</span>
+      <div className="ov-card">
+        <div className="ov-stats">
+          <div className="ov-item">
+            <div className="ov-num-row">
+              <span className="dot" />
+              <b>{lobby.total}</b>
+            </div>
+            <span>进行中</span>
+          </div>
+          <div className="ov-div" />
+          <div className="ov-item good">
+            <b>{watching}</b>
+            <span>人正在观战</span>
+          </div>
+          <div className="ov-div" />
+          <div className="ov-item gold">
+            <b>{finals}</b>
+            <span>决赛圈</span>
+          </div>
         </div>
-        <div className="lobby-stat">
-          <b>{watching}</b>
-          <span>观战中</span>
-        </div>
-        <div className="lobby-stat">
-          <b>{lobby.games.filter((g) => g.isFinal).length}</b>
-          <span>决赛圈</span>
+        <div className="ov-foot">
+          <span>{lobby.loading ? '刷新中…' : '刚刚更新 · 点右上角刷新'}</span>
+          <span>{lobby.games.length >= 6 ? '≥6 局已切紧凑列表' : '列表模式'}</span>
         </div>
       </div>
 
-      <div className="lobby-toolbar">
-        <div className="chips">
-          {FILTERS.map((item) => (
+      <div className="lb-chips">
+        {FILTERS.map((item) => {
+          const count = lobby.counts[item.key];
+          return (
             <button
               key={item.key}
-              className={`chip ${lobby.filter === item.key ? 'active' : ''}`}
+              className={lobby.filter === item.key ? 'lb-chip on' : 'lb-chip'}
               onClick={() => lobby.setFilter(item.key)}
             >
               {item.label}
+              <em>{count === null ? '—' : count}</em>
             </button>
-          ))}
-        </div>
-        <div className="chips">
-          {SORTS.map((item) => (
-            <button
-              key={item.key}
-              className={`chip ghost ${lobby.sort === item.key ? 'active' : ''}`}
-              onClick={() => lobby.setSort(item.key)}
-            >
-              {item.label}
-            </button>
-          ))}
+          );
+        })}
+      </div>
+
+      <div className="lb-sort">
+        <button
+          className="lb-sort-left"
+          onClick={() => lobby.setSort(lobby.sort === 'spectators' ? 'created' : 'spectators')}
+        >
+          <span>{lobby.sort === 'spectators' ? '按观战人数' : '按开局时间'}</span>
+          <span className="arrow">▾</span>
+        </button>
+        <div className="lb-views">
+          <button className={grid ? 'lb-view' : 'lb-view on'} onClick={() => setGrid(false)} aria-label="列表视图">
+            ☰
+          </button>
+          <button className={grid ? 'lb-view on' : 'lb-view'} onClick={() => setGrid(true)} aria-label="网格视图">
+            ▦
+          </button>
         </div>
       </div>
 
       {lobby.error ? (
-        <div className="panel abort-box">
-          <div className="panel-title">大厅加载失败</div>
-          <p className="hint">{lobby.error}</p>
-          <button className="btn primary" onClick={() => void lobby.reload()}>
+        <div className="lb-empty">
+          大厅加载失败：{lobby.error}
+          <br />
+          <button className="lb-more" style={{ width: '100%', marginTop: 10 }} onClick={() => void lobby.reload()}>
             重试
           </button>
         </div>
       ) : null}
 
-      {!lobby.error && !lobby.loading && lobby.games.length === 0 ? (
-        <div className="panel empty-lobby">
-          <div className="empty-emoji">🌙</div>
-          <div className="panel-title">
-            {lobby.filter === 'mine'
-              ? '这台设备没有进行中的对局'
-              : lobby.filter === 'final'
-                ? '现在没有决赛圈的对局'
-                : lobby.filter === 'human'
-                  ? '现在没有真人局'
-                  : '现在没有进行中的对局'}
+      {!lobby.error && lobby.games.length === 0 ? (
+        lobby.loading ? (
+          <div className="lb-empty">读取进行中对局…</div>
+        ) : (
+          <div className="lb-empty">
+            {emptyText}
+            <br />
+            <button className="lb-more" style={{ width: '100%', marginTop: 10 }} onClick={onStart}>
+              开一局
+            </button>
           </div>
-          <p className="hint">
-            {lobby.filter === 'mine'
-              ? '对局凭证存在本机浏览器里，换设备或清了存档就找不回来了（登录态是 v1.5 的事）。'
-              : '开一局，让 5 个 AI 先吵起来——别人就能从这里围观你。'}
-          </p>
-          <button className="btn primary" onClick={onStart}>
-            开一局
-          </button>
-        </div>
+        )
       ) : null}
 
       {lobby.games.length > 0 ? (
-        <div className={dense ? 'lobby-rows' : 'lobby-cards'}>
+        <div className="lb-list" style={grid ? { display: 'grid', gridTemplateColumns: '1fr 1fr' } : undefined}>
           {lobby.games.map((game) =>
-            dense ? (
-              <GameRow
-                key={game.gameId}
-                game={game}
-                onWatch={onWatch}
-                onResume={onResume}
-                mine={game.gameId === mineId}
-              />
+            grid ? (
+              <GameCard key={game.gameId} game={game} mine={game.gameId === mineId} onOpen={open} />
             ) : (
-              <GameCard
-                key={game.gameId}
-                game={game}
-                onWatch={onWatch}
-                onResume={onResume}
-                mine={game.gameId === mineId}
-              />
+              <GameRow key={game.gameId} game={game} mine={game.gameId === mineId} onOpen={open} />
             ),
           )}
         </div>
       ) : null}
 
-      {lobby.loading && lobby.games.length === 0 ? <div className="empty">读取进行中对局…</div> : null}
-
       {lobby.games.length > 0 ? (
-        <div className="lobby-more">
-          {lobby.hasMore ? (
-            <button className="btn ghost" disabled={lobby.loading} onClick={() => void lobby.loadMore()}>
-              {lobby.loading ? '加载中…' : '加载更多'}
-            </button>
-          ) : (
-            <span className="lobby-end">没有更多了 · 共 {lobby.total} 局</span>
-          )}
-        </div>
+        lobby.hasMore ? (
+          <button className="lb-more" disabled={lobby.loading} onClick={() => void lobby.loadMore()}>
+            {lobby.loading ? '加载中…' : `上滑加载更多 · 还有 ${remaining} 局`}
+          </button>
+        ) : (
+          <div className="lb-more" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            没有更多了 · 共 {lobby.total} 局
+          </div>
+        )
       ) : null}
 
-      <Footer version={APP_VERSION} />
+      <footer className="d-footer">
+        <p>by domonic · 17aitech.com</p>
+        <p>WorkBuddy 1024 造物挑战 · v{APP_VERSION}</p>
+      </footer>
     </section>
   );
 }

@@ -10,6 +10,8 @@ export interface LobbyState {
   games: LobbyGame[];
   /** 本地是否有进行中的对局（「我的对局」筛选的依据） */
   hasMine: boolean;
+  /** 各筛选条件下的总局数（筛选 chip 上的角标，设计稿要求带数字） */
+  counts: Record<'all' | 'human' | 'final' | 'mine', number | null>;
   total: number;
   hasMore: boolean;
   loading: boolean;
@@ -36,6 +38,7 @@ export function useLobby(): LobbyState {
   const [error, setError] = useState<string | null>(null);
   const [filter, setFilterState] = useState<NonNullable<LiveQuery['filter']>>('all');
   const [sort, setSortState] = useState<NonNullable<LiveQuery['sort']>>('spectators');
+  const [counts, setCounts] = useState<LobbyState['counts']>({ all: null, human: null, final: null, mine: null });
 
   const requestId = useRef(0);
 
@@ -97,9 +100,34 @@ export function useLobby(): LobbyState {
     void fetchPage('all', 'spectators', null);
   }, [fetchPage]);
 
+  /*
+   * 各筛选的角标数字：limit=1 只为了拿 total（服务端返回的总数是过滤后的全量）。
+   * 四个请求都很轻（内存房间），失败就显示 "—"，不阻塞列表。
+   */
+  useEffect(() => {
+    const mine = readSavedGame()?.id ?? null;
+    let cancelled = false;
+    const keys = ['all', 'human', 'final', 'mine'] as const;
+    void Promise.all(
+      keys.map((key) =>
+        api
+          .live({ filter: key, limit: 1, mine })
+          .then((page) => [key, page.total] as const)
+          .catch(() => [key, null] as const),
+      ),
+    ).then((pairs) => {
+      if (cancelled) return;
+      setCounts(Object.fromEntries(pairs) as LobbyState['counts']);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
   return {
     games,
     hasMine: Boolean(readSavedGame()?.id),
+    counts,
     total,
     hasMore: Boolean(cursor),
     loading,

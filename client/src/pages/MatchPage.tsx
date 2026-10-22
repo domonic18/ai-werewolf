@@ -1,85 +1,162 @@
 import { useMemo, useState } from 'react';
 import { api } from '../api/client';
-import { EventLog } from '../components/EventLog';
-import { PromptPanel } from '../components/PromptPanel';
-import { FactionBar } from '../components/FactionBar';
-import { SeatGrid } from '../components/SeatGrid';
-import type { SeatLike } from '../components/SeatGrid';
-import { SpeechLog } from '../components/SpeechLog';
-import { SpeechOrderBar } from '../components/SpeechOrderBar';
-import { VoteBar } from '../components/VoteBar';
+import { highlightNames } from '../lib/highlight';
 import { roundBadge } from '../lib/format';
 import { deriveVoteTally } from '../lib/tally';
+import { speakingPlayerId } from '../lib/stage';
 import type { LostReason } from '../hooks/useMatchPolling';
-import { buildStage, speakingPlayerId } from '../lib/stage';
 import { useGameStore } from '../store/gameStore';
 import { ROLES } from '@shared/roles';
-import type { GameEvent } from '@shared/types';
+import type { GameEvent, Phase } from '@shared/types';
 
-type Tab = 'speech' | 'events';
+const APP_VERSION = __APP_VERSION__;
+const QUICK_LINES = ['我是平民', '我怀疑他', '我先过'];
+const CHAT_LIMIT = 6;
 
 interface MatchPageProps {
   lost: boolean;
   lostReason: LostReason;
 }
 
+type Seat = {
+  id: number;
+  seat: number;
+  name: string;
+  emoji: string;
+  alive: boolean;
+  isHuman: boolean;
+  role?: string | null;
+};
+
+/**
+ * 对局中：对齐 docs/designs/03-ingame.html（玩家视角）。
+ * 观战走 SpectateView，对齐 04-spectate.html —— 两屏数据源互斥（私有快照 / 上帝视角），
+ * 所以分成两个组件，绝不在一个组件里互相兜底。
+ */
 export function MatchPage({ lost, lostReason }: MatchPageProps): JSX.Element {
-  const gameId = useGameStore((s) => s.gameId);
   const watching = useGameStore((s) => s.watching);
+  const spectate = useGameStore((s) => s.spectate);
+
+  if (lost) return <LostCard lostReason={lostReason} />;
+  /* 观战用上帝视角投影（含身份），玩家视角的身份由 snapshot 自己管，两者不混用 */
+  if (watching) return <SpectateView players={(spectate?.players ?? []) as unknown as Seat[]} />;
+  return <PlayView />;
+}
+
+function LostCard({ lostReason }: { lostReason: LostReason }): JSX.Element {
+  const close = useGameStore((s) => s.close);
+  return (
+    <section className="screen page-game">
+      <div className="su-card" style={{ marginTop: 20 }}>
+        <div className="su-head">
+          <b>{lostReason === 'unauthorized' ? '对局凭证失效' : '对局已失效'}</b>
+        </div>
+        <p className="lg-hint" style={{ fontSize: 12, lineHeight: 1.7 }}>
+          {lostReason === 'unauthorized'
+            ? '这一局的玩家凭证不在这台设备上（换了设备或清了浏览器存档）。为了不让别人替你操作，服务端不会接受没有凭证的请求。'
+            : '服务端已清理这局（超过 2 小时或服务重启）。'}
+        </p>
+        <button className="btn-create" onClick={close}>
+          回首页
+        </button>
+      </div>
+    </section>
+  );
+}
+
+/** 发言列表 → 聊天气泡（只取最近几条，长局不撑爆屏幕） */
+function useMessages(events: GameEvent[]) {
+  return useMemo(() => {
+    const speeches = events.filter((e): e is Extract<GameEvent, { type: 'speech' }> => e.type === 'speech');
+    return speeches.slice(-CHAT_LIMIT);
+  }, [events]);
+}
+
+function ChatBubbles({ events, names }: { events: GameEvent[]; names: string[] }): JSX.Element {
+  const messages = useMessages(events);
+  if (!messages.length) {
+    return (
+      <div className="ig-chat">
+        <div className="ig-sys">天亮了，等第一个人开口</div>
+      </div>
+    );
+  }
+  return (
+    <div className="ig-chat">
+      {messages.map((event) => {
+        const p = event.payload;
+        return (
+          <div key={event.seq} className={p.isHuman ? 'ig-msg me' : 'ig-msg'}>
+            <div className="ig-msg-head">
+              <span>{p.emoji}</span>
+              <span className="nm">{p.isHuman ? '你' : p.name}</span>
+              {p.order ? (
+                <span className="tag">
+                  {p.order}/{p.total} 位
+                </span>
+              ) : null}
+            </div>
+            <div className="ig-bubble">{highlightNames(p.text, names)}</div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------- 玩家视角 */
+
+function PlayView(): JSX.Element {
+  const gameId = useGameStore((s) => s.gameId);
   const token = useGameStore((s) => s.token);
   const snapshot = useGameStore((s) => s.snapshot);
-  const spectate = useGameStore((s) => s.spectate);
   const events = useGameStore((s) => s.events);
   const close = useGameStore((s) => s.close);
 
-  const [tab, setTab] = useState<Tab>('speech');
   const [answeredKey, setAnsweredKey] = useState<string | null>(null);
+  const [text, setText] = useState('');
 
-  /* 观战用上帝视角投影，玩家用私有视角快照 —— 两者互斥，绝不互相兜底 */
-  const view = watching ? spectate : snapshot;
-  const players: SeatLike[] = watching ? spectate?.players ?? [] : snapshot?.players ?? [];
+  const players: Seat[] = snapshot?.players ?? [];
   const names = useMemo(() => players.map((p) => p.name), [players]);
-  const myId = watching ? null : players.find((p) => p.isHuman)?.id ?? null;
   const speakingId = speakingPlayerId(events);
+  const round = snapshot?.round ?? 0;
+  const phase: Phase = snapshot?.phase ?? 'night';
 
   const orderEvent = [...events]
     .reverse()
     .find((e): e is Extract<GameEvent, { type: 'speech-order' }> => e.type === 'speech-order');
   const order = orderEvent?.payload.order ?? [];
-
-  const currentRound = view?.round ?? 0;
   const spokenIds = useMemo(() => {
     const set = new Set<number>();
     for (const event of events) {
-      if (event.type === 'speech' && event.payload.round === currentRound) set.add(event.payload.playerId);
+      if (event.type === 'speech' && event.payload.round === round) set.add(event.payload.playerId);
     }
     return set;
-  }, [events, currentRound]);
+  }, [events, round]);
+  const spokenCount = order.filter((seat) => spokenIds.has(seat.id)).length;
 
-  /* 票型完全由事件流派生：刷新、断线恢复、观战都得到同一份结果 */
   const tally = useMemo(() => deriveVoteTally(events), [events]);
-  const labelOf = useMemo(() => {
-    const byId = new Map(players.map((p) => [p.id, `${p.emoji} ${p.name}`]));
-    return (playerId: number): string => byId.get(playerId) ?? `座位 ${playerId}`;
-  }, [players]);
+  const ranked = useMemo(
+    () => Object.entries(tally.counts)
+      .map(([id, votes]) => ({ id: Number(id), votes }))
+      .filter((row) => row.votes > 0)
+      .sort((a, b) => b.votes - a.votes),
+    [tally],
+  );
+  const nameOf = (id: number): string => players.find((p) => p.id === id)?.name ?? `座位 ${id}`;
 
-  const stage = buildStage(events, {
-    round: currentRound,
-    players: players.map((p) => ({ id: p.id, name: p.name, emoji: p.emoji })),
-  });
-  const pending = watching ? null : snapshot?.pendingAction ?? null;
-  const promptKey = pending ? `${snapshot?.round}-${pending.kind}-${pending.prompt.title}-${pending.options.length}` : null;
-  /* 有未回答的挂起动作时，舞台让位给 prompt：标题/说明都来自服务端，避免两份文案走偏 */
-  const activePrompt = pending && promptKey !== answeredKey ? pending : null;
+  const pending = snapshot?.pendingAction ?? null;
+  const promptKey = pending ? `${round}-${pending.kind}-${pending.prompt.title}-${pending.options.length}` : null;
+  const active = pending && promptKey !== answeredKey ? pending : null;
 
   const submit = async (value: string | number | null): Promise<void> => {
     if (!gameId || !token) return;
     setAnsweredKey(promptKey);
+    setText('');
     try {
       await api.action(gameId, value, token);
     } catch {
-      /* 挂起点可能已变化（例如超时），下一轮轮询会给出真实状态 */
-      setAnsweredKey(null);
+      setAnsweredKey(null); /* 挂起点可能已变化，下一轮轮询给出真实状态 */
     }
   };
 
@@ -94,72 +171,278 @@ export function MatchPage({ lost, lostReason }: MatchPageProps): JSX.Element {
     close();
   };
 
-  const roleChip = watching
-    ? '👁 观战模式'
-    : snapshot?.myRole
-      ? `你是 ${ROLES[snapshot.myRole].emoji} ${ROLES[snapshot.myRole].name}`
-      : '—';
+  const alive = players.filter((p) => p.alive).length;
+  const myRole = snapshot?.myRole ?? null;
 
   return (
-    <section className="screen">
-      <div className="topbar">
-        <div className="round-badge">{view ? roundBadge(view.phase, view.round) : '准备中'}</div>
-        <div className="role-chip">
-          <b>{roleChip}</b>
+    <section className="screen page-game">
+      <div className="ig-status">
+        <div className="ig-status-left">
+          <span className="ig-badge">{roundBadge(phase, round)}</span>
+          <span className="ig-badge plain">
+            存活 {alive} / {players.length}
+          </span>
         </div>
-        <button className="btn ghost small" onClick={() => void quit()}>
+        <div className="ig-status-right">
+          {myRole ? (
+            <span className="ig-badge role">
+              {ROLES[myRole].emoji} {ROLES[myRole].name}
+            </span>
+          ) : null}
+          <button className="ig-quit" onClick={() => void quit()}>
+            退出
+          </button>
+        </div>
+      </div>
+
+      {order.length ? (
+        <div className="ig-order">
+          <div className="ig-order-head">
+            <div className="ig-order-title">
+              <i>📋</i>
+              <span>发言顺序</span>
+            </div>
+            <span className="ig-order-progress">
+              第 {Math.min(spokenCount + 1, order.length)} / {order.length} 位
+            </span>
+          </div>
+          <div className="ig-strip">
+            {order.map((ref) => {
+              const seat = players.find((p) => p.id === ref.id);
+              if (!seat) return null;
+              const classes = ['ig-seat'];
+              if (ref.id === speakingId) classes.push('on');
+              if (!seat.alive) classes.push('dead');
+              if (spokenIds.has(ref.id)) classes.push('spoken');
+              return (
+                <div key={ref.id} className={classes.join(' ')}>
+                  <div className="ava">{seat.emoji}</div>
+                  <span className="nm">{seat.isHuman ? '你' : seat.name}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      ) : null}
+
+      <ChatBubbles events={events} names={names} />
+
+      {ranked.length ? (
+        <div className="ig-vote">
+          <div className="ig-vote-left">
+            <span>🗳️</span>
+            <span>实时票型</span>
+          </div>
+          <div className="ig-vote-right">
+            <span className="top">
+              {nameOf(ranked[0]!.id)} {ranked[0]!.votes} 票
+            </span>
+            {ranked[1] ? (
+              <>
+                <span className="sep">·</span>
+                <span className="other">
+                  {nameOf(ranked[1].id)} {ranked[1].votes} 票
+                </span>
+              </>
+            ) : null}
+          </div>
+        </div>
+      ) : null}
+
+      {active ? (
+        <div className="ig-say">
+          <div className="ig-say-head">
+            <div className="ig-say-title">
+              <span>🎤</span>
+              <span>{active.prompt.title}</span>
+            </div>
+            <span className="ig-say-hint">{active.kind === 'input' ? '不发言可点「过」' : ''}</span>
+          </div>
+          {active.prompt.html ? (
+            <p
+              className="ig-say-hint"
+              style={{ fontSize: 12, lineHeight: 1.6, color: 'var(--d-sub)' }}
+              dangerouslySetInnerHTML={{ __html: active.prompt.html }}
+            />
+          ) : null}
+
+          {active.kind === 'input' ? (
+            <>
+              <textarea
+                rows={3}
+                maxLength={200}
+                autoFocus
+                placeholder="说出你的判断，AI 会据此推理…"
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === 'Enter' && !e.shiftKey) {
+                    e.preventDefault();
+                    void submit(text.trim() || '我这轮先过，听你们的。');
+                  }
+                }}
+              />
+              <div className="ig-quick">
+                {QUICK_LINES.map((line) => (
+                  <button key={line} onClick={() => setText(line)}>
+                    {line}
+                  </button>
+                ))}
+              </div>
+              <div className="ig-actions">
+                <button className="send" onClick={() => void submit(text.trim() || '我这轮先过，听你们的。')}>
+                  发送
+                </button>
+                <button className="pass" onClick={() => void submit('我这轮先过，听你们的。')}>
+                  过
+                </button>
+              </div>
+            </>
+          ) : active.options.length ? (
+            <div className="ig-actions">
+              {active.options.map((option) => (
+                <button key={String(option.value)} className="choice" onClick={() => void submit(option.value)}>
+                  {option.label}
+                </button>
+              ))}
+            </div>
+          ) : (
+            <div className="ig-actions">
+              <button className="send" onClick={() => void submit(1)}>
+                {active.prompt.confirm ?? '继续'}
+              </button>
+            </div>
+          )}
+        </div>
+      ) : null}
+
+      <footer className="d-footer">
+        <p>by domonic · 17aitech.com</p>
+        <p>WorkBuddy 1024 造物挑战 · v{APP_VERSION}</p>
+      </footer>
+    </section>
+  );
+}
+
+/* -------------------------------------------------------------- 观战视角 */
+
+function SpectateView({ players }: { players: Seat[] }): JSX.Element {
+  const spectate = useGameStore((s) => s.spectate);
+  const events = useGameStore((s) => s.events);
+  const close = useGameStore((s) => s.close);
+  const names = useMemo(() => players.map((p) => p.name), [players]);
+  const messages = useMessages(events);
+  const human = players.find((p) => p.isHuman);
+  const factions = spectate?.factions;
+
+  const roleClass = (role?: string | null): string => {
+    if (!role) return '';
+    if (role === 'wolf') return 'wolf';
+    if (role === 'witch') return 'witch';
+    if (role === 'villager') return '';
+    return 'god';
+  };
+
+  return (
+    <section className="screen page-game">
+      <div className="sp-bar">
+        <div className="sp-bar-left">
+          <span className="sp-live">
+            <i />
+            <span>观战中</span>
+          </span>
+          <span className="sp-owner">
+            {human?.name ?? '匿名'} 的对局 · {players.length} 人局
+          </span>
+        </div>
+        <button className="ig-quit" onClick={close}>
           退出
         </button>
       </div>
 
-      {lost ? (
-        <div className="panel abort-box">
-          <div className="panel-title">{lostReason === 'unauthorized' ? '对局凭证失效' : '对局已失效'}</div>
-          <p className="hint">
-            {lostReason === 'unauthorized'
-              ? '这一局的玩家凭证不在这台设备上（换了设备或清了浏览器存档）。为了不让别人替你操作，服务端不会接受没有凭证的请求。回首页可以开新的一局。'
-              : '服务端已清理这局（超过 2 小时或服务重启）。回首页可以开新的一局。'}
-          </p>
-          <button className="btn primary" onClick={close}>
-            回首页
-          </button>
+      <div className="sp-god">
+        <div className="sp-god-head">
+          <div className="sp-god-title">
+            <span>👁️</span>
+            <span>上帝视角 · 身份已公开</span>
+          </div>
+          <em>实时</em>
+        </div>
+        <p>观战无需凭证、不占座位，你的任何操作都不会进入牌局，避免影响对局公平</p>
+      </div>
+
+      <div className="sp-grid">
+        {players.map((player) => {
+          const card = player.role ? ROLES[player.role as keyof typeof ROLES] : null;
+          const classes = ['sp-seat', roleClass(player.role)];
+          if (!player.alive) classes.push('dead');
+          if (player.isHuman) classes.push('human');
+          return (
+            <div key={player.id} className={classes.filter(Boolean).join(' ')}>
+              <div className="sp-seat-top">
+                <span className="sp-seat-no">{player.seat} 号位</span>
+                <span className="sp-seat-state">{player.alive ? '存活' : '出局'}</span>
+              </div>
+              <div className="sp-seat-mid">
+                <span className="emoji">{player.emoji}</span>
+                <span className="nm">{player.name}</span>
+              </div>
+              <div className="sp-role">
+                {card ? `${card.emoji} ${card.name}` : '未知'}
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {factions ? (
+        <div className="sp-tally">
+          <div className="sp-tally-head">
+            <b>阵营存活</b>
+            <span>
+              {roundBadge(spectate?.phase ?? 'night', spectate?.round ?? 0)}
+            </span>
+          </div>
+          <div className="sp-row good">
+            <span>好人</span>
+            <div className="sp-track good">
+              <i style={{ width: `${Math.round((factions.good.alive / Math.max(1, factions.good.total)) * 100)}%` }} />
+            </div>
+            <span>{factions.good.alive} 人</span>
+          </div>
+          <div className="sp-row wolf">
+            <span>狼人</span>
+            <div className="sp-track wolf">
+              <i style={{ width: `${Math.round((factions.wolf.alive / Math.max(1, factions.wolf.total)) * 100)}%` }} />
+            </div>
+            <span>{factions.wolf.alive} 人</span>
+          </div>
         </div>
       ) : null}
 
-      {watching && spectate ? <FactionBar factions={spectate.factions} /> : null}
-
-      <SeatGrid
-        players={players}
-        myId={myId}
-        speakingId={speakingId}
-        revealRoles={watching}
-        votes={tally.counts}
-      />
-
-      <VoteBar tally={tally} labelOf={labelOf} />
-
-      <div className="stage">
-        <SpeechOrderBar order={order} speakingId={speakingId} spokenIds={spokenIds} />
-        <div className="stage-title">{activePrompt ? activePrompt.prompt.title : stage.title}</div>
-        <div className="stage-body">
-          {activePrompt ? <div dangerouslySetInnerHTML={{ __html: activePrompt.prompt.html }} /> : stage.body}
-        </div>
-        {activePrompt ? (
-          <PromptPanel key={promptKey ?? 'prompt'} pending={activePrompt} onSubmit={(value) => void submit(value)} />
-        ) : null}
+      <div className="sp-chat">
+        {messages.length === 0 ? (
+          <div className="ig-sys">还没有人发言</div>
+        ) : (
+          messages.map((event) => {
+            const p = event.payload;
+            return (
+              <div key={event.seq} className="sp-msg">
+                <div className="sp-msg-head">
+                  <span>{p.emoji}</span>
+                  <span className="nm">{p.name}</span>
+                </div>
+                <p>{highlightNames(p.text, names)}</p>
+              </div>
+            );
+          })
+        )}
       </div>
 
-      <div className="logbox">
-        <div className="tabs">
-          <button className={`tab ${tab === 'speech' ? 'active' : ''}`} onClick={() => setTab('speech')}>
-            🗣 发言记录
-          </button>
-          <button className={`tab ${tab === 'events' ? 'active' : ''}`} onClick={() => setTab('events')}>
-            📋 事件记录
-          </button>
-        </div>
-        {tab === 'speech' ? <SpeechLog events={events} names={names} /> : <EventLog events={events} />}
-      </div>
+      <footer className="d-footer">
+        <p>by domonic · 17aitech.com</p>
+        <p>WorkBuddy 1024 造物挑战 · v{APP_VERSION}</p>
+      </footer>
     </section>
   );
 }

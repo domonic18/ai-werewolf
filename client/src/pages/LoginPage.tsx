@@ -1,8 +1,7 @@
 import { useEffect, useState } from 'react';
 import { sendOtp, signInWithOAuth, verifyOtp } from '../auth/actions';
-import { setSession } from '../auth/session';
+import { clearSession, setSession } from '../auth/session';
 import { useSession } from '../auth/useSession';
-import { AccountCard } from '../components/AccountCard';
 
 const APP_VERSION = __APP_VERSION__;
 
@@ -14,12 +13,12 @@ interface LoginPageProps {
 type Channel = 'phone' | 'email';
 
 /**
- * 登录页（对齐原型 docs/designs/05-login.html）：
- * 标题「登录后开局」+ 手机号/邮箱 Tab + 验证码 + 其他方式（微信 / WorkBuddy）。
- * 已登录时直接显示账号卡 —— 否则用户进来看不出自己是不是已经登录了。
+ * 登录页：逐项对齐 docs/designs/05-login.html。
+ * 结构 = 返回栏 / Logo+标题 / 登录卡（Tab·手机号·验证码·登录）/ 其他方式 /
+ *        协议行 / 托管说明 / 页脚。已登录时整卡换成账号状态，避免重复登录。
  */
 export function LoginPage({ onBack, onSignedIn }: LoginPageProps): JSX.Element {
-  const { signedIn } = useSession();
+  const { session } = useSession();
   const [channel, setChannel] = useState<Channel>('phone');
   const [phone, setPhone] = useState('');
   const [email, setEmail] = useState('');
@@ -29,6 +28,7 @@ export function LoginPage({ onBack, onSignedIn }: LoginPageProps): JSX.Element {
   const [isExistingUser, setIsExistingUser] = useState(true);
   const [sending, setSending] = useState(false);
   const [verifying, setVerifying] = useState(false);
+  const [agreed, setAgreed] = useState(true);
   /* 提示紧跟按钮显示：失败信息藏在页面底部会被当成「点了没反应」 */
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
@@ -40,11 +40,14 @@ export function LoginPage({ onBack, onSignedIn }: LoginPageProps): JSX.Element {
 
   const value = channel === 'phone' ? phone : email;
   const valid = channel === 'phone' ? /^1\d{10}$/.test(phone) : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
-  const canSend = valid && countdown === 0 && !sending;
-  const canSubmit = valid && Boolean(verificationId) && code.trim().length >= 4 && !verifying;
 
   const requestCode = async (): Promise<void> => {
-    if (!canSend) return;
+    /* 按钮不做「灰掉」：设计稿里它是常亮的，格式问题点一下再说清楚更友好 */
+    if (countdown > 0 || sending) return;
+    if (!valid) {
+      setMsg({ kind: 'err', text: channel === 'phone' ? '请输入 11 位手机号' : '请输入有效邮箱' });
+      return;
+    }
     setSending(true);
     setMsg(null);
     const result = await sendOtp({ kind: channel, value });
@@ -60,7 +63,23 @@ export function LoginPage({ onBack, onSignedIn }: LoginPageProps): JSX.Element {
   };
 
   const submit = async (): Promise<void> => {
-    if (!canSubmit) return;
+    if (verifying) return;
+    if (!valid) {
+      setMsg({ kind: 'err', text: channel === 'phone' ? '请输入 11 位手机号' : '请输入有效邮箱' });
+      return;
+    }
+    if (!verificationId) {
+      setMsg({ kind: 'err', text: '请先获取验证码' });
+      return;
+    }
+    if (code.trim().length < 4) {
+      setMsg({ kind: 'err', text: '请输入收到的验证码' });
+      return;
+    }
+    if (!agreed) {
+      setMsg({ kind: 'err', text: '请先勾选用户协议与隐私政策' });
+      return;
+    }
     setVerifying(true);
     setMsg(null);
     const result = await verifyOtp({
@@ -85,128 +104,156 @@ export function LoginPage({ onBack, onSignedIn }: LoginPageProps): JSX.Element {
   };
 
   return (
-    <section className="screen">
-      <div className="topbar">
-        <button className="btn ghost small" onClick={onBack}>
-          ‹ 返回
+    <section className="screen page-login">
+      <div className="d-nav lg-nav">
+        <button className="d-back" onClick={onBack} aria-label="返回">
+          ←
         </button>
-        <div className="lobby-title">账号登录</div>
-        <span style={{ width: 44 }} />
+        <p className="d-nav-title">账号登录</p>
+        <span style={{ width: 30, height: 30 }} />
       </div>
 
-      <div className="login-hero">
-        <div className="login-logo">🐺</div>
-        <h2 className="login-title">登录后开局</h2>
-        <p className="login-sub">战绩、未完成的对局、观战记录都记在账号下</p>
+      <div className="lg-hero">
+        <div className="lg-logo">🐺</div>
+        <h1>{session ? '已登录' : '登录后开局'}</h1>
+        <p>{session ? '战绩、对局与观战记录都记在这个账号下' : '战绩、未完成的对局、观战记录都记在账号下'}</p>
       </div>
 
-      {signedIn ? (
+      {session ? (
         <>
-          <AccountCard />
-          <button className="btn primary big" style={{ marginTop: 12 }} onClick={onBack}>
-            回到首页继续
-          </button>
+          <div className="lg-card">
+            <div className="account-card" style={{ border: 0, background: 'transparent', padding: 0 }}>
+              <div className="account-left">
+                <span className="avatar">🙋</span>
+                <div className="account-text">
+                  <b>已登录</b>
+                  <span>{session.userId}</span>
+                </div>
+              </div>
+            </div>
+            <button className="lg-submit" onClick={onBack}>
+              回到首页继续
+            </button>
+            <button className="lg-oauth wb" style={{ justifyContent: 'center' }} onClick={() => clearSession()}>
+              <span className="lg-oauth-left">退出登录</span>
+            </button>
+          </div>
         </>
       ) : (
-        <>
-          <div className="panel">
-            <div className="login-tabs">
-              <button
-                className={channel === 'phone' ? 'login-tab on' : 'login-tab'}
-                onClick={() => setChannel('phone')}
-              >
-                手机号
-              </button>
-              <button
-                className={channel === 'email' ? 'login-tab on' : 'login-tab'}
-                onClick={() => setChannel('email')}
-              >
-                邮箱
-              </button>
-            </div>
+        <div className="lg-card">
+          <div className="lg-tabs">
+            <button className={channel === 'phone' ? 'lg-tab on' : 'lg-tab'} onClick={() => setChannel('phone')}>
+              手机号
+            </button>
+            <button className={channel === 'email' ? 'lg-tab on' : 'lg-tab'} onClick={() => setChannel('email')}>
+              邮箱
+            </button>
+          </div>
 
-            {channel === 'phone' ? (
-              <div className="login-field">
-                <label className="field-label" htmlFor="loginPhone">
-                  手机号
-                </label>
-                <div className="row">
-                  <span className="phone-prefix">+86</span>
-                  <input
-                    id="loginPhone"
-                    className="input"
-                    inputMode="numeric"
-                    maxLength={11}
-                    placeholder="11 位手机号"
-                    value={phone}
-                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
-                  />
-                </div>
-                <p className="field-hint">中国大陆 11 位手机号</p>
+          {channel === 'phone' ? (
+            <div className="lg-field">
+              <label htmlFor="loginPhone">手机号</label>
+              <div className="lg-input">
+                <span className="lg-prefix">+86</span>
+                <input
+                  id="loginPhone"
+                  inputMode="numeric"
+                  maxLength={11}
+                  placeholder="138 0013 8000"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+                />
               </div>
-            ) : (
-              <div className="login-field">
-                <label className="field-label" htmlFor="loginEmail">
-                  邮箱
-                </label>
+              <p className="lg-hint">中国大陆 11 位手机号</p>
+            </div>
+          ) : (
+            <div className="lg-field">
+              <label htmlFor="loginEmail">邮箱</label>
+              <div className="lg-input">
                 <input
                   id="loginEmail"
-                  className="input"
                   inputMode="email"
                   placeholder="you@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value.trim())}
                 />
-                <p className="field-hint">邮箱验证码登录，同样不设密码</p>
               </div>
-            )}
+              <p className="lg-hint">邮箱验证码登录，同样不设密码</p>
+            </div>
+          )}
 
-            <div className="login-field">
-              <label className="field-label" htmlFor="loginCode">
-                {channel === 'phone' ? '短信验证码' : '邮箱验证码'}
-              </label>
-              <div className="row">
+          <div className="lg-field">
+            <label htmlFor="loginCode">{channel === 'phone' ? '短信验证码' : '邮箱验证码'}</label>
+            <div className="lg-code-row">
+              <div className="lg-input">
                 <input
                   id="loginCode"
-                  className="input"
                   inputMode="numeric"
                   maxLength={6}
                   placeholder="6 位数字"
                   value={code}
                   onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
                 />
-                <button className="btn ghost" disabled={!canSend} onClick={() => void requestCode()}>
-                  {sending ? '发送中…' : countdown > 0 ? `${countdown}s` : '获取验证码'}
-                </button>
               </div>
-              <p className="field-hint">收不到？60 秒后可重新获取</p>
+              <button className="lg-send" disabled={sending || countdown > 0} onClick={() => void requestCode()}>
+                {sending ? '发送中…' : countdown > 0 ? `${countdown}s` : '获取验证码'}
+              </button>
             </div>
+            <p className="lg-hint">收不到？60 秒后可重新获取</p>
+          </div>
 
-            <button className="btn primary big" style={{ marginTop: 12 }} disabled={!canSubmit} onClick={() => void submit()}>
-              {verifying ? '登录中…' : '登录 / 注册'}
+          <button className="lg-submit" onClick={() => void submit()}>
+            {verifying ? '登录中…' : '登录 / 注册'}
+          </button>
+          {msg ? <p className={msg.kind === 'err' ? 'login-msg err' : 'login-msg'}>{msg.text}</p> : null}
+          <p className="lg-note">ⓘ 未注册的手机号会自动创建账号，全程验证码，不设密码</p>
+        </div>
+      )}
+
+      {session ? null : (
+        <>
+          <div className="lg-divider">
+            <i />
+            <span>其他方式</span>
+            <i />
+          </div>
+
+          <button className="lg-oauth wechat" onClick={() => void oauth('wechat')}>
+            <span className="lg-oauth-left">
+              <span>💬</span>
+              <span>微信登录</span>
+            </span>
+            <em>一键授权 / 扫码</em>
+          </button>
+          <button className="lg-oauth wb" onClick={() => void oauth('workbuddy')}>
+            <span className="lg-oauth-left">
+              <span>⚡</span>
+              <span>使用 WorkBuddy 登录</span>
+            </span>
+            <em>统一账号</em>
+          </button>
+
+          <div className="lg-agree">
+            <button
+              className={agreed ? 'lg-check on' : 'lg-check'}
+              onClick={() => setAgreed((v) => !v)}
+              aria-label="同意用户协议与隐私政策"
+            >
+              {agreed ? <span>✓</span> : null}
             </button>
-            {msg ? <p className={msg.kind === 'err' ? 'login-msg err' : 'login-msg'}>{msg.text}</p> : null}
-            <p className="hint" style={{ textAlign: 'center' }}>
-              ⓘ 未注册的手机号会自动创建账号，全程验证码，不设密码
+            <p>
+              我已阅读并同意 <b>用户协议</b> 与 <b>隐私政策</b>，手机号仅用于登录验证
             </p>
           </div>
 
-          <div className="panel">
-            <div className="panel-title">其他方式</div>
-            <button className="btn ghost big" style={{ marginTop: 10 }} onClick={() => void oauth('wechat')}>
-              💬 微信登录（一键授权 / 扫码）
-            </button>
-            <button className="btn ghost big" style={{ marginTop: 8 }} onClick={() => void oauth('workbuddy')}>
-              🅦 使用 WorkBuddy 登录
-            </button>
-            <p className="hint">这两种需要已发布的 HTTPS 域名回调，本地预览不可用。</p>
-          </div>
+          <div className="lg-trust">🔒 登录由 WorkBuddy 云服务托管，不接触你的密码</div>
         </>
       )}
 
-      <p className="hint" style={{ textAlign: 'center', opacity: 0.7 }}>
-        不登录也能玩 —— 登录只是让战绩与对局跟着账号走 · v{APP_VERSION}
-      </p>
+      <footer className="d-footer">
+        <p>by domonic · 17aitech.com</p>
+        <p>WorkBuddy 1024 造物挑战 · v{APP_VERSION}</p>
+      </footer>
     </section>
   );
 }

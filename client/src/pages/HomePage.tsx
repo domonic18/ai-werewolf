@@ -1,17 +1,27 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
+import { useSession } from '../auth/useSession';
 import { AccountCard } from '../components/AccountCard';
-import { Footer } from '../components/Footer';
-import { LiveList } from '../components/LiveList';
-import { MatchWall } from '../components/MatchWall';
-import { ResumeBanner } from '../components/ResumeBanner';
-import { RulesPanel } from '../components/RulesPanel';
 import { useHomeData } from '../hooks/useHomeData';
 import { clearSavedGame, readSavedGame } from '../lib/storage';
-import { useSession } from '../auth/useSession';
 import { useGameStore } from '../store/gameStore';
 
 const APP_VERSION = __APP_VERSION__;
+
+/**
+ * 首页：逐项对齐 docs/designs/01-home.html。
+ * 结构 = 品牌栏 / Hero 卡（徽标·标题·AI 阵容·开始一局）/ 断线恢复条 / 数据条 /
+ *        正在进行（两张横向卡）/ 收官条 / 页脚。
+ * 代号与 AI 模型不在这屏（设计稿没有），挪到「新建对局」里调。
+ */
+/* 与 src/game/roles.ts 的 AI_CAST 前 5 位保持一致，仅用于首页展示 */
+const HERO_CAST = [
+  { emoji: '🕶️', name: '老K' },
+  { emoji: '🍊', name: '小满' },
+  { emoji: '🧊', name: '阿岚' },
+  { emoji: '🍬', name: '豆豆' },
+  { emoji: '🎭', name: '七喜' },
+];
 
 interface HomePageProps {
   onWatch: (gameId: string) => void;
@@ -25,10 +35,8 @@ interface HomePageProps {
 export function HomePage({ onWatch, onOpenLobby, onNewGame, onOpenLogin }: HomePageProps): JSX.Element {
   const open = useGameStore((s) => s.open);
   const data = useHomeData();
-  /* 登录态：只影响这块区域的展示，不登录照样能开局 */
   const { signedIn } = useSession();
 
-  const [name, setName] = useState('');
   const [starting, setStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
   const [resumeId, setResumeId] = useState<string | null>(null);
@@ -71,7 +79,7 @@ export function HomePage({ onWatch, onOpenLobby, onNewGame, onOpenLogin }: HomeP
     setStarting(true);
     setStartError(null);
     try {
-      const result = await api.createGame({ playerName: name.trim() || '你' });
+      const result = await api.createGame({ playerName: '你' });
       open(result.gameId, { token: result.playerToken });
     } catch (e) {
       setStartError(e instanceof Error ? e.message : '开局失败');
@@ -80,7 +88,7 @@ export function HomePage({ onWatch, onOpenLobby, onNewGame, onOpenLogin }: HomeP
     }
   };
 
-  /* 恢复必须带凭证：P0-a 之后玩家私有接口都要 X-Player-Token，漏了只会拿到 401 */
+  /* 恢复必须带凭证：玩家私有接口都要 X-Player-Token，漏了只会拿到 401 */
   const resumeGame = (): void => {
     const saved = readSavedGame();
     if (saved) open(saved.id, { token: saved.token });
@@ -101,124 +109,180 @@ export function HomePage({ onWatch, onOpenLobby, onNewGame, onOpenLogin }: HomeP
   const env = data.health?.env ?? 'production';
   const llm = data.health?.llm;
   const aiReady = Boolean(data.health && llm?.state === 'ready' && llm.ok);
-
-  /* 四种状态要分清：接口不通 / AI 通道启动中 / AI 通道不可用 / 一切正常 —— 混成一句会误导排障 */
-  const dotClass = !data.health
-    ? data.healthError
-      ? 'bad'
-      : 'warn'
-    : aiReady
-      ? 'ok'
-      : llm?.state === 'initializing'
-        ? 'warn'
-        : 'bad';
-
-  const statusText = !data.health
-    ? data.healthError
-      ? `服务不可达：${data.healthError}`
-      : '正在检测服务与大模型通道…'
-    : llm?.state === 'initializing'
-      ? '服务已就绪，AI 通道正在启动（冷启动通常几秒）…'
-      : llm?.state === 'failed'
-        ? `AI 通道不可用：${llm.error ?? '未知'}`
-        : llm?.ok
-          ? `大模型通道正常 · ${llm.sec}s · ${llm.model}（服务端调用）`
-          : `大模型通道异常：${llm?.error ?? '未知'}`;
-
   const stats = data.matches?.stats;
+  const totalGames = stats?.total ?? 0;
+  const goodRate = totalGames ? Math.round(((stats?.good ?? 0) / totalGames) * 100) : 0;
+  const wolfRate = totalGames ? Math.round(((stats?.wolf ?? 0) / totalGames) * 100) : 0;
+  const live = data.live?.games.slice(0, 2) ?? [];
+  const liveTotal = data.live?.total ?? 0;
+
+  /* 徽标要反映真实状态，不能永远写「已就位」 */
+  const badgeText = !data.health
+    ? data.healthError
+      ? '服务不可达，正在重试…'
+      : '正在连接服务…'
+    : llm?.state === 'initializing'
+      ? 'AI 通道正在启动…'
+      : aiReady
+        ? '5 个 AI 玩家已就位'
+        : 'AI 通道不可用';
 
   return (
-    <section className="screen">
-      <div className="hero">
-        <div className="hero-glow" />
-        {env === 'staging' ? <div className="env-badge">STAGING · 测试环境（不写生产战绩）</div> : null}
-        <div className="logo">🐺</div>
-        <h1>AI 狼人杀</h1>
-        <p className="tagline">Agent 补位局 · 一个人也能开桌</p>
-        <p className="sub">5 个 AI 玩家各有性格和记忆，会撒谎、会结盟、会翻车 · 游戏逻辑运行在服务端</p>
-      </div>
-
-      {resumeId ? <ResumeBanner onResume={resumeGame} onDrop={() => void dropGame()} /> : null}
-
-      <div className="panel">
-        <label className="field-label" htmlFor="playerName">
-          你的代号
-        </label>
-        <div className="row">
-          <input
-            id="playerName"
-            className="input"
-            maxLength={8}
-            placeholder="留空则叫「你」"
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-          />
-          <button className="btn primary" disabled={starting || !aiReady} onClick={() => void startGame()}>
-            {starting ? '开局中…' : aiReady ? '快速开始（6 人）' : 'AI 通道准备中'}
+    <section className="screen page-home">
+      <div className="home-top">
+        <div className="home-brand">
+          <div className="home-brand-logo">🐺</div>
+          <div className="home-brand-text">
+            <b>AI 狼人杀</b>
+            <span>Agent 补位局</span>
+          </div>
+        </div>
+        <div className="home-actions">
+          <button className="home-lobby-btn" onClick={onOpenLobby}>
+            大厅
+          </button>
+          <button className="home-avatar" onClick={onOpenLogin} aria-label={signedIn ? '已登录' : '登录'}>
+            {signedIn ? '🙋' : '👤'}
           </button>
         </div>
+      </div>
 
-        <label className="field-label" htmlFor="modelSelect" style={{ marginTop: 14 }}>
-          AI 玩家模型（决定 5 个智能体的言行风格）
-        </label>
-        <select
-          id="modelSelect"
-          className="input"
-          style={{ width: '100%' }}
-          value={data.currentModel ?? ''}
-          onChange={(e) => void data.selectModel(e.target.value)}
-        >
-          {data.models.length === 0 ? (
-            <option value="">{aiReady ? '加载模型列表…' : 'AI 通道启动中…'}</option>
-          ) : null}
-          {data.models.map((model) => (
-            <option key={model.id} value={model.id}>
-              {model.name}
-              {model.credits ? ` · ${model.credits}` : ''}
-            </option>
-          ))}
-        </select>
-
-        <div className="ai-status">
-          <span className={`dot ${dotClass}`} />
-          <span>{statusText}</span>
+      <div className="hero-card">
+        <div className="hero-badge">
+          <span className="dot" />
+          <span>{badgeText}</span>
         </div>
-        {startError ? <p className="hint" style={{ color: 'var(--wolf)' }}>开局失败：{startError}</p> : null}
-        <button className="btn ghost big" style={{ marginTop: 10 }} onClick={onNewGame}>
-          新建对局 · 选人数与角色 ›
+        <div className="hero-title">
+          <b>5 个 AI 会说话，</b>
+          <b>也会怀疑你</b>
+        </div>
+        <p className="hero-desc">发言、怀疑、投票全部由大模型实时生成，不是固定话术</p>
+        <div className="hero-cast">
+          <div className="hero-cast-avas">
+            {HERO_CAST.map((member) => (
+              <div key={member.name} className="hero-cast-ava">
+                {member.emoji}
+              </div>
+            ))}
+          </div>
+          <p className="hero-cast-names">{HERO_CAST.map((m) => m.name).join(' · ')}</p>
+        </div>
+        <button className="hero-start" disabled={starting || !aiReady} onClick={() => void startGame()}>
+          {starting ? '开局中…' : aiReady ? '开始一局' : 'AI 通道准备中'}
+          <span>→</span>
         </button>
-        {signedIn ? (
-          <AccountCard />
+        <button className="hero-secondary" onClick={onNewGame}>
+          <span>自定义阵容 · 6 / 8 / 9 / 10 / 12 人</span>
+          <span>›</span>
+        </button>
+        {startError ? <p className="lg-hint" style={{ color: 'var(--wolf)' }}>开局失败：{startError}</p> : null}
+      </div>
+
+      {resumeId ? (
+        <div className="resume-card">
+          <div className="resume-left">
+            <span className="icon">⏸️</span>
+            <div className="resume-text">
+              <b>进行中 · 有一局没打完</b>
+              <span>刷新不丢进度 · 对局存在服务端</span>
+            </div>
+          </div>
+          <div className="resume-actions">
+            <button className="resume-drop" onClick={() => void dropGame()} aria-label="结束这一局">
+              ✕
+            </button>
+            <button className="resume-go" onClick={resumeGame}>
+              继续
+            </button>
+          </div>
+        </div>
+      ) : null}
+
+      <AccountCard />
+
+      <div className="stats-card">
+        <div className="stat">
+          <b>{totalGames}</b>
+          <span>总对局</span>
+        </div>
+        <div className="stat-div" />
+        <div className="stat good">
+          <b>{goodRate}%</b>
+          <span>好人胜率</span>
+        </div>
+        <div className="stat-div" />
+        <div className="stat gold">
+          <b>{wolfRate}%</b>
+          <span>狼人胜率</span>
+        </div>
+      </div>
+
+      <div className="live-head">
+        <div className="live-head-left">
+          <span className="dot" />
+          <b>正在进行</b>
+          <span>{liveTotal} 局 · 可随时观战</span>
+        </div>
+        <button className="live-all" onClick={onOpenLobby}>
+          全部 <span>›</span>
+        </button>
+      </div>
+
+      <div className="live-cards">
+        {live.length === 0 ? (
+          <div className="live-empty">暂时没有进行中的对局，开一局就有观众了</div>
         ) : (
-          <button className="btn ghost" style={{ marginTop: 8, width: '100%' }} onClick={onOpenLogin}>
-            👤 登录（跨设备继续对局 / 战绩归档）
-          </button>
+          live.map((game, index) => (
+            <button
+              key={game.gameId}
+              className={index === 0 ? 'live-card' : 'live-card good'}
+              onClick={() => onWatch(game.gameId)}
+            >
+              <div className="lc-top">
+                <span className="lc-stage">{game.phaseLabel}</span>
+                <span className="lc-view">👁 {game.spectators}</span>
+              </div>
+              <div className="lc-mid">
+                <div className="lc-avas">
+                  <div className="lc-ava">{game.hasHuman ? '🙋' : '🕶️'}</div>
+                  <div className="lc-ava">🍊</div>
+                  <div className="lc-ava">🧊</div>
+                </div>
+                <p className="lc-name">{game.host} 的局</p>
+              </div>
+              <div className="lc-bar">
+                <div className="lc-track">
+                  <div
+                    className="lc-fill"
+                    style={{ width: `${Math.round((game.alive / Math.max(1, game.players)) * 100)}%` }}
+                  />
+                </div>
+                <span className="lc-alive">
+                  {game.alive}/{game.players}
+                </span>
+              </div>
+              <div className="lc-bottom">
+                <span className="lc-hint">{game.isFinal ? '决赛圈' : game.hasHuman ? '真人玩家局' : 'AI 补位局'}</span>
+                <span className="lc-watch">观战 ›</span>
+              </div>
+            </button>
+          ))
         )}
-        <p className="hint">🚀 多人真人房（好友同局）已预留入口，敬请期待。</p>
       </div>
 
-      <div className="panel">
-        <div className="panel-head">
-          <span className="panel-title">🔥 正在进行（可观战）</span>
-          <button className="link-btn" onClick={onOpenLobby}>
-            {data.live ? `全部 ${data.live.total} 局 ›` : '进入大厅 ›'}
-          </button>
-        </div>
-        <LiveList games={data.live?.games.slice(0, 2) ?? null} onWatch={onWatch} />
-      </div>
+      <button className="replay-row" onClick={onOpenLobby}>
+        <span>🎬</span>
+        <span>今日 {totalGames} 局已结束 · 进大厅看全部对局</span>
+        <span className="arrow">›</span>
+      </button>
 
-      <div className="panel">
-        <div className="panel-head">
-          <span className="panel-title">全网战绩墙</span>
-          <span className="panel-sub">
-            {stats && stats.total ? `${stats.total} 局 · 好人胜率 ${Math.round((stats.good / stats.total) * 100)}%` : '0 局'}
-          </span>
-        </div>
-        <MatchWall data={data.matches} />
-      </div>
-
-      <RulesPanel />
-      <Footer version={APP_VERSION} env={env} />
+      <footer className="d-footer">
+        <p>by domonic · 17aitech.com</p>
+        <p>
+          WorkBuddy 1024 造物挑战 · v{APP_VERSION}
+          {env === 'staging' ? ' · STAGING' : ''}
+        </p>
+      </footer>
     </section>
   );
 }
