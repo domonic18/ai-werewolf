@@ -17,6 +17,7 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { RoomManager } from './rooms.js';
 import type { MatchStore } from '../cloud/match-store.js';
 import type { LLMService } from './llm-service.js';
+import { MAX_PLAYERS, MIN_PLAYERS, availableRoles, lockedRoles, recommendDeck } from '../game/catalog.js';
 import { listRooms, parseLobbyQuery } from './lobby.js';
 import type {
   CreateGameResponse,
@@ -25,6 +26,7 @@ import type {
   HealthResponse,
   LiveResponse,
   MatchesResponse,
+  RolesResponse,
   ModelsResponse,
   OkResponse,
   SpectateResponse,
@@ -115,6 +117,23 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, ctx: 
       const recent = await ctx.matchStore.recent(8);
       const stats = await ctx.matchStore.stats();
       const body: MatchesResponse = { recent: recent.rows, stats };
+      return sendJson(res, 200, body);
+    }
+
+    /* ---------- 角色库（新建对局页） ---------- */
+    if (path === '/api/roles' && method === 'GET') {
+      const raw = Number(parsed.query.players ?? 6);
+      const players = Number.isFinite(raw)
+        ? Math.min(Math.max(Math.floor(raw), MIN_PLAYERS), MAX_PLAYERS)
+        : MIN_PLAYERS;
+      const body: RolesResponse = {
+        players,
+        minPlayers: MIN_PLAYERS,
+        maxPlayers: MAX_PLAYERS,
+        recommended: recommendDeck(players),
+        available: availableRoles(players),
+        locked: lockedRoles(players),
+      };
       return sendJson(res, 200, body);
     }
 

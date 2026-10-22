@@ -352,7 +352,8 @@ export class GameEngine implements GameView {
 
   private async humanAckRole(): Promise<void> {
     const meta = ROLES[this.human.role];
-    const tips: Record<RoleKey, string> = {
+    /* 只给已实装角色写提示；未实装角色不会进牌组，留空兜底即可 */
+    const tips: Partial<Record<RoleKey, string>> = {
       wolf: '队友会在夜里现身。白天记得藏好，别急着咬人。',
       seer: '每晚可以验一个人，白天想办法把信息传出去又不被狼盯上。',
       witch: '一瓶解药、一瓶毒药，全局各一次。用错比不用更伤。',

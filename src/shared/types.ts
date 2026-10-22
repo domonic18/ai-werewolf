@@ -5,7 +5,22 @@
 
 /* ---------- 基础枚举 ---------- */
 
-export type RoleKey = 'wolf' | 'seer' | 'witch' | 'villager';
+/**
+ * 角色标识。
+ * 前四个已实装；后六个是 v1.5 计划角色（先在角色库里注册、按人数门槛开放，
+ * 未实装的角色不会被推荐进牌组，见 src/game/catalog.ts 的 implemented 标记）。
+ */
+export type RoleKey =
+  | 'wolf'
+  | 'seer'
+  | 'witch'
+  | 'villager'
+  | 'hunter'
+  | 'guard'
+  | 'idiot'
+  | 'elder'
+  | 'wolfking'
+  | 'dreamweaver';
 export type Team = 'wolf' | 'good';
 export type Phase = 'lobby' | 'night' | 'day' | 'vote' | 'over';
 export type PendingKind = 'ack' | 'pick' | 'input';
@@ -180,6 +195,28 @@ export type GameEvent = {
 export type GameEventOf<K extends EventKind> = Extract<GameEvent, { type: K }>;
 
 /* ---------- REST 契约 ---------- */
+
+/** 角色库条目（配置页展示用） */
+export interface RoleCardView {
+  key: RoleKey;
+  name: string;
+  emoji: string;
+  team: Team;
+  minPlayers: number;
+  ability: string;
+  /** 能力已实装；false 表示人数够也还不能选 */
+  implemented: boolean;
+}
+
+export interface RolesResponse {
+  players: number;
+  minPlayers: number;
+  maxPlayers: number;
+  /** 系统按人数给的推荐牌组 */
+  recommended: { key: RoleKey; count: number }[];
+  available: RoleCardView[];
+  locked: RoleCardView[];
+}
 
 /** 运行环境：测试环境不写生产数据 */
 export type AppEnv = 'production' | 'staging';

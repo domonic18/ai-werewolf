@@ -259,3 +259,31 @@ describe('环境标识与测试环境数据隔离', () => {
     expect(result.error).toBe('staging_read_only');
   });
 });
+
+describe('角色库接口', () => {
+  it('按人数返回推荐牌组与可选/锁定角色', async () => {
+    const { body } = await getJson<{
+      players: number;
+      recommended: { key: string; count: number }[];
+      available: { key: string }[];
+      locked: { key: string; implemented: boolean }[];
+    }>('/api/roles?players=8');
+
+    expect(body.players).toBe(8);
+    const total = body.recommended.reduce((a, s) => a + s.count, 0);
+    expect(total).toBe(8);
+    /* 猎人未实装：不应出现在推荐里，但应出现在锁定列表 */
+    expect(body.recommended.some((s) => s.key === 'hunter')).toBe(false);
+    expect(body.available.map((c) => c.key)).not.toContain('hunter');
+    expect(body.locked.map((c) => c.key)).toContain('hunter');
+  });
+
+  it('人数越界会被夹到 6~12，而不是报错', async () => {
+    const low = (await getJson<{ players: number }>('/api/roles?players=1')).body;
+    const high = (await getJson<{ players: number }>('/api/roles?players=99')).body;
+    const junk = (await getJson<{ players: number }>('/api/roles?players=abc')).body;
+    expect(low.players).toBe(6);
+    expect(high.players).toBe(12);
+    expect(junk.players).toBe(6);
+  });
+});
