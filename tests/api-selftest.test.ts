@@ -4,13 +4,14 @@ import type { Server } from 'node:http';
 import { createApp } from '../src/server/app.js';
 import { RoomManager } from '../src/server/rooms.js';
 import { MatchStore } from '../src/cloud/match-store.js';
-import type { LLMService } from '../src/server/routes.js';
+import type { LLMService } from '../src/server/llm-service.js';
 import type { EventsResponse, Snapshot } from '../src/shared/types.js';
 import { createMockLLM } from './helpers/mock-llm.js';
 
 const mock = createMockLLM();
 
 const llmStub: LLMService = {
+  state: 'ready',
   models: [{ id: 'mock', name: 'Mock' }],
   model: { id: 'mock' },
   get callCount(): number {

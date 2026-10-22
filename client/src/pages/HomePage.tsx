@@ -54,6 +54,14 @@ export function HomePage({ onWatch }: { onWatch: (gameId: string) => void }): JS
     };
   }, []);
 
+  /* AI 通道还在后台初始化时，每 3 秒自动重问一次，就绪后按钮自动变可用 */
+  const llmState = data.health?.llm.state;
+  useEffect(() => {
+    if (llmState !== 'initializing') return;
+    const timer = window.setTimeout(() => void data.refresh(), 3000);
+    return () => window.clearTimeout(timer);
+  }, [llmState, data.refresh]);
+
   const startGame = async (): Promise<void> => {
     setStarting(true);
     setStartError(null);
@@ -83,15 +91,30 @@ export function HomePage({ onWatch }: { onWatch: (gameId: string) => void }): JS
   };
 
   const llm = data.health?.llm;
-  /* 三种状态要分清：接口不通 / 接口通了但大模型通道异常 / 一切正常 —— 混在一起会误导排障 */
-  const dotClass = !data.health ? (data.healthError ? 'bad' : 'warn') : llm?.ok ? 'ok' : 'bad';
+  const aiReady = Boolean(data.health && llm?.state === 'ready' && llm.ok);
+
+  /* 四种状态要分清：接口不通 / AI 通道启动中 / AI 通道不可用 / 一切正常 —— 混成一句会误导排障 */
+  const dotClass = !data.health
+    ? data.healthError
+      ? 'bad'
+      : 'warn'
+    : aiReady
+      ? 'ok'
+      : llm?.state === 'initializing'
+        ? 'warn'
+        : 'bad';
+
   const statusText = !data.health
     ? data.healthError
       ? `服务不可达：${data.healthError}`
       : '正在检测服务与大模型通道…'
-    : llm?.ok
-      ? `大模型通道正常 · ${llm.sec}s · ${llm.model}（服务端调用）`
-      : `大模型通道异常：${llm?.error ?? '未知'}`;
+    : llm?.state === 'initializing'
+      ? '服务已就绪，AI 通道正在启动（冷启动通常几秒）…'
+      : llm?.state === 'failed'
+        ? `AI 通道不可用：${llm.error ?? '未知'}`
+        : llm?.ok
+          ? `大模型通道正常 · ${llm.sec}s · ${llm.model}（服务端调用）`
+          : `大模型通道异常：${llm?.error ?? '未知'}`;
 
   const stats = data.matches?.stats;
 
@@ -120,8 +143,8 @@ export function HomePage({ onWatch }: { onWatch: (gameId: string) => void }): JS
             value={name}
             onChange={(e) => setName(e.target.value)}
           />
-          <button className="btn primary" disabled={starting} onClick={() => void startGame()}>
-            {starting ? '开局中…' : '开始一局'}
+          <button className="btn primary" disabled={starting || !aiReady} onClick={() => void startGame()}>
+            {starting ? '开局中…' : aiReady ? '开始一局' : 'AI 通道准备中'}
           </button>
         </div>
 
@@ -135,7 +158,9 @@ export function HomePage({ onWatch }: { onWatch: (gameId: string) => void }): JS
           value={data.currentModel ?? ''}
           onChange={(e) => void data.selectModel(e.target.value)}
         >
-          {data.models.length === 0 ? <option value="">加载模型列表…</option> : null}
+          {data.models.length === 0 ? (
+            <option value="">{aiReady ? '加载模型列表…' : 'AI 通道启动中…'}</option>
+          ) : null}
           {data.models.map((model) => (
             <option key={model.id} value={model.id}>
               {model.name}

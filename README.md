@@ -24,6 +24,7 @@ React 前端 (client/)            Node 服务端 (src/)                 云服�
 - **事件溯源**：对局以事件流（seq 递增）记录，客户端按 `?since=` 增量拉取，天然支持断线恢复与观战
 - **真人输入挂起**：引擎在需要真人决策处挂起，HTTP `action` 唤醒；前端只从 `snapshot.pendingAction` 派生输入面板，不依赖事件里的旧提示
 - **无构建兜底**：生产由同一个 Node 进程托管 `/api` 与 `dist/client`，不用 `vite preview` 当线上服务
+- **启动顺序**：先 `listen` 再后台初始化 LLM。AI 通道不可用时站点照常打开、`/api/games` 返回 503 —— 可用性不外包给外部依赖
 
 ## 目录结构
 
@@ -75,7 +76,7 @@ npm run typecheck  # 前后端类型检查
 
 | 方法 | 路径 | 说明 |
 |---|---|---|
-| GET | /api/health | 服务与 LLM 通道自检 |
+| GET | /api/health | 服务与 LLM 通道自检（`llm.state`: initializing / ready / failed） |
 | GET | /api/models | 可用模型列表 / POST /api/models/select 切换 |
 | POST | /api/games | 开局 `{playerName}` → `{gameId}` |
 | GET | /api/games/:id | 对局快照（真人视角含私有信息） |

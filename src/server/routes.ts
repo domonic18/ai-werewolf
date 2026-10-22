@@ -15,8 +15,8 @@
 import { parse as parseUrl } from 'node:url';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { RoomManager } from './rooms.js';
-import type { LLMClient } from '../ai/types.js';
 import type { MatchStore } from '../cloud/match-store.js';
+import type { LLMService } from './llm-service.js';
 import type {
   CreateGameResponse,
   ErrorResponse,
@@ -26,19 +26,9 @@ import type {
   LobbyGame,
   MatchesResponse,
   ModelsResponse,
-  ModelInfo,
   OkResponse,
   SpectateResponse,
 } from '../shared/types.js';
-
-/** 路由层需要的 LLM 能力（LLMGateway 与测试桩都实现它） */
-export interface LLMService extends LLMClient {
-  models: unknown[];
-  model: { id: string } | null;
-  listModels(): ModelInfo[];
-  selectModel(id: string): unknown;
-  selfTest(): Promise<{ ok: boolean; sec: string; model?: string; error?: string }>;
-}
 
 export interface ApiContext {
   llm: LLMService;
@@ -76,6 +66,7 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, ctx: 
         ok: true,
         llm: {
           ok: selfTest.ok,
+          state: ctx.llm.state,
           model: selfTest.model ?? ctx.llm.label(),
           sec: selfTest.sec,
           error: selfTest.error ?? null,
@@ -135,6 +126,15 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, ctx: 
 
     /* ---------- 开局 ---------- */
     if (path === '/api/games' && method === 'POST') {
+      if (ctx.llm.state !== 'ready') {
+        return sendJson(res, 503, {
+          error:
+            ctx.llm.state === 'initializing'
+              ? 'AI 通道启动中，请稍等几秒再开一局'
+              : 'AI 通道不可用，请稍后重试',
+          state: ctx.llm.state,
+        });
+      }
       const body = await readBody<{ playerName: string }>(req);
       const name = String(body.playerName ?? '').slice(0, 8) || '你';
       const room = ctx.rooms.create(name);

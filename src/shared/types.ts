@@ -152,9 +152,19 @@ export type GameEventOf<K extends EventKind> = Extract<GameEvent, { type: K }>;
 
 /* ---------- REST 契约 ---------- */
 
+/** AI 通道状态：启动中 / 就绪 / 失败（站点可用性不应依赖它） */
+export type LLMState = 'initializing' | 'ready' | 'failed';
+
 export interface HealthResponse {
   ok: boolean;
-  llm: { ok: boolean; model: string; sec: string; error: string | null; calls: number };
+  llm: {
+    ok: boolean;
+    state: LLMState;
+    model: string;
+    sec: string;
+    error: string | null;
+    calls: number;
+  };
   rooms: number;
 }
 

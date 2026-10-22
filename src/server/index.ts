@@ -1,14 +1,17 @@
 /**
- * 进程入口：加载云服务配置 → 初始化 LLM 网关 → 起单端口服务。
- * 绑定 0.0.0.0 + PORT（sites 沙箱要求）。
+ * 进程入口：先监听端口，再后台初始化 AI 通道。
+ *
+ * 顺序很重要（2026-10-22 线上 504 的教训）：LLM 的 endpoint 是本应用的公网域名，
+ * 沙箱冷启动时该域名尚未就绪。若先 await 初始化再 listen，初始化失败 → 进程退出 →
+ * 端口从未监听 → 平台 30s 后返回 504，连静态首页都打不开。
  */
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { createApp, PROJECT_ROOT } from './app.js';
-import { createLLMGateway } from '../ai/llm-gateway.js';
 import type { CloudConfig } from '../ai/llm-gateway.js';
 import { MatchStore } from '../cloud/match-store.js';
 import { RoomManager } from './rooms.js';
+import { LLMRuntime } from './llm-runtime.js';
 
 interface FileConfig {
   endpoint?: string;
@@ -52,19 +55,27 @@ async function loadConfig(): Promise<CloudConfig> {
 
 export async function main(): Promise<import('node:http').Server> {
   const config = await loadConfig();
-  const llm = await createLLMGateway(config);
-  const matchStore = new MatchStore(llm.cloud);
+
+  const llm = new LLMRuntime(config);
+  const matchStore = new MatchStore(() => llm.cloud);
   const rooms = new RoomManager({ llm, matchStore });
 
   const server = createApp({ llm, rooms, matchStore });
   const port = Number(process.env.PORT ?? 3000);
 
   await new Promise<void>((resolve) => server.listen(port, '0.0.0.0', resolve));
-  console.log(`[werewolf-ai] listening on :${port}, llm=${llm.label()}, models=${llm.models.length}`);
+  console.log(`[werewolf-ai] listening on :${port}（AI 通道后台初始化中）`);
+
+  /* 后台初始化：失败不退出进程，站点保持可用，/api/games 返回 503 直到就绪 */
+  void llm.bootstrap();
+
   return server;
 }
 
-const isDirectRun = process.argv[1] ? path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname) : false;
+const isDirectRun = process.argv[1]
+  ? path.resolve(process.argv[1]) === path.resolve(new URL(import.meta.url).pathname)
+  : false;
+
 if (isDirectRun) {
   main().catch((e: Error) => {
     console.error('[werewolf-ai] fatal:', e);

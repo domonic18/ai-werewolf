@@ -44,11 +44,19 @@ export interface MatchStats {
   wolf: number;
 }
 
-export class MatchStore {
-  private readonly db: DatabaseClient | null;
+/** 云客户端可能是延迟就绪的（LLM 通道后台初始化），因此允许传 getter */
+type CloudSource = WorkBuddyCloudClient | null | (() => WorkBuddyCloudClient | null);
 
-  constructor(cloud: WorkBuddyCloudClient | null) {
-    this.db = cloud ? (cloud.database as unknown as DatabaseClient) : null;
+export class MatchStore {
+  private readonly source: () => WorkBuddyCloudClient | null;
+
+  constructor(cloud: CloudSource) {
+    this.source = typeof cloud === 'function' ? cloud : () => cloud;
+  }
+
+  private get db(): DatabaseClient | null {
+    const client = this.source();
+    return client ? (client.database as unknown as DatabaseClient) : null;
   }
 
   async save(row: ArchiveRow): Promise<SaveResult> {
