@@ -15,10 +15,3 @@ export function roundBadge(phase: Phase, round: number): string {
   if (phase === 'night') return `第 ${round} 夜`;
   return `第 ${round} 天`;
 }
-
-/** 大厅列表里的阶段标签 */
-export function phaseLabel(phase: Phase, round: number): string {
-  if (phase === 'night') return `第${round}夜`;
-  if (phase === 'vote') return `第${round}天·投票`;
-  return `第${round}天`;
-}

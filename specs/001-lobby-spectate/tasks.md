@@ -18,7 +18,7 @@ description: "Task list for 001 游戏大厅与对局观战"
 
 ## Phase 1: Setup（共享基建）
 
-- [ ] T001 新增 `src/server/lobby.js` 骨架，导出 `toEntry(room)` / `list(rooms, query)` / `encodeCursor()` / `decodeCursor()`（0.5d）
+- [x] T001 新增 `src/server/lobby.js` 骨架，导出 `toEntry(room)` / `list(rooms, query)` / `encodeCursor()` / `decodeCursor()`（0.5d）
 - [ ] T002 [P] 新增 `public/assets/state.js`：`createStore({get,set,subscribe})`，含 12 行单测（0.5d）
 - [ ] T003 [P] 在 `tests/run-all.js` 注册 `lobby.test.js` 与 `spectate.test.js`（0.1d）
 
@@ -31,7 +31,7 @@ description: "Task list for 001 游戏大厅与对局观战"
 - [ ] T004 `src/game/engine.js` 新增 `this.timeline[]` 累积：每次夜晚结算后写入 `{night, deaths:[{seat,name,cause,saved,guarded}]}`（1d）
 - [ ] T005 `src/game/engine.js` 新增 `tallyOf()`：从 `vote` 事件推导当前票型 `{seat: count}`，不引入新状态（0.5d）
 - [ ] T006 [P] `src/game/engine.js` 新增 `factionsOf()`：按阵营聚合存活数与初始数（0.5d）
-- [ ] T007 `src/server/rooms.js` 增加 `spectators: Map<clientId, lastSeenAt>`、`touch(clientId)`、`pruneSpectators(30s)`、`spectatorCount`（0.5d）
+- [x] T007 `src/server/rooms.js` 增加 `spectators: Map<clientId, lastSeenAt>`、`touch(clientId)`、`pruneSpectators(30s)`、`spectatorCount`（0.5d）
 
 **验收**：`tests/engine-smoke.test.js` 增加断言——每局结束后 `timeline.length === round`、`sum(tally) === 投票人数`；10 局全绿。
 
@@ -41,10 +41,10 @@ description: "Task list for 001 游戏大厅与对局观战"
 
 **目标**：`/api/live` 支持字段补全 + 筛选 + 游标分页；前端大厅可浏览并能开局。
 
-- [ ] T008 [US1] `src/server/lobby.js` 实现 `toEntry()`：`phaseLabel`（第 N 天·投票 / 第 N 夜）、`alive`、`spectators`、`hasHuman`、`isFinal`、`spectatable`（0.5d）
-- [ ] T009 [US1] `src/server/lobby.js` 实现筛选（all/human/final）+ 排序（spectators/created）+ 稳定游标（`sortValue,startedAt,gameId`）（1d）
-- [ ] T010 [US1] `src/server/routes.js` 改造 `/api/live`：解析 `filter/sort/limit/after`，返回 `games/nextCursor/total`，保留旧字段（0.5d）
-- [ ] T011 [P] [US1] `tests/lobby.test.js`：空列表、混入 over 局被过滤、同观战人数 30 局游标翻页无重无漏、筛选命中（0.5d）
+- [x] T008 [US1] `src/server/lobby.js` 实现 `toEntry()`：`phaseLabel`（第 N 天·投票 / 第 N 夜）、`alive`、`spectators`、`hasHuman`、`isFinal`、`spectatable`（0.5d）
+- [x] T009 [US1] `src/server/lobby.js` 实现筛选（all/human/final）+ 排序（spectators/created）+ 稳定游标（`sortValue,startedAt,gameId`）（1d）
+- [x] T010 [US1] `src/server/routes.js` 改造 `/api/live`：解析 `filter/sort/limit/after`，返回 `games/nextCursor/total`，保留旧字段（0.5d）
+- [x] T011 [P] [US1] `tests/lobby.test.ts`：空列表、混入 over 局被过滤、同观战人数 30 局游标翻页无重无漏、筛选命中（0.5d）
 - [ ] T012 [US1] 前端大厅列表：列表项渲染（房主/人数/阶段徽章/存活条/👁 观战数）、空态、「开一局」入口（1d）
 - [ ] T013 [US1] 前端筛选 chips + 排序切换 + 上滑加载「还有 N 局」（1d）
 

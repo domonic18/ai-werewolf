@@ -17,13 +17,13 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { RoomManager } from './rooms.js';
 import type { MatchStore } from '../cloud/match-store.js';
 import type { LLMService } from './llm-service.js';
+import { listRooms, parseLobbyQuery } from './lobby.js';
 import type {
   CreateGameResponse,
   ErrorResponse,
   EventsResponse,
   HealthResponse,
   LiveResponse,
-  LobbyGame,
   MatchesResponse,
   ModelsResponse,
   OkResponse,
@@ -105,22 +105,9 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, ctx: 
 
     /* ---------- 进行中对局（大厅） ---------- */
     if (path === '/api/live' && method === 'GET') {
-      const games: LobbyGame[] = [];
-      for (const [id, room] of ctx.rooms.rooms) {
-        const engine = room.engine;
-        if (engine.phase === 'over' || engine.aborted) continue;
-        games.push({
-          gameId: id,
-          host: engine.playerName,
-          round: engine.round,
-          phase: engine.phase,
-          players: engine.players.length,
-          alive: engine.alivePlayers().length,
-          startedAt: room.createdAt,
-        });
-      }
-      games.sort((a, b) => b.startedAt - a.startedAt);
-      const body: LiveResponse = { games: games.slice(0, 20) };
+      const query = parseLobbyQuery(parsed.query);
+      const page = listRooms(ctx.rooms.rooms, query);
+      const body: LiveResponse = { games: page.games, nextCursor: page.nextCursor, total: page.total };
       return sendJson(res, 200, body);
     }
 
@@ -195,6 +182,9 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, ctx: 
       /* 观战：只读事件流（不含真人私有信息） */
       if (method === 'GET' && sub === 'spectate') {
         const since = Number(parsed.query.since ?? 0) || 0;
+        /* 观战心跳：用于大厅的观战人数统计（服务端计数，不信任客户端上报的数字） */
+        const clientId = String(parsed.query.client ?? '').slice(0, 64);
+        if (clientId) room.touchSpectator(clientId);
         const body: SpectateResponse = {
           version: engine.version,
           events: engine.events.filter((e) => e.seq > since),

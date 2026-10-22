@@ -183,14 +183,27 @@ export interface LobbyGame {
   gameId: string;
   host: string;
   round: number;
+  /** 阶段标签，如「第 2 天 · 投票」 */
+  phaseLabel: string;
   phase: Phase;
   players: number;
+  maxPlayers: number;
   alive: number;
+  /** 当前观战人数（服务端按心跳统计，不信任客户端上报） */
+  spectators: number;
+  hasHuman: boolean;
+  /** 决赛圈：存活 ≤ 3 */
+  isFinal: boolean;
+  spectatable: boolean;
   startedAt: number;
 }
 
 export interface LiveResponse {
   games: LobbyGame[];
+  /** 下一页游标；null 表示已到底 */
+  nextCursor: string | null;
+  /** 过滤后的总条数（不受游标影响） */
+  total: number;
 }
 
 export interface MatchRow {

@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api, ApiError } from '../api/client';
+import { getClientId } from '../lib/clientId';
 import { useGameStore } from '../store/gameStore';
 
 const POLL_MS = 1200;
@@ -28,7 +29,10 @@ export function useMatchPolling(): { lost: boolean } {
       const since = useGameStore.getState().version;
       try {
         if (watching) {
-          const [stream, snapshot] = await Promise.all([api.spectate(gameId, since), api.snapshot(gameId)]);
+          const [stream, snapshot] = await Promise.all([
+            api.spectate(gameId, since, getClientId()),
+            api.snapshot(gameId),
+          ]);
           if (cancelled) return;
           apply({ events: stream.events, version: stream.version, snapshot });
         } else {

@@ -47,8 +47,8 @@ export const api = {
   createGame: (playerName: string): Promise<CreateGameResponse> => request('/games', { playerName }),
   snapshot: (gameId: string): Promise<Snapshot> => request(`/games/${gameId}`),
   events: (gameId: string, since: number): Promise<EventsResponse> => request(`/games/${gameId}/events?since=${since}`),
-  spectate: (gameId: string, since: number): Promise<SpectateResponse> =>
-    request(`/games/${gameId}/spectate?since=${since}`),
+  spectate: (gameId: string, since: number, clientId?: string): Promise<SpectateResponse> =>
+    request(`/games/${gameId}/spectate?since=${since}${clientId ? `&client=${encodeURIComponent(clientId)}` : ''}`),
   action: (gameId: string, value: string | number | null): Promise<OkResponse> =>
     request(`/games/${gameId}/action`, { value }),
   quit: (gameId: string): Promise<OkResponse> => request(`/games/${gameId}/quit`, {}),

@@ -8,10 +8,13 @@ import type { MatchStore } from '../cloud/match-store.js';
 
 const MAX_ROOMS = 20;
 const ROOM_TTL_MS = 2 * 60 * 60 * 1000; // 2h 后可清理
+const SPECTATOR_TTL_MS = 30 * 1000; // 观战心跳超时
 
 export class Room {
   readonly engine: GameEngine;
   readonly createdAt: number;
+  /** 观战心跳：clientId → 最后活跃时间。服务端统计，不信任客户端计数。 */
+  private readonly spectators = new Map<string, number>();
 
   constructor(engine: GameEngine) {
     this.engine = engine;
@@ -20,6 +23,25 @@ export class Room {
 
   get expired(): boolean {
     return this.engine.phase === 'over' && Date.now() - this.createdAt > ROOM_TTL_MS;
+  }
+
+  /** 观战者心跳（每次拉取观战事件时调用） */
+  touchSpectator(clientId: string): void {
+    if (!clientId) return;
+    this.spectators.set(clientId, Date.now());
+  }
+
+  /** 30 秒无心跳的观战者视为离开 */
+  pruneSpectators(ttlMs = SPECTATOR_TTL_MS): void {
+    const now = Date.now();
+    for (const [clientId, lastSeenAt] of this.spectators) {
+      if (now - lastSeenAt > ttlMs) this.spectators.delete(clientId);
+    }
+  }
+
+  get spectatorCount(): number {
+    this.pruneSpectators();
+    return this.spectators.size;
   }
 }
 

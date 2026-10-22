@@ -1,5 +1,4 @@
 import type { LobbyGame } from '@shared/types';
-import { phaseLabel } from '../lib/format';
 
 interface LiveListProps {
   games: LobbyGame[] | null;
@@ -15,9 +14,10 @@ export function LiveList({ games, onWatch }: LiveListProps): JSX.Element {
       {games.map((game) => (
         <div key={game.gameId} className="recent-item">
           <span className="who">👤 {game.host} 的对局</span>
-          <span className="tag stage">{phaseLabel(game.phase, game.round)}</span>
+          <span className="tag stage">{game.phaseLabel}</span>
           <span className="when">
-            存活 {game.alive}/{game.players} ·{' '}
+            存活 {game.alive}/{game.players}
+            {game.spectators > 0 ? ` · 👁 ${game.spectators}` : ''} ·{' '}
             <button className="link-btn" onClick={() => onWatch(game.gameId)}>
               观战
             </button>
