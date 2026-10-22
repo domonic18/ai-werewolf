@@ -400,3 +400,11 @@ body {
 }
 .step-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.14); }
 .step-btn:disabled { opacity: 0.35; cursor: not-allowed; }
+
+/* 登录页手机号前缀 */
+.phone-prefix {
+  flex: 0 0 auto;
+  padding: 0 4px;
+  font-size: 13px;
+  color: var(--muted);
+}

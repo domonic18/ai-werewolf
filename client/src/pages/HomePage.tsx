@@ -16,9 +16,11 @@ interface HomePageProps {
   onOpenLobby: () => void;
   /** 进配置页（选人数/牌组） */
   onNewGame: () => void;
+  /** 登录入口（可选增强，不做登录墙） */
+  onOpenLogin: () => void;
 }
 
-export function HomePage({ onWatch, onOpenLobby, onNewGame }: HomePageProps): JSX.Element {
+export function HomePage({ onWatch, onOpenLobby, onNewGame, onOpenLogin }: HomePageProps): JSX.Element {
   const open = useGameStore((s) => s.open);
   const data = useHomeData();
 
@@ -180,6 +182,9 @@ export function HomePage({ onWatch, onOpenLobby, onNewGame }: HomePageProps): JS
         {startError ? <p className="hint" style={{ color: 'var(--wolf)' }}>开局失败：{startError}</p> : null}
         <button className="btn ghost big" style={{ marginTop: 10 }} onClick={onNewGame}>
           新建对局 · 选人数与角色 ›
+        </button>
+        <button className="btn ghost" style={{ marginTop: 8, width: '100%' }} onClick={onOpenLogin}>
+          👤 登录（跨设备继续对局 / 战绩归档）
         </button>
         <p className="hint">🚀 多人真人房（好友同局）已预留入口，敬请期待。</p>
       </div>

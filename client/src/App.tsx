@@ -4,11 +4,12 @@ import { LobbyPage } from './pages/LobbyPage';
 import { MatchPage } from './pages/MatchPage';
 import { ResultPage } from './pages/ResultPage';
 import { SetupPage } from './pages/SetupPage';
+import { LoginPage } from './pages/LoginPage';
 import { useMatchPolling } from './hooks/useMatchPolling';
 import { clearSavedGame, readSavedGame } from './lib/storage';
 import { useGameStore } from './store/gameStore';
 
-type Screen = 'home' | 'lobby' | 'setup';
+type Screen = 'home' | 'lobby' | 'setup' | 'login';
 
 export function App(): JSX.Element {
   const gameId = useGameStore((s) => s.gameId);
@@ -42,7 +43,11 @@ export function App(): JSX.Element {
           onWatch={watch}
           onOpenLobby={() => setScreen('lobby')}
           onNewGame={() => setScreen('setup')}
+          onOpenLogin={() => setScreen('login')}
         />
+      ) : null}
+      {!gameId && screen === 'login' ? (
+        <LoginPage onBack={() => setScreen('home')} onSignedIn={() => setScreen('home')} />
       ) : null}
       {!gameId && screen === 'setup' ? (
         <SetupPage
