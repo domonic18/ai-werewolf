@@ -19,8 +19,8 @@ description: "Task list for 001 游戏大厅与对局观战"
 ## Phase 1: Setup（共享基建）
 
 - [x] T001 新增 `src/server/lobby.js` 骨架，导出 `toEntry(room)` / `list(rooms, query)` / `encodeCursor()` / `decodeCursor()`（0.5d）
-- [ ] T002 [P] 新增 `public/assets/state.js`：`createStore({get,set,subscribe})`，含 12 行单测（0.5d）
-- [ ] T003 [P] 在 `tests/run-all.js` 注册 `lobby.test.js` 与 `spectate.test.js`（0.1d）
+- [x] T002 [P] ~~新增 `public/assets/state.js`~~ 已由 React 迁移替代：zustand 单 store（`client/src/store/gameStore.ts`），不再自建 store（0.5d）
+- [x] T003 [P] ~~自建 run-all~~ 已由 vitest 接管：`tests/*.test.ts` 自动发现（0.1d）
 
 **验收**：`npm test` 仍全绿（新增空测试文件跑通）。
 
@@ -30,7 +30,7 @@ description: "Task list for 001 游戏大厅与对局观战"
 
 - [x] T004 `src/game/engine.ts` 新增 `timeline: NightRecord[]`：夜晚结算写入狼刀/解药/毒药/死因，投票后补 `exiled`/`tie`（1d）
 - [x] T005 票型从 `vote` 事件派生（实现为 `client/src/lib/tally.ts` 纯函数，引擎不新增状态——事件流即唯一事实来源）（0.5d）
-- [ ] T006 [P] `src/game/engine.js` 新增 `factionsOf()`：按阵营聚合存活数与初始数（0.5d）
+- [x] T006 [P] 阵营聚合由 `engine.spectateSnapshot()` 内的 `tally()` 实现（狼/好人存活与总数）（0.5d）
 - [x] T007 `src/server/rooms.js` 增加 `spectators: Map<clientId, lastSeenAt>`、`touch(clientId)`、`pruneSpectators(30s)`、`spectatorCount`（0.5d）
 
 **验收**：`tests/engine-smoke.test.js` 增加断言——每局结束后 `timeline.length === round`、`sum(tally) === 投票人数`；10 局全绿。
@@ -82,7 +82,7 @@ description: "Task list for 001 游戏大厅与对局观战"
 
 - [x] T024 [US4] 对局页接入 `tally`：投票阶段实时条形 + 座位得票角标（只在事件到达时增长）（1d）
 - [x] T025 [US4] 结算页时间轴：玩家看公开信息、观战看死因/用药/票数（`RoundTimeline` + `lib/timeline.ts`）（1d）
-- [ ] T026 [P] [US4] `tests/engine-smoke.test.js` 断言：女巫/守卫参与时 `saved`、`guarded` 字段与实际用药一致（0.5d）
+- [x] T026 [P] [US4] `tests/engine-smoke.test.ts` 断言：`saved` / `poisonTarget` / 死因与实际用药一致（可配桩覆盖救人 + 下毒两种场景）；守卫未实装，`guarded` 随 v1.5 补（0.5d）
 - [x] T027 [US4] 移动端走查：375 / 390 / 320 / 横屏 844 四视口，无横向溢出、无控制台错误（0.5d）
 
 **独立验收**：第 3 天投票阶段票型与事件严格一致；结算页时间轴与 `timeline` 完全对应。
