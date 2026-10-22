@@ -4,7 +4,7 @@ import { LobbyPage } from './pages/LobbyPage';
 import { MatchPage } from './pages/MatchPage';
 import { ResultPage } from './pages/ResultPage';
 import { useMatchPolling } from './hooks/useMatchPolling';
-import { clearSavedGame } from './lib/storage';
+import { clearSavedGame, readSavedGame } from './lib/storage';
 import { useGameStore } from './store/gameStore';
 
 type Screen = 'home' | 'lobby';
@@ -28,13 +28,24 @@ export function App(): JSX.Element {
 
   const watch = (id: string): void => open(id, { watching: true });
 
+  /* 从大厅回到自己那一局：必须带上凭证，否则服务端只会回 401 */
+  const resume = (id: string): void => {
+    const saved = readSavedGame();
+    if (saved && saved.id === id) open(id, { token: saved.token });
+  };
+
   return (
     <div id="app">
       {!gameId && screen === 'home' ? (
         <HomePage onWatch={watch} onOpenLobby={() => setScreen('lobby')} />
       ) : null}
       {!gameId && screen === 'lobby' ? (
-        <LobbyPage onBack={() => setScreen('home')} onWatch={watch} onStart={() => setScreen('home')} />
+        <LobbyPage
+          onBack={() => setScreen('home')}
+          onWatch={watch}
+          onResume={resume}
+          onStart={() => setScreen('home')}
+        />
       ) : null}
       {gameId && !finished ? <MatchPage lost={lost} lostReason={reason} /> : null}
       {gameId && finished ? <ResultPage /> : null}

@@ -13,7 +13,9 @@ import { readShareCode, withShareCode } from '../lib/url';
 
 /** 大厅查询：字段与 src/server/lobby.ts 的 LobbyQuery 一一对应 */
 export interface LiveQuery {
-  filter?: 'all' | 'human' | 'final';
+  filter?: 'all' | 'human' | 'final' | 'mine';
+  /** filter=mine 时要找的对局 id */
+  mine?: string | null;
   sort?: 'spectators' | 'created';
   limit?: number;
   after?: string | null;
@@ -78,6 +80,7 @@ export const api = {
   live: (query: LiveQuery = {}): Promise<LiveResponse> => {
     const params = new URLSearchParams();
     if (query.filter && query.filter !== 'all') params.set('filter', query.filter);
+    if (query.mine) params.set('mine', query.mine);
     if (query.sort && query.sort !== 'spectators') params.set('sort', query.sort);
     if (query.limit) params.set('limit', String(query.limit));
     if (query.after) params.set('after', query.after);

@@ -2,11 +2,14 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { api } from '../api/client';
 import type { LiveQuery } from '../api/client';
 import type { LobbyGame } from '@shared/types';
+import { readSavedGame } from '../lib/storage';
 
 const PAGE_SIZE = 10;
 
 export interface LobbyState {
   games: LobbyGame[];
+  /** 本地是否有进行中的对局（「我的对局」筛选的依据） */
+  hasMine: boolean;
   total: number;
   hasMore: boolean;
   loading: boolean;
@@ -42,7 +45,9 @@ export function useLobby(): LobbyState {
       setLoading(true);
       setError(null);
       try {
-        const page = await api.live({ filter: nextFilter, sort: nextSort, limit: PAGE_SIZE, after });
+        /* 「我的对局」把本地存档的 id 带给服务端——服务端不认识「我」，也不该认识 */
+        const mine = readSavedGame()?.id ?? null;
+        const page = await api.live({ filter: nextFilter, sort: nextSort, limit: PAGE_SIZE, after, mine });
         if (id !== requestId.current) return; /* 已有更新的请求，丢弃这次结果 */
         setGames((prev) => (after ? [...prev, ...page.games] : page.games));
         setCursor(page.nextCursor);
@@ -94,6 +99,7 @@ export function useLobby(): LobbyState {
 
   return {
     games,
+    hasMine: Boolean(readSavedGame()?.id),
     total,
     hasMore: Boolean(cursor),
     loading,

@@ -7,7 +7,7 @@
  */
 import type { LobbyGame, Phase } from '../shared/types.js';
 
-export type LobbyFilter = 'all' | 'human' | 'final';
+export type LobbyFilter = 'all' | 'human' | 'final' | 'mine';
 export type LobbySort = 'spectators' | 'created';
 
 export interface LobbyQuery {
@@ -15,6 +15,8 @@ export interface LobbyQuery {
   sort: LobbySort;
   limit: number;
   after: string | null;
+  /** filter=mine 时要找的对局 id（服务端不认识「我」，由前端把本地存档的 id 带上来） */
+  mine: string | null;
 }
 
 export interface LobbyPage {
@@ -85,11 +87,14 @@ export function parseLobbyQuery(query: Record<string, string | string[] | undefi
   const limitRaw = Number(firstValue(query.limit) ?? DEFAULT_LIMIT);
   const afterRaw = firstValue(query.after);
 
-  const filter: LobbyFilter = filterRaw === 'human' || filterRaw === 'final' ? filterRaw : 'all';
+  const filter: LobbyFilter =
+    filterRaw === 'human' || filterRaw === 'final' || filterRaw === 'mine' ? filterRaw : 'all';
   const sort: LobbySort = sortRaw === 'created' ? 'created' : 'spectators';
   const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), MAX_LIMIT) : DEFAULT_LIMIT;
 
-  return { filter, sort, limit, after: afterRaw || null };
+  const mine = firstValue(query.mine)?.slice(0, 64) || null;
+  /* filter=mine 但没带对局 id 时，退化成空结果而不是全量——否则「我的对局」会变成「所有对局」 */
+  return { filter: mine ? 'mine' : filter, sort, limit, after: afterRaw || null, mine };
 }
 
 function sortValue(entry: LobbyGame, sort: LobbySort): number {
@@ -137,6 +142,7 @@ export function listRooms(rooms: Iterable<[string, LobbyRoomLike]>, query: Lobby
     if (!entry) continue;
     if (query.filter === 'human' && !entry.hasHuman) continue;
     if (query.filter === 'final' && !entry.isFinal) continue;
+    if (query.filter === 'mine' && entry.gameId !== query.mine) continue;
     entries.push(entry);
   }
 

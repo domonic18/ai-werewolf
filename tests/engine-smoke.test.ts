@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { GameEngine } from '../src/game/engine.js';
 import type { GameEvent } from '../src/shared/types.js';
 import { createMockLLM } from './helpers/mock-llm.js';
+import type { MockOptions } from './helpers/mock-llm.js';
 
 /** 自动应答真人输入：一律选第一个选项 / 固定发言 */
 function autoAnswer(engine: GameEngine): () => void {
@@ -15,11 +16,14 @@ function autoAnswer(engine: GameEngine): () => void {
   return () => clearInterval(timer);
 }
 
-async function runOnce(index: number): Promise<{ engine: GameEngine; events: GameEvent[] }> {
+async function runOnce(
+  index: number,
+  mockOptions: MockOptions = {},
+): Promise<{ engine: GameEngine; events: GameEvent[] }> {
   const events: GameEvent[] = [];
   const engine = new GameEngine({
     playerName: `测试${index}`,
-    llm: createMockLLM(),
+    llm: createMockLLM(mockOptions),
     pace: 0.02,
     emit: (event) => events.push(event),
   });
@@ -123,5 +127,70 @@ describe('复盘时间轴', () => {
     expect(view.timeline[0]?.round).toBe(1);
     expect(view.factions.wolf.total + view.factions.good.total).toBe(engine.players.length);
     expect(view).not.toHaveProperty('pendingAction');
+  }, 120_000);
+});
+
+describe('复盘记录与实际行动一致（用药 / 死因）', () => {
+  it('救人就一定没死，下毒就一定死，死因标注与实际一致', async () => {
+    /* 用可配桩把两种用药场景都逼出来，否则这条不变量形同虚设 */
+    /* 真人角色是随机的（1/6 可能是女巫），所以多跑几局保证「AI 女巫」在场 */
+    const games = await Promise.all([
+      runOnce(101, { witchSave: true }),
+      runOnce(102, { witchSave: true }),
+      ...[103, 104, 105, 106, 107, 108].map((i) => runOnce(i, { witchPoison: true })),
+    ]);
+    let savedSeen = 0;
+    let poisonSeen = 0;
+
+    for (const { engine } of games) {
+      for (const rec of engine.timeline) {
+        const deathIds = rec.deaths.map((d) => d.playerId);
+
+        if (rec.saved) {
+          savedSeen += 1;
+          expect(rec.wolfTarget).not.toBeNull();
+          /* 同晚只能用一种药：被救的人绝不会同时被毒 */
+          expect(rec.poisonTarget).toBeNull();
+          expect(deathIds).not.toContain(rec.wolfTarget?.playerId);
+        }
+
+        if (rec.poisonTarget) {
+          poisonSeen += 1;
+          expect(deathIds).toContain(rec.poisonTarget.playerId);
+          const poisonDeath = rec.deaths.find((d) => d.playerId === rec.poisonTarget?.playerId);
+          /* 同一个人既被刀又被毒时只记一条，死因记「刀」（先发生的解释优先） */
+          const sameAsWolf = rec.wolfTarget?.playerId === rec.poisonTarget.playerId && !rec.saved;
+          expect(poisonDeath?.cause).toBe(sameAsWolf ? 'wolf' : 'poison');
+          /* 用了解药就不能再用毒药 */
+          expect(rec.saved).toBe(false);
+        }
+
+        /* 没被救、也没被毒顶掉的狼刀目标，必须出现在死亡名单且死因为刀 */
+        if (rec.wolfTarget && !rec.saved) {
+          const wolfDeath = rec.deaths.find((d) => d.playerId === rec.wolfTarget?.playerId);
+          if (wolfDeath) expect(wolfDeath.cause).toBe('wolf');
+          else expect(rec.poisonTarget?.playerId).toBe(rec.wolfTarget.playerId);
+        }
+
+        /* 每条死亡记录的死因必须能在场上找到解释 */
+        for (const death of rec.deaths) {
+          const explainedByWolf = rec.wolfTarget?.playerId === death.playerId && !rec.saved;
+          const explainedByPoison = rec.poisonTarget?.playerId === death.playerId;
+          expect(
+            explainedByWolf || explainedByPoison,
+            `第 ${rec.round} 轮的死亡 ${death.name} 找不到死因解释`,
+          ).toBe(true);
+        }
+
+        /* 放逐只会发生在白天，且当事人不在当晚死亡名单里 */
+        if (rec.exiled) {
+          expect(rec.exiled.votes).toBeGreaterThan(0);
+        }
+      }
+    }
+
+    /* 两种用药场景都必须被覆盖到 */
+    expect(savedSeen).toBeGreaterThan(0);
+    expect(poisonSeen).toBeGreaterThan(0);
   }, 120_000);
 });

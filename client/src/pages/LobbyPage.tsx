@@ -2,6 +2,7 @@ import type { LobbyGame } from '@shared/types';
 import { useLobby } from '../hooks/useLobby';
 import type { LobbyState } from '../hooks/useLobby';
 import { Footer } from '../components/Footer';
+import { readSavedGame } from '../lib/storage';
 
 const APP_VERSION = __APP_VERSION__;
 
@@ -9,6 +10,7 @@ const FILTERS: { key: LobbyState['filter']; label: string }[] = [
   { key: 'all', label: '全部' },
   { key: 'human', label: '真人局' },
   { key: 'final', label: '决赛圈' },
+  { key: 'mine', label: '我的对局' },
 ];
 
 const SORTS: { key: LobbyState['sort']; label: string }[] = [
@@ -19,18 +21,30 @@ const SORTS: { key: LobbyState['sort']; label: string }[] = [
 interface LobbyPageProps {
   onBack: () => void;
   onWatch: (gameId: string) => void;
+  /** 点自己那一局时带着凭证回到对局，而不是以观战身份进去 */
+  onResume: (gameId: string) => void;
   onStart: () => void;
 }
 
 /** 一局一行：密度高时用这个；少于 6 局时用卡片，避免列表行在大片空白里显得空 */
-function GameRow({ game, onWatch }: { game: LobbyGame; onWatch: (id: string) => void }): JSX.Element {
+function GameRow({
+  game,
+  onWatch,
+  onResume,
+  mine,
+}: {
+  game: LobbyGame;
+  onWatch: (id: string) => void;
+  onResume: (id: string) => void;
+  mine: boolean;
+}): JSX.Element {
   const aliveRatio = game.players > 0 ? game.alive / game.players : 0;
   const classes = ['lobby-row'];
   if (game.isFinal) classes.push('hot');
   if (game.spectators >= 3) classes.push('hot');
 
   return (
-    <button className={classes.join(' ')} onClick={() => onWatch(game.gameId)}>
+    <button className={classes.join(' ')} onClick={() => (mine ? onResume(game.gameId) : onWatch(game.gameId))}>
       <span className="lobby-row-main">
         <span className="lobby-host">
           👤 {game.host} 的对局
@@ -49,16 +63,29 @@ function GameRow({ game, onWatch }: { game: LobbyGame; onWatch: (id: string) => 
       </span>
       <span className="lobby-side">
         <span className="lobby-eye">👁 {game.spectators}</span>
-        <span className="lobby-watch">观战 ›</span>
+        <span className="lobby-watch">{mine ? '继续 ›' : '观战 ›'}</span>
       </span>
     </button>
   );
 }
 
-function GameCard({ game, onWatch }: { game: LobbyGame; onWatch: (id: string) => void }): JSX.Element {
+function GameCard({
+  game,
+  onWatch,
+  onResume,
+  mine,
+}: {
+  game: LobbyGame;
+  onWatch: (id: string) => void;
+  onResume: (id: string) => void;
+  mine: boolean;
+}): JSX.Element {
   const aliveRatio = game.players > 0 ? game.alive / game.players : 0;
   return (
-    <button className={`lobby-card ${game.isFinal ? 'hot' : ''}`} onClick={() => onWatch(game.gameId)}>
+    <button
+      className={`lobby-card ${game.isFinal ? 'hot' : ''}`}
+      onClick={() => (mine ? onResume(game.gameId) : onWatch(game.gameId))}
+    >
       <span className="lobby-card-top">
         <span className="lobby-host">👤 {game.host}</span>
         <span className="tag phase">{game.phaseLabel}</span>
@@ -71,14 +98,15 @@ function GameCard({ game, onWatch }: { game: LobbyGame; onWatch: (id: string) =>
       </span>
       <span className="lobby-card-bottom">
         <span className="lobby-eye">👁 {game.spectators} 人在看</span>
-        <span className="lobby-watch">观战 ›</span>
+        <span className="lobby-watch">{mine ? '继续 ›' : '观战 ›'}</span>
       </span>
     </button>
   );
 }
 
-export function LobbyPage({ onBack, onWatch, onStart }: LobbyPageProps): JSX.Element {
+export function LobbyPage({ onBack, onWatch, onResume, onStart }: LobbyPageProps): JSX.Element {
   const lobby = useLobby();
+  const mineId = readSavedGame()?.id ?? null;
   const watching = lobby.games.reduce((sum, game) => sum + game.spectators, 0);
   /* 密度自适应：局多的时候卡片太占屏幕，换成紧凑行 */
   const dense = lobby.games.length >= 6;
@@ -148,8 +176,20 @@ export function LobbyPage({ onBack, onWatch, onStart }: LobbyPageProps): JSX.Ele
       {!lobby.error && !lobby.loading && lobby.games.length === 0 ? (
         <div className="panel empty-lobby">
           <div className="empty-emoji">🌙</div>
-          <div className="panel-title">现在没有进行中的对局</div>
-          <p className="hint">开一局，让 5 个 AI 先吵起来——别人就能从这里围观你。</p>
+          <div className="panel-title">
+            {lobby.filter === 'mine'
+              ? '这台设备没有进行中的对局'
+              : lobby.filter === 'final'
+                ? '现在没有决赛圈的对局'
+                : lobby.filter === 'human'
+                  ? '现在没有真人局'
+                  : '现在没有进行中的对局'}
+          </div>
+          <p className="hint">
+            {lobby.filter === 'mine'
+              ? '对局凭证存在本机浏览器里，换设备或清了存档就找不回来了（登录态是 v1.5 的事）。'
+              : '开一局，让 5 个 AI 先吵起来——别人就能从这里围观你。'}
+          </p>
           <button className="btn primary" onClick={onStart}>
             开一局
           </button>
@@ -160,9 +200,21 @@ export function LobbyPage({ onBack, onWatch, onStart }: LobbyPageProps): JSX.Ele
         <div className={dense ? 'lobby-rows' : 'lobby-cards'}>
           {lobby.games.map((game) =>
             dense ? (
-              <GameRow key={game.gameId} game={game} onWatch={onWatch} />
+              <GameRow
+                key={game.gameId}
+                game={game}
+                onWatch={onWatch}
+                onResume={onResume}
+                mine={game.gameId === mineId}
+              />
             ) : (
-              <GameCard key={game.gameId} game={game} onWatch={onWatch} />
+              <GameCard
+                key={game.gameId}
+                game={game}
+                onWatch={onWatch}
+                onResume={onResume}
+                mine={game.gameId === mineId}
+              />
             ),
           )}
         </div>

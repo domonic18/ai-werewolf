@@ -40,23 +40,25 @@
 
 ```
 client/            前端（Vite + React + TS）
-  src/pages/       HomePage / MatchPage / ResultPage（三屏）
-  src/components/  纯展示组件（座位、顺序条、输入面板、发言记录…）
-  src/hooks/       数据获取与轮询（useMatchPolling / useHomeData）
-  src/store/       zustand 单 store（快照 + 事件 + 游标）
-  src/lib/         纯函数（名字高亮、阶段文案、舞台派生）
+  src/pages/       HomePage / LobbyPage / MatchPage / ResultPage
+  src/components/  纯展示组件（座位、顺序条、输入面板、发言记录、票型、阵营条、复盘时间轴…）
+  src/hooks/       数据与轮询（useMatchPolling / useHomeData / useLobby）
+  src/store/       zustand 单 store（快照 + 观战投影 + 事件 + 游标）
+  src/api/         唯一 HTTP 入口（统一补 sharecode、统一错误映射）
+  src/lib/         纯函数（高亮、阶段文案、舞台派生、票型、时间轴、URL、本地存档）
 src/
   shared/          types.ts / roles.ts —— 前后端共用，只放类型与常量
-  server/          index.ts（启动/配置）、app.ts（装配/静态托管）、routes.ts、rooms.ts
-  game/            engine.ts（权威状态机：夜晚口令/发言轮次/投票结算/胜负）
+  server/          index.ts（启动/配置/环境）、app.ts（装配/静态托管）、routes.ts、rooms.ts
+                   llm-runtime.ts（AI 通道后台引导与重试）、lobby.ts（大厅投影/筛选/游标）
+  game/            engine.ts（权威状态机：夜晚口令/发言轮次/投票结算/复盘时间轴/胜负）
                    roles.ts（角色牌组、AI 人设）、types.ts（引擎内部类型）
   ai/              llm-gateway.ts（模型选择、双流收集、JSON 约束、超时）
                    ai-player.ts（6 个决策点）、json.ts（JSON 提取、名字匹配）
-  cloud/           match-store.ts（战绩表读写）
-tests/             json.test.ts / engine-smoke.test.ts / api-selftest.test.ts
-tools/             构建辅助（.js → .ts 解析插件）
-docs/              PRD.md、TECH-STACK.md、designs/（原型）
-specs/             spec-kit 需求合同
+  cloud/           match-store.ts（战绩表读写，staging 默认只读）
+tests/             json / lobby / tally / timeline / format / url / engine-smoke / api-selftest / server-hardening / llm-runtime
+tools/             ensure-build.mjs（产物兜底）、live-smoke.mjs（线上回归 20 项）、.ts 解析插件
+docs/              PRD.md、TECH-STACK.md、DEPLOYMENT-STACK.md、CODE-REVIEW-*.md、REGRESSION-*.md、designs/（原型）
+specs/             spec-kit 需求合同（001-lobby-spectate 已交付）
 ```
 
 ### 各目录 Agent 上下文
@@ -65,8 +67,9 @@ specs/             spec-kit 需求合同
 |------|------|
 | `src/game/` | 规则唯一实现处。改动必须跑 10 局 Mock 冒烟，且通过夜晚隐私审计（事件流无身份泄露） |
 | `src/ai/` | 提示词与决策契约。改 prompt 需保持 JSON 输出 schema 不变，或同步改 `json.ts` 与单测 |
-| `client/` | 不许出现任何游戏规则判断；只允许「渲染 snapshot + 上报用户 action」。输入面板只从 `snapshot.pendingAction` 派生 |
-| `src/shared/` | 只放类型与展示常量。改这里等于改前后端契约，必须两端同时通过 `npm run typecheck` |
+| `client/` | 不许出现任何游戏规则判断；只允许「渲染 snapshot + 上报用户 action」。输入面板只从 `snapshot.pendingAction` 派生。观战与玩家用两套投影（`spectate` / `snapshot`），不许互相兜底 |
+| `src/shared/` | 只放类型与展示常量。改这里等于改前后端契约，必须两端同时通过 `npm run typecheck`；新增事件类型必须登记进 `EventPayloads` |
+| `tools/live-smoke.mjs` | 线上回归脚本。改接口契约后同步补断言——它验的是「发上去能不能用」，单测验不了网关层 |
 
 ## 4. 通用编码规范与 AI 指令
 

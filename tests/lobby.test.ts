@@ -71,7 +71,7 @@ describe('toEntry', () => {
 
 describe('parseLobbyQuery', () => {
   it('非法参数回落到默认值', () => {
-    expect(parseLobbyQuery({})).toEqual({ filter: 'all', sort: 'spectators', limit: 10, after: null });
+    expect(parseLobbyQuery({})).toEqual({ filter: 'all', sort: 'spectators', limit: 10, after: null, mine: null });
     expect(parseLobbyQuery({ filter: 'nope', sort: 'nope', limit: '-3' })).toMatchObject({
       filter: 'all',
       sort: 'spectators',
@@ -219,5 +219,29 @@ describe('规模与性能', () => {
 
     expect(seen).toHaveLength(100);
     expect(new Set(seen).size).toBe(100);
+  });
+});
+
+describe('我的对局（filter=mine）', () => {
+  const rooms = [
+    fakeRoom({ id: 'g-mine', host: '我', spectators: 1 }),
+    fakeRoom({ id: 'g-other', host: '别人', spectators: 9 }),
+  ];
+
+  it('只返回本地存档的那一局', () => {
+    const page = listRooms(asEntries(rooms), parseLobbyQuery({ filter: 'mine', mine: 'g-mine' }));
+    expect(page.games.map((g) => g.gameId)).toEqual(['g-mine']);
+    expect(page.total).toBe(1);
+  });
+
+  it('带 filter=mine 但没带对局 id 时返回空，而不是退化成全部', () => {
+    const page = listRooms(asEntries(rooms), parseLobbyQuery({ filter: 'mine' }));
+    expect(page.games).toHaveLength(0);
+    expect(page.total).toBe(0);
+  });
+
+  it('对局已结束/被清理时返回空', () => {
+    const page = listRooms(asEntries(rooms), parseLobbyQuery({ filter: 'mine', mine: 'g-gone' }));
+    expect(page.games).toHaveLength(0);
   });
 });

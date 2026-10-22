@@ -71,7 +71,7 @@ description: "Task list for 001 游戏大厅与对局观战"
 ## Phase 5: US3（P2）规模化浏览
 
 - [x] T021 [US3] 密度自适应：≥6 局切紧凑列表，<6 局用卡片（0.5d）
-- [ ] T022 [US3] 「我的对局」筛选（基于 localStorage 中的对局 ID，无需登录）（0.5d）
+- [x] T022 [US3] 「我的对局」筛选：服务端 `filter=mine&mine=<gameId>`（服务端不认识「我」，由前端带上本地存档 id），点自己那局改为「继续」并带凭证（0.5d）
 - [x] T023 [P] [US3] `tests/lobby.test.ts` 增加 100 局压测：`list()` P95 < 50ms + 游标翻完 100 局不重不漏（0.3d）
 
 **独立验收**：30 局场景下首屏 10 条、筛选切换后计数正确、上滑到底显示「没有更多了」。
@@ -83,7 +83,7 @@ description: "Task list for 001 游戏大厅与对局观战"
 - [x] T024 [US4] 对局页接入 `tally`：投票阶段实时条形 + 座位得票角标（只在事件到达时增长）（1d）
 - [x] T025 [US4] 结算页时间轴：玩家看公开信息、观战看死因/用药/票数（`RoundTimeline` + `lib/timeline.ts`）（1d）
 - [ ] T026 [P] [US4] `tests/engine-smoke.test.js` 断言：女巫/守卫参与时 `saved`、`guarded` 字段与实际用药一致（0.5d）
-- [ ] T027 [US4] 移动端走查：安全区、字号、横竖屏（0.5d）
+- [x] T027 [US4] 移动端走查：375 / 390 / 320 / 横屏 844 四视口，无横向溢出、无控制台错误（0.5d）
 
 **独立验收**：第 3 天投票阶段票型与事件严格一致；结算页时间轴与 `timeline` 完全对应。
 
@@ -91,10 +91,10 @@ description: "Task list for 001 游戏大厅与对局观战"
 
 ## Phase 7: Polish（收尾）
 
-- [ ] T028 [P] 版本号 v1.4.0：`package.json` + 页面 `#ver` + 静态资源指纹（0.2d）
-- [ ] T029 [P] 更新 `docs/PRD.md`：R3.2 状态改为已实现，路线图 v1.4 打勾（0.2d）
-- [ ] T030 [P] 更新 `AGENTS.md`：若新增目录（`public/assets/lobby.js` 等）需登记职责（0.1d）
-- [ ] T031 全量回归：`npm test` 三层 + 隐私审计 + 390px 手动走查清单留档（0.5d）
+- [x] T028 [P] 版本号 v1.4.1：`package.json` 单一来源，构建期注入页脚；静态资源自带 hash（0.2d）
+- [x] T029 [P] 更新 `docs/PRD.md`：R3.2 标已实现，R6.3~6.6 打勾，路线图 v1.4 标已完成（0.2d）
+- [x] T030 [P] 更新 `AGENTS.md`：目录结构（client/src 分层、tools、docs）与各目录 Agent 上下文（0.1d）
+- [x] T031 全量回归：`docs/REGRESSION-v1.4.md`（87 单测 + 20 项线上 + 浏览器实跑 + 4 视口走查）留档（0.5d）
 - [x] T032 部署验证：`tools/live-smoke.mjs` 自动核对首页/产物/404/凭证/真实发言/观战投影共 19 项（0.3d）
 
 ---
