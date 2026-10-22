@@ -2,6 +2,7 @@
  * 房间管理：对局生命周期、事件缓存与轮询游标。
  * 单进程内存态（sites 沙箱约束），足够支撑参赛规模。
  */
+import crypto from 'node:crypto';
 import { GameEngine } from '../game/engine.js';
 import type { LLMClient } from '../ai/types.js';
 import type { MatchStore } from '../cloud/match-store.js';
@@ -13,12 +14,15 @@ const SPECTATOR_TTL_MS = 30 * 1000; // 观战心跳超时
 export class Room {
   readonly engine: GameEngine;
   readonly createdAt: number;
+  /** 玩家凭证：只有持有者才能推进这一局（观战者不需要） */
+  readonly playerToken: string;
   /** 观战心跳：clientId → 最后活跃时间。服务端统计，不信任客户端计数。 */
   private readonly spectators = new Map<string, number>();
 
-  constructor(engine: GameEngine) {
+  constructor(engine: GameEngine, playerToken?: string) {
     this.engine = engine;
     this.createdAt = Date.now();
+    this.playerToken = playerToken ?? crypto.randomBytes(16).toString('hex');
   }
 
   get expired(): boolean {

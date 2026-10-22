@@ -6,7 +6,8 @@ import { MatchWall } from '../components/MatchWall';
 import { ResumeBanner } from '../components/ResumeBanner';
 import { RulesPanel } from '../components/RulesPanel';
 import { useHomeData } from '../hooks/useHomeData';
-import { STORAGE_KEY, useGameStore } from '../store/gameStore';
+import { clearSavedGame, readSavedGame } from '../lib/storage';
+import { useGameStore } from '../store/gameStore';
 
 const APP_VERSION = __APP_VERSION__;
 
@@ -22,31 +23,22 @@ export function HomePage({ onWatch }: { onWatch: (gameId: string) => void }): JS
   /* 断线恢复：本地存的对局 id 若在服务端仍进行中，则展示恢复入口 */
   useEffect(() => {
     let cancelled = false;
-    const saved = (() => {
-      try {
-        return localStorage.getItem(STORAGE_KEY);
-      } catch {
-        return null;
-      }
-    })();
+    const saved = readSavedGame();
     if (!saved) return;
 
     void api
-      .snapshot(saved)
+      .snapshot(saved.id, saved.token)
       .then((snapshot) => {
         if (cancelled) return;
         if (snapshot.winner || snapshot.aborted || snapshot.phase === 'over') {
-          localStorage.removeItem(STORAGE_KEY);
+          clearSavedGame();
           return;
         }
-        setResumeId(saved);
+        setResumeId(saved.id);
       })
       .catch(() => {
-        try {
-          localStorage.removeItem(STORAGE_KEY);
-        } catch {
-          /* ignore */
-        }
+        /* 401（凭证失效）或 404（对局被清理）都不再提供恢复入口 */
+        clearSavedGame();
       });
 
     return () => {
@@ -67,7 +59,7 @@ export function HomePage({ onWatch }: { onWatch: (gameId: string) => void }): JS
     setStartError(null);
     try {
       const result = await api.createGame(name.trim() || '你');
-      open(result.gameId);
+      open(result.gameId, { token: result.playerToken });
     } catch (e) {
       setStartError(e instanceof Error ? e.message : '开局失败');
     } finally {
@@ -77,16 +69,13 @@ export function HomePage({ onWatch }: { onWatch: (gameId: string) => void }): JS
 
   const dropGame = async (): Promise<void> => {
     if (!resumeId) return;
+    const saved = readSavedGame();
     try {
-      await api.quit(resumeId);
+      if (saved) await api.quit(saved.id, saved.token);
     } catch {
       /* 对局可能已结束，忽略 */
     }
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      /* ignore */
-    }
+    clearSavedGame();
     setResumeId(null);
   };
 

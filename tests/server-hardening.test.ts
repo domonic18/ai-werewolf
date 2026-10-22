@@ -59,10 +59,10 @@ describe('观战投影（P0：身份隔离）', () => {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ playerName: '隔离测试' }),
     });
-    const { gameId } = (await created.json()) as { gameId: string };
+    const { gameId, playerToken } = (await created.json()) as { gameId: string; playerToken: string };
 
     /* 玩家视角：座位里只有 revealed，没有 role / camp */
-    const player = await getJson<Snapshot>(`/api/games/${gameId}`);
+    const player = await getJson<Snapshot>(`/api/games/${gameId}`, { headers: { 'X-Player-Token': playerToken } });
     expect(player.status).toBe(200);
     for (const seat of player.body.players) {
       expect(Object.keys(seat)).not.toContain('role');
@@ -164,5 +164,57 @@ describe('房间容量（P0：不得删进行中的对局）', () => {
     Object.defineProperty(room!, 'createdAt', { value: Date.now() - 3 * 60 * 60 * 1000 });
 
     expect(small.create('B')).not.toBeNull();
+  });
+});
+
+
+describe('玩家凭证（P0-a：观战者不能替真人操作）', () => {
+  const createGame = async (): Promise<{ gameId: string; playerToken: string }> => {
+    const res = await fetch(base + '/api/games', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ playerName: '凭证测试' }),
+    });
+    return (await res.json()) as { gameId: string; playerToken: string };
+  };
+
+  it('开局下发 32 位凭证', async () => {
+    const { playerToken } = await createGame();
+    expect(playerToken).toMatch(/^[0-9a-f]{32}$/);
+  });
+
+  it('没有凭证读快照返回 401（而不是把真人身份交出去）', async () => {
+    const { gameId } = await createGame();
+    const res = await fetch(base + `/api/games/${gameId}`);
+    expect(res.status).toBe(401);
+    const body = (await res.json()) as { error: string };
+    expect(body.error).toBe('player_token_required');
+  });
+
+  it('错误凭证同样 401', async () => {
+    const { gameId } = await createGame();
+    const res = await fetch(base + `/api/games/${gameId}`, {
+      headers: { 'X-Player-Token': 'f'.repeat(32) },
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it('观战者拿到 gameId 也无法替真人提交动作', async () => {
+    const { gameId } = await createGame();
+    const res = await fetch(base + `/api/games/${gameId}/action`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ value: 1 }),
+    });
+    expect(res.status).toBe(401);
+  });
+
+  it('观战接口不需要凭证，且不返回任何玩家私有字段', async () => {
+    const { gameId } = await createGame();
+    const res = await fetch(base + `/api/games/${gameId}/spectate?since=0&client=watcher`);
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as SpectateResponse;
+    expect(body.snapshot).not.toHaveProperty('pendingAction');
+    expect(body.snapshot).not.toHaveProperty('myRole');
   });
 });

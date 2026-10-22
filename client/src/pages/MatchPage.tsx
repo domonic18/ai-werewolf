@@ -7,6 +7,7 @@ import type { SeatLike } from '../components/SeatGrid';
 import { SpeechLog } from '../components/SpeechLog';
 import { SpeechOrderBar } from '../components/SpeechOrderBar';
 import { roundBadge } from '../lib/format';
+import type { LostReason } from '../hooks/useMatchPolling';
 import { buildStage, speakingPlayerId } from '../lib/stage';
 import { useGameStore } from '../store/gameStore';
 import { ROLES } from '@shared/roles';
@@ -14,9 +15,15 @@ import type { GameEvent } from '@shared/types';
 
 type Tab = 'speech' | 'events';
 
-export function MatchPage({ lost }: { lost: boolean }): JSX.Element {
+interface MatchPageProps {
+  lost: boolean;
+  lostReason: LostReason;
+}
+
+export function MatchPage({ lost, lostReason }: MatchPageProps): JSX.Element {
   const gameId = useGameStore((s) => s.gameId);
   const watching = useGameStore((s) => s.watching);
+  const token = useGameStore((s) => s.token);
   const snapshot = useGameStore((s) => s.snapshot);
   const spectate = useGameStore((s) => s.spectate);
   const events = useGameStore((s) => s.events);
@@ -56,10 +63,10 @@ export function MatchPage({ lost }: { lost: boolean }): JSX.Element {
   const activePrompt = pending && promptKey !== answeredKey ? pending : null;
 
   const submit = async (value: string | number | null): Promise<void> => {
-    if (!gameId) return;
+    if (!gameId || !token) return;
     setAnsweredKey(promptKey);
     try {
-      await api.action(gameId, value);
+      await api.action(gameId, value, token);
     } catch {
       /* 挂起点可能已变化（例如超时），下一轮轮询会给出真实状态 */
       setAnsweredKey(null);
@@ -67,10 +74,10 @@ export function MatchPage({ lost }: { lost: boolean }): JSX.Element {
   };
 
   const quit = async (): Promise<void> => {
-    if (!gameId) return;
+    if (!gameId || !token) return;
     if (!window.confirm('确定退出这一局？退出后进度不会保留。')) return;
     try {
-      await api.quit(gameId);
+      await api.quit(gameId, token);
     } catch {
       /* ignore */
     }
@@ -97,8 +104,12 @@ export function MatchPage({ lost }: { lost: boolean }): JSX.Element {
 
       {lost ? (
         <div className="panel abort-box">
-          <div className="panel-title">对局已失效</div>
-          <p className="hint">服务端已清理这局（超过 2 小时或服务重启）。回首页可以开新的一局。</p>
+          <div className="panel-title">{lostReason === 'unauthorized' ? '对局凭证失效' : '对局已失效'}</div>
+          <p className="hint">
+            {lostReason === 'unauthorized'
+              ? '这一局的玩家凭证不在这台设备上（换了设备或清了浏览器存档）。为了不让别人替你操作，服务端不会接受没有凭证的请求。回首页可以开新的一局。'
+              : '服务端已清理这局（超过 2 小时或服务重启）。回首页可以开新的一局。'}
+          </p>
           <button className="btn primary" onClick={close}>
             回首页
           </button>

@@ -1,8 +1,8 @@
 import { create } from 'zustand';
 import type { GameEvent, Snapshot, SpectateSnapshot } from '@shared/types';
+import { clearSavedGame, saveGame } from '../lib/storage';
 
 const MAX_EVENTS = 500;
-export const STORAGE_KEY = 'ww_game';
 
 interface ApplyPayload {
   events: GameEvent[];
@@ -14,13 +14,15 @@ interface ApplyPayload {
 
 interface GameStore {
   gameId: string | null;
+  /** 玩家凭证；观战为 null */
+  token: string | null;
   watching: boolean;
   version: number;
   snapshot: Snapshot | null;
   spectate: SpectateSnapshot | null;
   events: GameEvent[];
   /** 起一局（或进入观战） */
-  open: (gameId: string, options?: { watching?: boolean }) => void;
+  open: (gameId: string, options?: { watching?: boolean; token?: string }) => void;
   /** 应用一次轮询结果：事件按 seq 去重追加 */
   apply: (payload: ApplyPayload) => void;
   /** 退出/结束后回首页 */
@@ -29,6 +31,7 @@ interface GameStore {
 
 export const useGameStore = create<GameStore>((set) => ({
   gameId: null,
+  token: null,
   watching: false,
   version: 0,
   snapshot: null,
@@ -36,12 +39,10 @@ export const useGameStore = create<GameStore>((set) => ({
   events: [],
 
   open: (gameId, options) => {
-    try {
-      localStorage.setItem(STORAGE_KEY, gameId);
-    } catch {
-      /* 隐私模式下可能不可用，忽略 */
-    }
-    set({ gameId, watching: options?.watching ?? false, version: 0, snapshot: null, spectate: null, events: [] });
+    const watching = options?.watching ?? false;
+    const token = options?.token ?? null;
+    if (!watching && token) saveGame({ id: gameId, token });
+    set({ gameId, token, watching, version: 0, snapshot: null, spectate: null, events: [] });
   },
 
   apply: ({ events, version, snapshot, spectate }) =>
@@ -58,11 +59,7 @@ export const useGameStore = create<GameStore>((set) => ({
     }),
 
   close: () => {
-    try {
-      localStorage.removeItem(STORAGE_KEY);
-    } catch {
-      /* ignore */
-    }
-    set({ gameId: null, watching: false, version: 0, snapshot: null, spectate: null, events: [] });
+    clearSavedGame();
+    set({ gameId: null, token: null, watching: false, version: 0, snapshot: null, spectate: null, events: [] });
   },
 }));

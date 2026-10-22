@@ -25,6 +25,7 @@ React 前端 (client/)            Node 服务端 (src/)                 云服�
 - **真人输入挂起**：引擎在需要真人决策处挂起，HTTP `action` 唤醒；前端只从 `snapshot.pendingAction` 派生输入面板，不依赖事件里的旧提示
 - **无构建兜底**：生产由同一个 Node 进程托管 `/api` 与 `dist/client`，不用 `vite preview` 当线上服务
 - **启动顺序**：先 `listen` 再后台初始化 LLM。AI 通道不可用时站点照常打开、`/api/games` 返回 503 —— 可用性不外包给外部依赖
+- **玩家凭证**：开局下发一次性 `playerToken`，玩家私有接口（快照 / 事件 / 动作 / 退出）必须带 `X-Player-Token`；观战走 `/spectate` 不需要凭证。这样即便 `gameId` 在大厅公开，旁人也无法读真人身份或替你操作
 
 ## 目录结构
 
@@ -78,12 +79,12 @@ npm run typecheck  # 前后端类型检查
 |---|---|---|
 | GET | /api/health | 服务与 LLM 通道自检（`llm.state`: initializing / ready / failed） |
 | GET | /api/models | 可用模型列表 / POST /api/models/select 切换 |
-| POST | /api/games | 开局 `{playerName}` → `{gameId}` |
-| GET | /api/games/:id | 对局快照（真人视角含私有信息） |
-| GET | /api/games/:id/events?since=N | 增量事件流（轮询，1.2s） |
-| POST | /api/games/:id/action | 提交真人选择/发言 `{value}` |
-| POST | /api/games/:id/quit | 退出对局 |
-| GET | /api/games/:id/spectate?since=N | 观战（只读事件流） |
+| POST | /api/games | 开局 `{playerName}` → `{gameId, playerToken}` |
+| GET | /api/games/:id | 对局快照（真人视角含私有信息，需 `X-Player-Token`） |
+| GET | /api/games/:id/events?since=N | 增量事件流（轮询，1.2s，需凭证） |
+| POST | /api/games/:id/action | 提交真人选择/发言 `{value}`（需凭证） |
+| POST | /api/games/:id/quit | 退出对局（需凭证） |
+| GET | /api/games/:id/spectate?since=N&client=X | 观战（只读，上帝视角投影，无需凭证） |
 | GET | /api/live | 进行中对局（大厅） |
 | GET | /api/matches | 战绩墙 |
 

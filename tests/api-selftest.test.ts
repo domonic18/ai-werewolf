@@ -27,17 +27,15 @@ const llmStub: LLMService = {
 let server: Server;
 let base: string;
 
-const get = async <T>(path: string): Promise<{ status: number; body: T }> => {
-  const res = await fetch(base + path);
+const get = async <T>(path: string, token?: string): Promise<{ status: number; body: T }> => {
+  const res = await fetch(base + path, { headers: token ? { 'X-Player-Token': token } : undefined });
   return { status: res.status, body: (await res.json()) as T };
 };
 
-const post = async <T>(path: string, body?: unknown): Promise<{ status: number; body: T }> => {
-  const res = await fetch(base + path, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body ?? {}),
-  });
+const post = async <T>(path: string, body?: unknown, token?: string): Promise<{ status: number; body: T }> => {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers['X-Player-Token'] = token;
+  const res = await fetch(base + path, { method: 'POST', headers, body: JSON.stringify(body ?? {}) });
   return { status: res.status, body: (await res.json()) as T };
 };
 
@@ -67,10 +65,12 @@ describe('API 全链路（进程内）', () => {
   });
 
   it('开局 → 推进 → 事件流可读，且不泄露真人私有信息', async () => {
-    const created = await post<{ gameId: string }>('/api/games', { playerName: '自测' });
+    const created = await post<{ gameId: string; playerToken: string }>('/api/games', { playerName: '自测' });
     expect(created.status).toBe(200);
     const gameId = created.body.gameId;
+    const token = created.body.playerToken;
     expect(gameId).toBeTruthy();
+    expect(token).toHaveLength(32);
 
     /* 大厅能看到这局 */
     const live = await get<{ games: { gameId: string }[] }>('/api/live');
@@ -80,19 +80,19 @@ describe('API 全链路（进程内）', () => {
     let snapshot: Snapshot | null = null;
     for (let i = 0; i < 120; i++) {
       await new Promise((r) => setTimeout(r, 150));
-      const current = await get<Snapshot>(`/api/games/${gameId}`);
+      const current = await get<Snapshot>(`/api/games/${gameId}`, token);
       snapshot = current.body;
       if (snapshot.phase === 'over') break;
       if (snapshot.pendingAction) {
         const pending = snapshot.pendingAction;
         const value = pending.kind === 'input' ? '我先过。' : pending.options[0]?.value ?? 1;
-        await post(`/api/games/${gameId}/action`, { value });
+        await post(`/api/games/${gameId}/action`, { value }, token);
       }
     }
 
     expect(snapshot?.phase).toBe('over');
 
-    const events = await get<EventsResponse>(`/api/games/${gameId}/events?since=0`);
+    const events = await get<EventsResponse>(`/api/games/${gameId}/events?since=0`, token);
     expect(events.status).toBe(200);
     expect(events.body.events.length).toBeGreaterThan(0);
     expect(events.body.events.some((e) => e.type === 'game-over')).toBe(true);
@@ -116,11 +116,12 @@ describe('API 全链路（进程内）', () => {
   });
 
   it('没有挂起点时提交动作返回 409', async () => {
-    const created = await post<{ gameId: string }>('/api/games', { playerName: '空转' });
+    const created = await post<{ gameId: string; playerToken: string }>('/api/games', { playerName: '空转' });
     const gameId = created.body.gameId;
+    const token = created.body.playerToken;
     /* 立刻提交：此时可能仍在 ack 之前，也可能已在等待；两种都接受，但状态码必须是 200/409 */
-    const result = await post<unknown>(`/api/games/${gameId}/action`, { value: 1 });
+    const result = await post<unknown>(`/api/games/${gameId}/action`, { value: 1 }, token);
     expect([200, 409]).toContain(result.status);
-    await post(`/api/games/${gameId}/quit`);
+    await post(`/api/games/${gameId}/quit`, {}, token);
   });
 });

@@ -19,10 +19,15 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, body?: unknown): Promise<T> {
+async function request<T>(path: string, body?: unknown, token?: string): Promise<T> {
+  const headers: Record<string, string> = {};
+  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  /* 玩家凭证走请求头：不进 URL，避免出现在日志与分享里 */
+  if (token) headers['X-Player-Token'] = token;
+
   const res = await fetch(`/api${path}`, {
     method: body === undefined ? 'GET' : 'POST',
-    headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
+    headers: Object.keys(headers).length ? headers : undefined,
     body: body === undefined ? undefined : JSON.stringify(body),
   });
 
@@ -45,11 +50,12 @@ export const api = {
   live: (): Promise<LiveResponse> => request('/live'),
 
   createGame: (playerName: string): Promise<CreateGameResponse> => request('/games', { playerName }),
-  snapshot: (gameId: string): Promise<Snapshot> => request(`/games/${gameId}`),
-  events: (gameId: string, since: number): Promise<EventsResponse> => request(`/games/${gameId}/events?since=${since}`),
+  snapshot: (gameId: string, token: string): Promise<Snapshot> => request(`/games/${gameId}`, undefined, token),
+  events: (gameId: string, since: number, token: string): Promise<EventsResponse> =>
+    request(`/games/${gameId}/events?since=${since}`, undefined, token),
   spectate: (gameId: string, since: number, clientId?: string): Promise<SpectateResponse> =>
     request(`/games/${gameId}/spectate?since=${since}${clientId ? `&client=${encodeURIComponent(clientId)}` : ''}`),
-  action: (gameId: string, value: string | number | null): Promise<OkResponse> =>
-    request(`/games/${gameId}/action`, { value }),
-  quit: (gameId: string): Promise<OkResponse> => request(`/games/${gameId}/quit`, {}),
+  action: (gameId: string, value: string | number | null, token: string): Promise<OkResponse> =>
+    request(`/games/${gameId}/action`, { value }, token),
+  quit: (gameId: string, token: string): Promise<OkResponse> => request(`/games/${gameId}/quit`, {}, token),
 };

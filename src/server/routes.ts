@@ -41,6 +41,17 @@ function sendJson(res: ServerResponse, status: number, body: unknown): void {
   res.end(JSON.stringify(body));
 }
 
+/** 玩家凭证校验：只认请求头，避免出现在 URL 里被日志/分享泄露 */
+function hasPlayerToken(req: IncomingMessage, expected: string): boolean {
+  const raw = req.headers['x-player-token'];
+  const token = Array.isArray(raw) ? raw[0] : raw;
+  if (!token || token.length !== expected.length) return false;
+  /* 定长比较，避免时序侧信道（这里风险极低，但成本也就几行） */
+  let diff = 0;
+  for (let i = 0; i < token.length; i++) diff |= token.charCodeAt(i) ^ expected.charCodeAt(i);
+  return diff === 0;
+}
+
 async function readBody<T extends Record<string, unknown>>(req: IncomingMessage): Promise<Partial<T>> {
   const chunks: Buffer[] = [];
   for await (const chunk of req) chunks.push(chunk as Buffer);
@@ -141,7 +152,10 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, ctx: 
           room.engine.pushEvent('aborted', { reason: e.message });
         });
 
-      return sendJson(res, 200, { gameId: room.engine.id } satisfies CreateGameResponse);
+      return sendJson(res, 200, {
+        gameId: room.engine.id,
+        playerToken: room.playerToken,
+      } satisfies CreateGameResponse);
     }
 
     /* ---------- 单局 ---------- */
@@ -153,10 +167,36 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, ctx: 
       if (!room) return sendJson(res, 404, { error: 'game not found' } satisfies ErrorResponse);
 
       const engine = room.engine;
-      const snapshot = engine.snapshot(engine.human.id);
+
+      /* 观战：只读、不需要玩家凭证（观战投影本身就是全量身份，没有可泄露的私有信息） */
+      if (method === 'GET' && sub === 'spectate') {
+        const since = Number(parsed.query.since ?? 0) || 0;
+        /* 观战心跳：用于大厅的观战人数统计（服务端计数，不信任客户端上报的数字） */
+        const clientId = String(parsed.query.client ?? '').slice(0, 64);
+        if (clientId) room.touchSpectator(clientId);
+        const body: SpectateResponse = {
+          version: engine.version,
+          events: engine.events.filter((e) => e.seq > since),
+          /* 上帝视角投影：全量身份，与玩家快照是两个函数 */
+          snapshot: engine.spectateSnapshot(),
+          spectators: room.spectatorCount,
+        };
+        return sendJson(res, 200, body);
+      }
+
+      /**
+       * 其余端点都是玩家私有：必须持有本局凭证。
+       * 没有它，任何知道 gameId 的人（大厅里就能看到）都能读真人身份、替真人做决定。
+       */
+      if (!hasPlayerToken(req, room.playerToken)) {
+        return sendJson(res, 401, {
+          error: 'player_token_required',
+          hint: '这一局需要开局时下发的凭证；观战请使用 /spectate',
+        } satisfies ErrorResponse & { hint: string });
+      }
 
       if (method === 'GET' && !sub) {
-        return sendJson(res, 200, snapshot);
+        return sendJson(res, 200, engine.snapshot(engine.human.id));
       }
 
       if (method === 'GET' && sub === 'events') {
@@ -164,7 +204,7 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, ctx: 
         const body: EventsResponse = {
           version: engine.version,
           events: engine.events.filter((e) => e.seq > since),
-          snapshot,
+          snapshot: engine.snapshot(engine.human.id),
         };
         return sendJson(res, 200, body);
       }
@@ -180,22 +220,6 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, ctx: 
       if (method === 'POST' && sub === 'quit') {
         engine.stop();
         return sendJson(res, 200, { ok: true } satisfies OkResponse);
-      }
-
-      /* 观战：只读事件流（不含真人私有信息） */
-      if (method === 'GET' && sub === 'spectate') {
-        const since = Number(parsed.query.since ?? 0) || 0;
-        /* 观战心跳：用于大厅的观战人数统计（服务端计数，不信任客户端上报的数字） */
-        const clientId = String(parsed.query.client ?? '').slice(0, 64);
-        if (clientId) room.touchSpectator(clientId);
-        const body: SpectateResponse = {
-          version: engine.version,
-          events: engine.events.filter((e) => e.seq > since),
-          /* 上帝视角投影：全量身份，与玩家快照是两个函数 */
-          snapshot: engine.spectateSnapshot(),
-          spectators: room.spectatorCount,
-        };
-        return sendJson(res, 200, body);
       }
     }
 

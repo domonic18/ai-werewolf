@@ -7,19 +7,28 @@ const POLL_MS = 1200;
 const SPECTATE_POLL_MS = 1600;
 const MAX_FAILURES = 3;
 
+export type LostReason = 'expired' | 'unauthorized' | null;
+
 /**
- * 对局轮询：真人局拉 /events（含快照），观战拉 /spectate + /snapshot。
- * 事件按 seq 去重追加；连读失败或 404 视为对局失效。
+ * 对局轮询：真人局拉 /events（带玩家凭证），观战拉 /spectate。
+ * 事件按 seq 去重追加；401 视为凭证缺失，404 视为对局已被清理。
  */
-export function useMatchPolling(): { lost: boolean } {
+export function useMatchPolling(): { lost: boolean; reason: LostReason } {
   const gameId = useGameStore((s) => s.gameId);
   const watching = useGameStore((s) => s.watching);
+  const token = useGameStore((s) => s.token);
   const apply = useGameStore((s) => s.apply);
-  const [lost, setLost] = useState(false);
+  const [reason, setReason] = useState<LostReason>(null);
 
   useEffect(() => {
-    setLost(false);
+    setReason(null);
     if (!gameId) return;
+
+    /* 真人局没有凭证就不用轮询了 —— 服务端只会回 401 */
+    if (!watching && !token) {
+      setReason('unauthorized');
+      return;
+    }
 
     let cancelled = false;
     let timer: ReturnType<typeof setTimeout> | undefined;
@@ -34,19 +43,25 @@ export function useMatchPolling(): { lost: boolean } {
           if (cancelled) return;
           apply({ events: stream.events, version: stream.version, spectate: stream.snapshot });
         } else {
-          const data = await api.events(gameId, since);
+          const data = await api.events(gameId, since, token as string);
           if (cancelled) return;
           apply({ events: data.events, version: data.version, snapshot: data.snapshot });
         }
         failures = 0;
       } catch (e) {
-        if (e instanceof ApiError && e.status === 404) {
-          setLost(true);
-          return;
+        if (e instanceof ApiError) {
+          if (e.status === 401) {
+            setReason('unauthorized');
+            return;
+          }
+          if (e.status === 404) {
+            setReason('expired');
+            return;
+          }
         }
         failures += 1;
         if (failures >= MAX_FAILURES) {
-          setLost(true);
+          setReason('expired');
           return;
         }
       }
@@ -58,7 +73,7 @@ export function useMatchPolling(): { lost: boolean } {
       cancelled = true;
       if (timer) clearTimeout(timer);
     };
-  }, [gameId, watching, apply]);
+  }, [gameId, watching, token, apply]);
 
-  return { lost };
+  return { lost: reason !== null, reason };
 }

@@ -264,6 +264,11 @@ export interface SpectateResponse {
 
 export interface CreateGameResponse {
   gameId: string;
+  /**
+   * 本局的一次性玩家凭证。只有它能调用 /games/:id、/events、/action、/quit；
+   * 观战者拿不到也不需要它（观战只读 /spectate）。
+   */
+  playerToken: string;
 }
 
 export interface OkResponse {
