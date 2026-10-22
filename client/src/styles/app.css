@@ -1,6 +1,6 @@
 /* ==========================================================================
    AI 狼人杀 · 设计系统 v2「夜席 NOCTURNE」
-   规范见 docs/DESIGN-V2.md。要点：
+   规范见 docs/standard/DESIGN-V2.md。要点：
    - 暖黑纸面 + 陈纸白文字，唯一强调色是旧黄铜；危险色只给狼人/出局
    - 禁止双色斜切渐变 / 外发光 / 毛玻璃；只用发丝线、单色压暗、颗粒
    - 标题衬线、正文无衬线、数字等宽；emoji 全部换成 SVG 图标与插画
@@ -42,8 +42,14 @@
 
   --shadow: 0 12px 32px rgba(0, 0, 0, 0.55);
 
-  --font-display: "Songti SC", "Noto Serif SC", "Source Han Serif SC", Georgia, serif;
-  --font-ui: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Helvetica Neue", Arial, sans-serif;
+  /*
+   * 字体（v2.1）：标题不再用宋体 —— 宋体在高分屏小字号下笔画发虚、字重不均。
+   * 全站统一到系统无衬线（苹方 / Noto Sans），靠字重与字距拉层级；
+   * 衬线只留给品牌「狼」字与结算判定这类仪式性大字。
+   */
+  --font-ui: "PingFang SC", -apple-system, BlinkMacSystemFont, "Noto Sans SC", "Helvetica Neue", "Segoe UI", Arial, sans-serif;
+  --font-display: var(--font-ui);
+  --font-mark: "Songti SC", "Noto Serif SC", "Source Han Serif SC", Georgia, serif;
   --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, monospace;
 
   --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
@@ -93,7 +99,9 @@ body {
   color: var(--bone);
   font-family: var(--font-ui);
   font-size: 14px;
-  line-height: 1.5;
+  line-height: 1.55;
+  letter-spacing: 0.01em;
+  font-kerning: normal;
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
@@ -230,13 +238,7 @@ button {
   background: var(--ink-700);
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12);
 }
-.avatar img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  display: block;
-  filter: saturate(0.92) contrast(1.03) brightness(1.04);
-}
+.avatar svg { display: block; width: 100%; height: 100%; }
 .avatar-human {
   color: var(--brass);
   background: linear-gradient(180deg, rgba(185, 154, 99, 0.16), rgba(185, 154, 99, 0.05));
@@ -329,7 +331,7 @@ button {
   border: 1px solid rgba(185, 154, 99, 0.42);
   background: rgba(185, 154, 99, 0.08);
   color: var(--brass);
-  font-family: var(--font-display);
+  font-family: var(--font-mark);
   font-size: 16px;
   line-height: 1;
   padding-top: 1px;
@@ -340,10 +342,11 @@ button {
   gap: 1px;
 }
 .home-brand-text b {
-  font-family: var(--font-display);
+  font-family: var(--font-ui);
   font-size: 15px;
   line-height: 18px;
-  letter-spacing: 0.02em;
+  font-weight: 700;
+  letter-spacing: 0.01em;
 }
 .home-brand-text span {
   font-size: 9px;
@@ -435,11 +438,11 @@ button {
   margin-top: 2px;
 }
 .hero-title b {
-  font-family: var(--font-display);
-  font-size: 26px;
-  line-height: 32px;
-  font-weight: 600;
-  letter-spacing: 0.01em;
+  font-family: var(--font-ui);
+  font-size: 27px;
+  line-height: 33px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   color: #fff;
 }
 .hero-title b + b { color: var(--brass); }
@@ -762,17 +765,17 @@ button {
   border: 1px solid rgba(185, 154, 99, 0.42);
   background: rgba(185, 154, 99, 0.07);
   color: var(--brass);
-  font-family: var(--font-display);
-  font-size: 26px;
+  font-family: var(--font-mark);
+  font-size: 27px;
   line-height: 1;
 }
 .lg-hero h1 {
   margin: 0;
-  font-family: var(--font-display);
-  font-size: 23px;
-  line-height: 28px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-family: var(--font-ui);
+  font-size: 24px;
+  line-height: 29px;
+  font-weight: 700;
+  letter-spacing: -0.02em;
 }
 .lg-hero p {
   margin: 0;
@@ -985,10 +988,10 @@ button {
 
 .su-nav-title {
   margin: 0;
-  font-family: var(--font-display);
-  font-size: 17px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
+  font-family: var(--font-ui);
+  font-size: 16.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
   color: var(--bone);
 }
 .su-card {
@@ -1194,10 +1197,10 @@ button {
 
 .lb-nav-title {
   margin: 0;
-  font-family: var(--font-display);
-  font-size: 16px;
-  font-weight: 600;
-  letter-spacing: 0.03em;
+  font-family: var(--font-ui);
+  font-size: 16.5px;
+  font-weight: 700;
+  letter-spacing: -0.01em;
 }
 .lb-nav .lb-search {
   width: 32px;
@@ -1770,10 +1773,10 @@ button {
 .result-icon { color: var(--brass); display: flex; }
 .result-hero h2 {
   margin: 0;
-  font-family: var(--font-display);
-  font-size: 25px;
+  font-family: var(--font-mark);
+  font-size: 26px;
   font-weight: 600;
-  letter-spacing: 0.03em;
+  letter-spacing: 0.04em;
 }
 .result-hero p { margin: 0; font-size: 12px; line-height: 1.75; color: var(--smoke); max-width: 300px; }
 

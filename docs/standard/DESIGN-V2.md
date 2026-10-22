@@ -46,16 +46,24 @@
 
 对比度：`--bone` on `--ink-800` = 12.6:1，`--ash` on `--ink-800` = 6.4:1，`--brass` on `--ink-900` = 6.1:1，均过 WCAG AA。
 
-## 字体
+## 字体（v2.1 修订）
+
+v2 初版标题用了宋体，实际在高分屏小字号下笔画发虚、字重不匀，且与无衬线正文气质打架。
+v2.1 起**标题改用系统无衬线**，靠字重与负字距拉层级；衬线只保留给品牌字与结算判定这类仪式性大字。
 
 | 角色 | 字体栈 | 用法 |
 |---|---|---|
-| Display `--font-display` | `"Songti SC","Noto Serif SC","Source Han Serif SC",Georgia,serif` | 页面主标题、结算判定、座位号 |
-| UI `--font-ui` | `-apple-system,"PingFang SC","Helvetica Neue",Arial,sans-serif` | 正文、按钮、表单 |
-| Mono `--font-mono` | `ui-monospace,"SF Mono",Menlo,monospace` | 对局编号、房间码、票数等数字 |
+| UI / Display `--font-ui` | `"PingFang SC",-apple-system,BlinkMacSystemFont,"Noto Sans SC","Helvetica Neue","Segoe UI",Arial,sans-serif` | 全站标题、正文、按钮、表单 |
+| Mark `--font-mark` | `"Songti SC","Noto Serif SC","Source Han Serif SC",Georgia,serif` | 只给品牌「狼」字、结算判定 |
+| Mono `--font-mono` | `ui-monospace,"SF Mono",SFMono-Regular,Menlo,monospace` | 对局编号、房间码、票数等数字 |
 
-字号阶梯：10 / 11 / 12 / 13 / 15 / 17 / 21 / 26（正文不小于 12，主标题用衬线 + 600，不再全站 800）。
-数字统一 `font-variant-numeric: tabular-nums`。
+排版规则：
+
+- 标题：700 字重 + 负字距（-0.01 ~ -0.02em），行高 1.22–1.28；不再用 600 + 正字距
+- 正文：400/500，13px、行高 1.6；列表项 12.5；辅助文案不小于 10.5
+- 标签：10px、大写拉丁、字距 +0.14em，颜色 `--faint`
+- 数字：一律 `font-variant-numeric: tabular-nums`，避免跳动
+- 全局 `letter-spacing: 0.01em` + `font-kerning: normal`，中文不挤在一起
 
 ## 形状与层次
 
@@ -75,11 +83,23 @@
 
 | 资产 | 规格 | 用途 |
 |---|---|---|
-| `hero-night.jpg` | 1536×1024 生成图 | 首页 Hero 顶部主视觉（狼影 / 月 / 雾），顶部压暗后叠字 |
-| `agent-*.jpg` ×5 | 1024×1024 生成图 | 五个 AI 玩家头像，统一侧光、颗粒、低饱和 |
-| 人物默认头像 | SVG 剪影 | 真人玩家与自己 |
+| `hero-night.jpg` | 1536×1024 生成图 | 首页 Hero 顶部主视觉（狼影 / 月 / 雾），底部压暗接纸面 |
+| AI 头像 | 内联 SVG（`Avatar.tsx`） | 五位 AI 玩家的矢量面孔，见下节 |
+| 真人头像 | 内联 SVG 剪影 + 黄铜描边 | 玩家自己 |
 
-图像使用规则：一律加暗角与顶部 scrim 保证文字对比；不用彩色滤镜；不用圆角以外的装饰。
+图像使用规则：拍照/生成图只用于场景（首页主视觉），人物一律矢量绘制；不用彩色滤镜、不做圆角以外的装饰。
+
+### 头像规范（v2.1 修订）
+
+写实人物照片在小尺寸下彼此难以区分，且自带「AI 生成」气质，已全部废弃。头像改为**矢量面孔**，
+靠三重要素保证 20px 下也能认人：
+
+1. **底色**：每位 AI 一个固定低饱和底色（板岩 / 暖棕 / 青蓝 / 橄榄 / 紫褐），是最大的识别信号
+2. **剪影**：发型或帽子必须是明确形状——墨镜男、丸子头、长直发、卷发云、礼帽
+3. **配件**：墨镜、细框眼镜、耳环、耳钉、张嘴笑；其余五官只保留两个点 + 一条短弧嘴
+
+实现约束：`Avatar.tsx` 里每个角色一段 `FaceSpec`（底色 / 衣服 / 头发 / 肤色 / 发型路径 / 配件），
+只画平面色块，不描细节、不用渐变；超过 5 位 AI 时按座位号轮流复用五种面孔，不退化成字母块。
 
 ## 动效
 
@@ -106,11 +126,11 @@
 
 | 产物 | 位置 |
 |---|---|
-| 设计规范（本文） | `docs/DESIGN-V2.md` |
+| 设计规范（本文） | `docs/standard/DESIGN-V2.md` |
 | Ardot 设计文件（六屏画板 + 令牌面板） | https://ardot.tencent.com/file/739278326396024 |
 | 图标组件 | `client/src/components/Icon.tsx`（24×24 / 1.5px 描边 / currentColor） |
-| 头像组件 | `client/src/components/Avatar.tsx`（生成插画 + 真人剪影） |
-| 图像资产 | `client/public/art/`（hero-night.jpg + 5 张 agent 头像，文生图后裁掉水印） |
+| 头像组件 | `client/src/components/Avatar.tsx`（矢量面孔 + 真人剪影） |
+| 图像资产 | `client/public/art/hero-night.jpg`（仅首页主视觉；人物已改为矢量） |
 | 样式实现 | `client/src/styles/app.css`（全部 token 与组件样式） |
 | 走查截图 | `docs/screenshots/`（六屏，`npm run screens` 生成） |
 

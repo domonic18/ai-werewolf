@@ -4,7 +4,7 @@ import type { SVGProps } from 'react';
  * 图标系统（v2）：一套自绘的 24×24、1.5px 描边、圆头圆角的线性图标。
  * 取代 emoji —— 全站不再出现彩色字符，颜色一律继承 currentColor。
  *
- * 规范（见 docs/DESIGN-V2.md）：
+ * 规范（见 docs/standard/DESIGN-V2.md）：
  * - viewBox 固定 24，stroke-width 1.5，strokeLinecap/Join = round
  * - 只用几何构造，不描细节：16px 下仍要清楚
  * - 只做装饰时 aria-hidden；作为唯一可访达名称时使用 <Icon title="…" /> 或按钮自带 aria-label

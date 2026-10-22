@@ -161,7 +161,7 @@ export function HomePage({ onWatch, onOpenLobby, onNewGame, onOpenLogin }: HomeP
         <div className="hero-cast">
           <div className="hero-cast-avas">
             {['老K', '小满', '阿岚', '豆豆', '七喜'].map((name, index) => (
-              <Avatar key={name} name={name} seat={index + 1} size={24} />
+              <Avatar key={name} name={name} seat={index + 1} size={26} />
             ))}
           </div>
           <p className="hero-cast-names">老K · 小满 · 阿岚 · 豆豆 · 七喜</p>
