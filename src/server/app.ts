@@ -28,7 +28,8 @@ const MIME: Record<string, string> = {
   '.woff2': 'font/woff2',
 };
 
-export interface AppOptions extends Omit<ApiContext, 'env'> {
+export interface AppOptions extends Omit<ApiContext, 'env' | 'publicConfig'> {
+  publicConfig?: ApiContext['publicConfig'];
   staticDir?: string;
   /** 不传则按 production 处理 */
   env?: AppEnv;
@@ -90,6 +91,7 @@ export function createApp(options: AppOptions): http.Server {
     matchStore: options.matchStore,
     env: options.env ?? 'production',
     resolveOwner: options.resolveOwner,
+    publicConfig: options.publicConfig,
   };
 
   return http.createServer((req, res) => {

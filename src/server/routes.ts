@@ -48,6 +48,8 @@ export interface ApiContext {
   matchStore: MatchStore;
   /** 运行环境：前端据此显示区分标识 */
   env: AppEnv;
+  /** 前端登录所需的可公开配置（endpoint / publishableKey），不含密钥 */
+  publicConfig?: { endpoint?: string; publishableKey?: string };
   /** 解析请求归属的账号；未配置则一律匿名（登录是可选项） */
   resolveOwner?: (req: IncomingMessage) => Promise<string | null>;
 }
@@ -130,6 +132,14 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, ctx: 
       const body: MatchesResponse = { recent: recent.rows, stats };
       return sendJson(res, 200, body);
     }
+
+    /* ---------- 登录配置（只下发可公开值） ---------- */
+    if (path === '/api/auth-config' && method === 'GET') {
+      return sendJson(res, 200, {
+        endpoint: ctx.publicConfig?.endpoint ?? null,
+        publishableKey: ctx.publicConfig?.publishableKey ?? null,
+      });
+  }
 
     /* ---------- 角色库（新建对局页） ---------- */
     if (path === '/api/roles' && method === 'GET') {
