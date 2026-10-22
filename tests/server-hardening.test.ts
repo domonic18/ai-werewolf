@@ -218,3 +218,44 @@ describe('玩家凭证（P0-a：观战者不能替真人操作）', () => {
     expect(body.snapshot).not.toHaveProperty('myRole');
   });
 });
+
+
+describe('环境标识与测试环境数据隔离', () => {
+  it('默认按 production 上报', async () => {
+    const res = await fetch(base + '/api/health');
+    const body = (await res.json()) as { env: string };
+    expect(body.env).toBe('production');
+  });
+
+  it('传入 staging 时健康检查如实上报', async () => {
+    const stagingApp = createApp({
+      llm,
+      rooms: new RoomManager({ llm, pace: 0 }),
+      matchStore: new MatchStore(null),
+      staticDir,
+      env: 'staging',
+    });
+    await new Promise<void>((resolve) => stagingApp.listen(0, '127.0.0.1', resolve));
+    const port = (stagingApp.address() as AddressInfo).port;
+
+    const res = await fetch(`http://127.0.0.1:${port}/api/health`);
+    const body = (await res.json()) as { env: string };
+    expect(body.env).toBe('staging');
+
+    await new Promise<void>((resolve) => stagingApp.close(() => resolve()));
+  });
+
+  it('测试环境的战绩默认只读，不污染生产表', async () => {
+    const store = new MatchStore(null, { readOnly: true });
+    const result = await store.save({
+      playerName: 'staging',
+      playerRole: '平民',
+      result: 'good',
+      rounds: 1,
+      survivors: 3,
+      detail: { players: [], log: [], thoughts: [] },
+    });
+    expect(result.ok).toBe(false);
+    expect(result.error).toBe('staging_read_only');
+  });
+});

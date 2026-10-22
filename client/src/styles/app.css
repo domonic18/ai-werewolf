@@ -170,3 +170,17 @@ body {
 
 .abort-box { border-color: rgba(255, 107, 107, 0.35); background: rgba(255, 107, 107, 0.07); }
 .abort-box .reason { color: var(--wolf); font-weight: 700; }
+
+/* 测试环境徽章：只在 staging 出现，避免干扰生产视觉 */
+.env-badge {
+  display: inline-block;
+  margin-bottom: 10px;
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: #ffd7a8;
+  background: rgba(246, 199, 106, 0.16);
+  border: 1px solid rgba(246, 199, 106, 0.5);
+}

@@ -12,11 +12,13 @@ import type { CloudConfig } from '../ai/llm-gateway.js';
 import { MatchStore } from '../cloud/match-store.js';
 import { RoomManager } from './rooms.js';
 import { LLMRuntime } from './llm-runtime.js';
+import type { AppEnv } from '../shared/types.js';
 
 interface FileConfig {
   endpoint?: string;
   publishableKey?: string;
   oauthRelayBaseUrl?: string;
+  env?: string;
 }
 
 /**
@@ -56,15 +58,21 @@ async function loadConfig(): Promise<CloudConfig> {
 export async function main(): Promise<import('node:http').Server> {
   const config = await loadConfig();
 
+  /* 环境：WB_ENV=staging 时页面打标，且默认不写生产战绩表（WB_WRITE_MATCHES=1 可显式打开） */
+  const env: AppEnv = (process.env.WB_ENV ?? process.env.APP_ENV ?? '').toLowerCase() === 'staging' ? 'staging' : 'production';
+  const readOnlyMatches = env === 'staging' && process.env.WB_WRITE_MATCHES !== '1';
+
   const llm = new LLMRuntime(config);
-  const matchStore = new MatchStore(() => llm.cloud);
+  const matchStore = new MatchStore(() => llm.cloud, { readOnly: readOnlyMatches });
   const rooms = new RoomManager({ llm, matchStore });
 
-  const server = createApp({ llm, rooms, matchStore });
+  const server = createApp({ llm, rooms, matchStore, env });
   const port = Number(process.env.PORT ?? 3000);
 
   await new Promise<void>((resolve) => server.listen(port, '0.0.0.0', resolve));
-  console.log(`[werewolf-ai] listening on :${port}（AI 通道后台初始化中）`);
+  console.log(
+    `[werewolf-ai] listening on :${port}（env=${env}${readOnlyMatches ? '，战绩只读' : ''}，AI 通道后台初始化中）`,
+  );
 
   /* 后台初始化：失败不退出进程，站点保持可用，/api/games 返回 503 直到就绪 */
   void llm.bootstrap();

@@ -28,12 +28,15 @@ import type {
   ModelsResponse,
   OkResponse,
   SpectateResponse,
+  AppEnv,
 } from '../shared/types.js';
 
 export interface ApiContext {
   llm: LLMService;
   rooms: RoomManager;
   matchStore: MatchStore;
+  /** 运行环境：前端据此显示区分标识 */
+  env: AppEnv;
 }
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
@@ -75,6 +78,7 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, ctx: 
       const selfTest = await ctx.llm.selfTest();
       const body: HealthResponse = {
         ok: true,
+        env: ctx.env,
         llm: {
           ok: selfTest.ok,
           state: ctx.llm.state,

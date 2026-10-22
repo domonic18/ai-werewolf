@@ -79,6 +79,7 @@ export function HomePage({ onWatch }: { onWatch: (gameId: string) => void }): JS
     setResumeId(null);
   };
 
+  const env = data.health?.env ?? 'production';
   const llm = data.health?.llm;
   const aiReady = Boolean(data.health && llm?.state === 'ready' && llm.ok);
 
@@ -111,6 +112,7 @@ export function HomePage({ onWatch }: { onWatch: (gameId: string) => void }): JS
     <section className="screen">
       <div className="hero">
         <div className="hero-glow" />
+        {env === 'staging' ? <div className="env-badge">STAGING · 测试环境（不写生产战绩）</div> : null}
         <div className="logo">🐺</div>
         <h1>AI 狼人杀</h1>
         <p className="tagline">Agent 补位局 · 一个人也能开桌</p>
@@ -185,7 +187,7 @@ export function HomePage({ onWatch }: { onWatch: (gameId: string) => void }): JS
       </div>
 
       <RulesPanel />
-      <Footer version={APP_VERSION} />
+      <Footer version={APP_VERSION} env={env} />
     </section>
   );
 }

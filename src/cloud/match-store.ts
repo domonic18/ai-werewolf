@@ -33,6 +33,11 @@ export interface SaveResult {
   error?: string;
 }
 
+export interface MatchStoreOptions {
+  /** 测试环境默认只读：避免压测/联调数据写进生产战绩墙 */
+  readOnly?: boolean;
+}
+
 export interface RecentResult {
   ok: boolean;
   rows: MatchRow[];
@@ -49,9 +54,11 @@ type CloudSource = WorkBuddyCloudClient | null | (() => WorkBuddyCloudClient | n
 
 export class MatchStore {
   private readonly source: () => WorkBuddyCloudClient | null;
+  private readonly readOnly: boolean;
 
-  constructor(cloud: CloudSource) {
+  constructor(cloud: CloudSource, options: MatchStoreOptions = {}) {
     this.source = typeof cloud === 'function' ? cloud : () => cloud;
+    this.readOnly = options.readOnly ?? false;
   }
 
   private get db(): DatabaseClient | null {
@@ -60,6 +67,7 @@ export class MatchStore {
   }
 
   async save(row: ArchiveRow): Promise<SaveResult> {
+    if (this.readOnly) return { ok: false, error: 'staging_read_only' };
     if (!this.db) return { ok: false, error: 'cloud-not-initialized' };
     const { data, error } = await this.db
       .from(TABLE)

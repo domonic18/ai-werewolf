@@ -71,7 +71,24 @@ npm run dev        # 前端 HMR（:5173，/api 代理到 :8787）
 npm run dev:server # 后端热重载（tsx watch，默认 :3000，可 PORT=8787）
 npm test           # vitest：单元 + 引擎冒烟 + API 全链路（Mock LLM，无需网络）
 npm run typecheck  # 前后端类型检查
+
+# 以测试环境启动（页面显示 STAGING 徽章，且默认不写生产战绩表）
+WB_ENV=staging npm start
+# 如果确实需要测试环境写库，再显式打开
+WB_ENV=staging WB_WRITE_MATCHES=1 npm start
 ```
+
+## 环境（production / staging）
+
+| 维度 | production | staging |
+|---|---|---|
+| 启动 | 默认 | `WB_ENV=staging` |
+| 页面标识 | 无 | 顶部 `STAGING · 测试环境` 徽章 + 页脚 `· STAGING` |
+| 战绩写入 | 正常 | 默认只读（`staging_read_only`），`WB_WRITE_MATCHES=1` 可开 |
+| `/api/health` | `env: "production"` | `env: "staging"` |
+| 云配置 | `config/cloud.json` 或 `WB_*` | 独立 appId / 独立表（见下） |
+
+**部署拓扑的限制**：一个 WorkBuddy 工作区只能绑定**一个**已发布应用——不同目录只是不同的 deploy target，最终都落到同一个 `appId`（实测：`werewolf-ai` 与 `ww-healthcheck` 的 `deployTargetId` 不同，`appId` 相同）。所以平台内做 staging 需要**另一个工作区**；否则只能用独立服务器/容器跑第二套。
 
 ## API 一览
 

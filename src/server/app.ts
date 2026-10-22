@@ -8,6 +8,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { handleApi } from './routes.js';
 import type { ApiContext } from './routes.js';
+import type { AppEnv } from '../shared/types.js';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 /** dist-server/server/ 与 src/server/ 都在项目的第二层，因此统一上跳两级 */
@@ -27,8 +28,10 @@ const MIME: Record<string, string> = {
   '.woff2': 'font/woff2',
 };
 
-export interface AppOptions extends ApiContext {
+export interface AppOptions extends Omit<ApiContext, 'env'> {
   staticDir?: string;
+  /** 不传则按 production 处理 */
+  env?: AppEnv;
 }
 
 async function serveStatic(
@@ -81,7 +84,12 @@ async function serveStatic(
 
 export function createApp(options: AppOptions): http.Server {
   const staticDir = options.staticDir ?? STATIC_DIR;
-  const ctx: ApiContext = { llm: options.llm, rooms: options.rooms, matchStore: options.matchStore };
+  const ctx: ApiContext = {
+    llm: options.llm,
+    rooms: options.rooms,
+    matchStore: options.matchStore,
+    env: options.env ?? 'production',
+  };
 
   return http.createServer((req, res) => {
     const url = req.url ?? '/';

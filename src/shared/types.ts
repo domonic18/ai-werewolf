@@ -152,11 +152,15 @@ export type GameEventOf<K extends EventKind> = Extract<GameEvent, { type: K }>;
 
 /* ---------- REST 契约 ---------- */
 
+/** 运行环境：测试环境不写生产数据 */
+export type AppEnv = 'production' | 'staging';
+
 /** AI 通道状态：启动中 / 就绪 / 失败（站点可用性不应依赖它） */
 export type LLMState = 'initializing' | 'ready' | 'failed';
 
 export interface HealthResponse {
   ok: boolean;
+  env: AppEnv;
   llm: {
     ok: boolean;
     state: LLMState;
