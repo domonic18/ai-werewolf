@@ -25,7 +25,6 @@ export function PromptPanel({ pending, onSubmit }: PromptPanelProps): JSX.Elemen
     const submit = (): void => onSubmit(text.trim() || '我这轮先过，听你们的。');
     return (
       <>
-        <div className="say-hint" dangerouslySetInnerHTML={{ __html: pending.prompt.html }} />
         <textarea
           className="say-box"
           rows={3}

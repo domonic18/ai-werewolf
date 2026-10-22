@@ -83,14 +83,15 @@ export function HomePage({ onWatch }: { onWatch: (gameId: string) => void }): JS
   };
 
   const llm = data.health?.llm;
-  const dotClass = data.healthError ? 'bad' : llm?.ok ? 'ok' : 'warn';
-  const statusText = data.healthError
-    ? `服务不可达：${data.healthError}`
-    : llm
-      ? llm.ok
-        ? `大模型通道正常 · ${llm.sec}s · ${llm.model}（服务端调用）`
-        : `大模型通道异常：${llm.error ?? '未知'}`
-      : '正在检测服务与大模型通道…';
+  /* 三种状态要分清：接口不通 / 接口通了但大模型通道异常 / 一切正常 —— 混在一起会误导排障 */
+  const dotClass = !data.health ? (data.healthError ? 'bad' : 'warn') : llm?.ok ? 'ok' : 'bad';
+  const statusText = !data.health
+    ? data.healthError
+      ? `服务不可达：${data.healthError}`
+      : '正在检测服务与大模型通道…'
+    : llm?.ok
+      ? `大模型通道正常 · ${llm.sec}s · ${llm.model}（服务端调用）`
+      : `大模型通道异常：${llm?.error ?? '未知'}`;
 
   const stats = data.matches?.stats;
 

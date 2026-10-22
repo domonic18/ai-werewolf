@@ -11,6 +11,7 @@ export function formatWhen(iso: string | undefined): string {
 /** 顶栏徽章：第 N 夜 / 第 N 天 / 对局结束 */
 export function roundBadge(phase: Phase, round: number): string {
   if (phase === 'over') return '对局结束';
+  if (round === 0) return '准备中';
   if (phase === 'night') return `第 ${round} 夜`;
   return `第 ${round} 天`;
 }

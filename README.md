@@ -63,7 +63,7 @@ export WB_PUBLISHABLE_KEY="wbpk_xxx"
 # 方式二：复制 config/cloud.example.json 为 config/cloud.json 填入（该文件已 gitignore）
 
 npm run build      # 服务端 tsc → dist-server，前端 vite → dist/client
-npm start          # 默认 :3000，绑定 0.0.0.0（兼容 sites 沙箱）
+npm start          # 默认 :3000，绑定 0.0.0.0（兼容 sites 沙箱）；产物缺失时会自动先构建
 
 npm run dev        # 前端 HMR（:5173，/api 代理到 :8787）
 npm run dev:server # 后端热重载（tsx watch，默认 :3000，可 PORT=8787）

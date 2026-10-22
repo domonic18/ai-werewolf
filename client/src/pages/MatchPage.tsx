@@ -44,6 +44,8 @@ export function MatchPage({ lost }: { lost: boolean }): JSX.Element {
   const stage = buildStage(events, snapshot);
   const pending = watching ? null : snapshot?.pendingAction ?? null;
   const promptKey = pending ? `${snapshot?.round}-${pending.kind}-${pending.prompt.title}-${pending.options.length}` : null;
+  /* 有未回答的挂起动作时，舞台让位给 prompt：标题/说明都来自服务端，避免两份文案走偏 */
+  const activePrompt = pending && promptKey !== answeredKey ? pending : null;
 
   const submit = async (value: string | number | null): Promise<void> => {
     if (!gameId) return;
@@ -99,10 +101,12 @@ export function MatchPage({ lost }: { lost: boolean }): JSX.Element {
 
       <div className="stage">
         <SpeechOrderBar order={order} speakingId={speakingId} spokenIds={spokenIds} />
-        <div className="stage-title">{stage.title}</div>
-        <div className="stage-body">{stage.body}</div>
-        {pending && promptKey !== answeredKey ? (
-          <PromptPanel key={promptKey ?? 'prompt'} pending={pending} onSubmit={(value) => void submit(value)} />
+        <div className="stage-title">{activePrompt ? activePrompt.prompt.title : stage.title}</div>
+        <div className="stage-body">
+          {activePrompt ? <div dangerouslySetInnerHTML={{ __html: activePrompt.prompt.html }} /> : stage.body}
+        </div>
+        {activePrompt ? (
+          <PromptPanel key={promptKey ?? 'prompt'} pending={activePrompt} onSubmit={(value) => void submit(value)} />
         ) : null}
       </div>
 
