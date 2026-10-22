@@ -115,7 +115,9 @@ specs/             spec-kit 需求合同（001-lobby-spectate 已交付）
 
 - 禁止把「端口监听」放在任何外部依赖初始化之后。站点可用性不得依赖 AI 通道（2026-10-22 线上 504 事故：先 await LLM 初始化再 listen，冷启动自举死锁 → 整站 30s 超时）。LLM 一律后台引导，未就绪时 `/api/games` 返回 503。
 - 禁止在 `client/` 里直接调用 `fetch('/api/...')`。必须走 `client/src/api/client.ts`——它负责带上平台要求的 `sharecode`（2026-10-22 事故：POST 不带分享码被网关 403，浏览器只报 `Failed to fetch`，而 curl 全绿）。
+- 禁止凭 `.d.ts` 注释或猜测使用第三方 SDK 的字段名。调用前必须读**运行时实现**（编译产物里的方法体）：`@tencent-ai/workbuddy-cloud-sdk` 的类型声明与实现不一致（发码入参是 `{ phone }`，`phone_number`/`target` 只是它转发上游的请求体字段），照类型写会静默失败——2026-10 连续三次登录故障都出自这里。`tests/auth-actions.test.ts` 用假 SDK 钉住了这三条契约，改之前先看它。
 - 禁止在 `client/` 里实现或复制任何游戏规则逻辑。
 - 禁止为「体验兜底」加入规则化 AI 话术。
 - 禁止把 `config/cloud.json`、`.env`、token 提交进仓库。
+- 发布后必须核对线上 HTML 引用的 JS 文件名与本地 `dist/client/assets/` 一致。sites 沙箱目录是持久的，遗留的 `dist/` 会让「重新发布」发的是上一轮的旧包（2026-10 事故：改了代码页面不变，误判成浏览器缓存）。`tools/ensure-build.mjs` 因此每次启动都重建。
 - 禁止擅自合并分支或改动线上部署配置。
