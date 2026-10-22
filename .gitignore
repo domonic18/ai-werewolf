@@ -6,4 +6,9 @@ config/cloud.json
 
 # 项目文档需要入库（覆盖全局 *.md 忽略规则）
 !README.md
+!AGENTS.md
+!CLAUDE.md
 !docs/**/*.md
+!specs/**/*.md
+!.specify/**/*.md
+!.claude/skills/**/*.md
