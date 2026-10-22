@@ -127,9 +127,20 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, ctx: 
 
     /* ---------- 战绩 ---------- */
     if (path === '/api/matches' && method === 'GET') {
-      const recent = await ctx.matchStore.recent(8);
-      const stats = await ctx.matchStore.stats();
-      const body: MatchesResponse = { recent: recent.rows, stats };
+      /* mine=1 且已登录 → 只看自己的；未登录退回全量（匿名也能看战绩墙） */
+      const mine = (parsed.query.mine ?? '') === '1';
+      const ownerId = mine && ctx.resolveOwner ? await ctx.resolveOwner(req) : null;
+      const [recent, stats, mineStats] = await Promise.all([
+        ctx.matchStore.recent(8, ownerId),
+        ctx.matchStore.stats(ownerId),
+        ownerId ? ctx.matchStore.personalStats(ownerId) : Promise.resolve(null),
+      ]);
+      const body: MatchesResponse = {
+        recent: recent.rows,
+        stats,
+        scope: ownerId ? 'mine' : 'all',
+        mine: mineStats,
+      };
       return sendJson(res, 200, body);
     }
 
@@ -161,7 +172,10 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, ctx: 
 
     /* ---------- 进行中对局（大厅） ---------- */
     if (path === '/api/live' && method === 'GET') {
-      const query = parseLobbyQuery(parsed.query);
+      /* 「我的对局」：登录了就按账号查（换设备也能看到），否则只能靠前端带的本机 id */
+      const wantsMine = (parsed.query.filter ?? '') === 'mine';
+      const ownerId = wantsMine && ctx.resolveOwner ? await ctx.resolveOwner(req) : null;
+      const query = parseLobbyQuery(parsed.query, { ownerId });
       const page = listRooms(ctx.rooms.rooms, query);
       const body: LiveResponse = { games: page.games, nextCursor: page.nextCursor, total: page.total };
       return sendJson(res, 200, body);
@@ -209,7 +223,7 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, ctx: 
       void room.engine
         .run()
         .then(() => {
-          if (room.engine.winner) return ctx.rooms.archive(room.engine);
+          if (room.engine.winner) return ctx.rooms.archive(room.engine, room.ownerId);
           return undefined;
         })
         .catch((e: Error) => {

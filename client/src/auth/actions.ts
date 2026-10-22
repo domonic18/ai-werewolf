@@ -62,6 +62,9 @@ interface CloudAuth {
     provider: 'wechat' | 'workbuddy';
     redirectTo?: string;
   }): Promise<CloudResult<{ url: string }>>;
+  /** 回调落地页用：读 URL 上的 code/state 换会话；不是回调时返回 data: null（不是错误） */
+  handleWorkBuddyCallback(search?: string): Promise<CloudResult<CloudSession | null>>;
+  handleWechatWebCallback(search?: string): Promise<CloudResult<CloudSession | null>>;
 }
 
 type CloudModule = {
@@ -171,6 +174,51 @@ export async function verifyOtp(params: {
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : '验证码校验失败' };
   }
+}
+
+/**
+ * 第三方登录回调：在**登录守卫之前**无条件调用一次。
+ *
+ * 回调落地那一刻还没有会话，若先跑守卫会把用户弹回登录页、顺手丢掉 code/state，
+ * 表现就是「点了登录转一圈又回来了"。不是回调时返回 `{ ok: true, data: null }`。
+ */
+export async function completeOAuthCallback(): Promise<AuthResult<{ accessToken: string; userId: string } | null>> {
+  const search = window.location.search;
+  if (!search.includes('code=')) return { ok: true, data: null };
+
+  const auth = await getAuth();
+  if (!auth) return { ok: false, error: NOT_READY };
+
+  const provider = new URLSearchParams(search).get('provider');
+  try {
+    const result =
+      provider === 'wechat' ? await auth.handleWechatWebCallback(search) : await auth.handleWorkBuddyCallback(search);
+    if (result.error) return { ok: false, error: errText(result.error) };
+    const session = result.data;
+    /* data 为空 = 这次访问不是回调（例如用户收藏了落地页），照常按未登录渲染 */
+    if (!session?.accessToken) return { ok: true, data: null };
+    const userId = session.user?.id || fallbackUserId(session.accessToken);
+    if (!userId) return { ok: false, error: '授权成功但拿不到用户标识' };
+    return { ok: true, data: { accessToken: session.accessToken, userId } };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : '第三方登录回调失败' };
+  }
+}
+
+/**
+ * 清掉 URL 上的 code/state/provider，保留 sharecode 等业务参数。
+ * 不清的话刷新页面会拿着已经用过的 code 再兑一次。
+ */
+export function stripOAuthParams(): void {
+  const url = new URL(window.location.href);
+  let changed = false;
+  for (const key of ['code', 'state', 'provider']) {
+    if (url.searchParams.has(key)) {
+      url.searchParams.delete(key);
+      changed = true;
+    }
+  }
+  if (changed) window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
 }
 
 /** 第三方登录：拿 url 后在当前标签页跳转（SDK 不代跳） */

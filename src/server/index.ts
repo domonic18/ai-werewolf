@@ -8,6 +8,8 @@
 import { promises as fs } from 'node:fs';
 import path from 'node:path';
 import { createApp, PROJECT_ROOT } from './app.js';
+import { createOwnerResolver } from './auth.js';
+import { createCloudTokenVerifier } from './identity.js';
 import type { CloudConfig } from '../ai/llm-gateway.js';
 import { MatchStore } from '../cloud/match-store.js';
 import { RoomManager } from './rooms.js';
@@ -66,11 +68,21 @@ export async function main(): Promise<import('node:http').Server> {
   const matchStore = new MatchStore(() => llm.cloud, { readOnly: readOnlyMatches });
   const rooms = new RoomManager({ llm, matchStore });
 
+  /*
+   * 身份核实：把前端带来的 access token 交给云服务认人。
+   * 云端不可达/超时一律降级为匿名（登录是可选项，绝不阻断开局）。
+   */
+  const verifier = createCloudTokenVerifier({
+    endpoint: config.endpoint,
+    publishableKey: config.publishableKey,
+  });
+
   const server = createApp({
     llm,
     rooms,
     matchStore,
     env,
+    resolveOwner: createOwnerResolver(verifier),
     publicConfig: {
       endpoint: config.endpoint,
       publishableKey: config.publishableKey,

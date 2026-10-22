@@ -79,7 +79,8 @@ export const api = {
   health: (): Promise<HealthResponse> => request('/health'),
   models: (): Promise<ModelsResponse> => request('/models'),
   selectModel: (id: string): Promise<OkResponse> => request('/models/select', { id }),
-  matches: (): Promise<MatchesResponse> => request('/matches'),
+  /** mine=true 时按账号取（未登录服务端会退回全网，不会报错） */
+  matches: (mine = false): Promise<MatchesResponse> => request(`/matches${mine ? '?mine=1' : ''}`),
   live: (query: LiveQuery = {}): Promise<LiveResponse> => {
     const params = new URLSearchParams();
     if (query.filter && query.filter !== 'all') params.set('filter', query.filter);

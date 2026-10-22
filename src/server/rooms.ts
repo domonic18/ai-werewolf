@@ -101,11 +101,11 @@ export class RoomManager {
     return this.rooms.get(id) ?? null;
   }
 
-  /** 对局结束落库（fire-and-forget，不阻塞对局） */
-  async archive(engine: GameEngine): Promise<void> {
+  /** 对局结束落库（fire-and-forget，不阻塞对局）。ownerId 决定这局战绩归谁。 */
+  async archive(engine: GameEngine, ownerId: string | null = null): Promise<void> {
     if (!this.matchStore) return;
     try {
-      const result = await this.matchStore.save(engine.archive());
+      const result = await this.matchStore.save(engine.archive(), ownerId);
       engine.pushEvent('archived', { ok: result.ok, id: result.id ?? null, error: result.error ?? null });
     } catch (e) {
       engine.pushEvent('archived', { ok: false, error: (e as Error).message });

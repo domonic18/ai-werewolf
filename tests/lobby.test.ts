@@ -71,7 +71,14 @@ describe('toEntry', () => {
 
 describe('parseLobbyQuery', () => {
   it('非法参数回落到默认值', () => {
-    expect(parseLobbyQuery({})).toEqual({ filter: 'all', sort: 'spectators', limit: 10, after: null, mine: null });
+    expect(parseLobbyQuery({})).toEqual({
+      filter: 'all',
+      sort: 'spectators',
+      limit: 10,
+      after: null,
+      mine: null,
+      ownerId: null,
+    });
     expect(parseLobbyQuery({ filter: 'nope', sort: 'nope', limit: '-3' })).toMatchObject({
       filter: 'all',
       sort: 'spectators',
@@ -243,5 +250,24 @@ describe('我的对局（filter=mine）', () => {
   it('对局已结束/被清理时返回空', () => {
     const page = listRooms(asEntries(rooms), parseLobbyQuery({ filter: 'mine', mine: 'g-gone' }));
     expect(page.games).toHaveLength(0);
+  });
+
+  it('登录后按账号归属匹配（换设备也能看到），且优先于本机对局 id', () => {
+    const owned: LobbyRoomLike[] = [
+      { ...fakeRoom({ id: 'g-device-a' }), ownerId: 'user-1' },
+      { ...fakeRoom({ id: 'g-device-b' }), ownerId: 'user-1' },
+      { ...fakeRoom({ id: 'g-someone' }), ownerId: 'user-2' },
+      fakeRoom({ id: 'g-anon' }),
+    ];
+    /* 本机只存了 g-device-a，但账号下有两局 —— 应该都出来 */
+    const page = listRooms(asEntries(owned), parseLobbyQuery({ filter: 'mine', mine: 'g-device-a' }, { ownerId: 'user-1' }));
+    expect(page.games.map((g) => g.gameId).sort()).toEqual(['g-device-a', 'g-device-b']);
+    expect(page.total).toBe(2);
+  });
+
+  it('登录后没有本机存档也能查到自己的对局', () => {
+    const owned: LobbyRoomLike[] = [{ ...fakeRoom({ id: 'g-x' }), ownerId: 'user-1' }];
+    const page = listRooms(asEntries(owned), parseLobbyQuery({ filter: 'mine' }, { ownerId: 'user-1' }));
+    expect(page.games.map((g) => g.gameId)).toEqual(['g-x']);
   });
 });

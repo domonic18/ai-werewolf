@@ -297,6 +297,10 @@ export interface MatchRow {
 export interface MatchesResponse {
   recent: MatchRow[];
   stats: { total: number; good: number; wolf: number } | null;
+  /** mine = 只统计当前账号；all = 全网（未登录或未请求 mine 时） */
+  scope?: 'mine' | 'all';
+  /** 当前账号的累计战绩（仅登录且 scope=mine 时有值） */
+  mine?: { total: number; wins: number } | null;
 }
 
 export interface EventsResponse {

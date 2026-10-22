@@ -1,7 +1,9 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ROLES } from '@shared/roles';
 import type { GameEvent } from '@shared/types';
+import { api } from '../api/client';
 import { RoundTimeline } from '../components/RoundTimeline';
+import { useSession } from '../auth/useSession';
 import { timelineFromRecords, timelineFromReview } from '../lib/timeline';
 import { useGameStore } from '../store/gameStore';
 
@@ -11,6 +13,25 @@ export function ResultPage(): JSX.Element {
   const spectate = useGameStore((s) => s.spectate);
   const watching = useGameStore((s) => s.watching);
   const close = useGameStore((s) => s.close);
+  const { signedIn } = useSession();
+  const [mine, setMine] = useState<{ total: number; wins: number } | null>(null);
+
+  /* 登录后看得到自己的累计战绩；未登录不请求，也不显示这块 */
+  useEffect(() => {
+    if (!signedIn) return;
+    let cancelled = false;
+    void api
+      .matches(true)
+      .then((res) => {
+        if (!cancelled) setMine(res.mine ?? null);
+      })
+      .catch(() => {
+        /* 战绩拿不到不影响结算页 */
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [signedIn]);
 
   /* 观战者只有上帝视角投影；玩家只有公开复盘 —— 两种来源整成同一套渲染结构 */
   const timeline = useMemo(
@@ -127,6 +148,26 @@ export function ResultPage(): JSX.Element {
           ))}
         </div>
       </div>
+
+      {mine && mine.total > 0 ? (
+        <div className="panel">
+          <div className="panel-title">我的累计战绩</div>
+          <div className="lobby-stats" style={{ marginTop: 10, marginBottom: 0 }}>
+            <div className="lobby-stat">
+              <b>{mine.total}</b>
+              <span>总对局</span>
+            </div>
+            <div className="lobby-stat">
+              <b>{mine.wins}</b>
+              <span>胜场</span>
+            </div>
+            <div className="lobby-stat">
+              <b>{Math.round((mine.wins / mine.total) * 100)}%</b>
+              <span>胜率</span>
+            </div>
+          </div>
+        </div>
+      ) : null}
 
       <div className="panel">
         <button className="btn primary big" onClick={close}>

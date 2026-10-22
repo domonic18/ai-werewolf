@@ -1,4 +1,6 @@
 import { useEffect, useState } from 'react';
+import { completeOAuthCallback, stripOAuthParams } from './auth/actions';
+import { setSession } from './auth/session';
 import { HomePage } from './pages/HomePage';
 import { LobbyPage } from './pages/LobbyPage';
 import { MatchPage } from './pages/MatchPage';
@@ -20,6 +22,8 @@ export function App(): JSX.Element {
   const { lost, reason } = useMatchPolling();
 
   const [screen, setScreen] = useState<Screen>('home');
+  /* 第三方登录回调失败要说出来，不能让用户以为「点了没反应」 */
+  const [oauthError, setOauthError] = useState<string | null>(null);
   /* 观战用的是上帝视角投影，玩家用私有快照 —— 判断「结束」要按当前视角取，否则观战永远看不到结算页 */
   const finished = (watching ? spectate?.phase : snapshot?.phase) === 'over';
 
@@ -27,6 +31,24 @@ export function App(): JSX.Element {
   useEffect(() => {
     if (finished) clearSavedGame();
   }, [finished]);
+
+  /*
+   * 第三方登录回调必须在这里、在任何页面判断之前处理：
+   * 落地瞬间还没有会话，先渲染首页也不会错，但必须立刻把 code 换掉。
+   */
+  useEffect(() => {
+    void completeOAuthCallback().then((result) => {
+      if (!result.ok) {
+        setOauthError(result.error);
+        stripOAuthParams();
+        return;
+      }
+      if (!result.data) return; /* 不是回调，什么都不做 */
+      setSession({ accessToken: result.data.accessToken, userId: result.data.userId, expiresAt: 0 });
+      stripOAuthParams();
+      setScreen('home');
+    });
+  }, []);
 
   const watch = (id: string): void => open(id, { watching: true });
 
@@ -38,6 +60,11 @@ export function App(): JSX.Element {
 
   return (
     <div id="app">
+      {oauthError ? (
+        <p className="login-msg err" onClick={() => setOauthError(null)}>
+          第三方登录失败：{oauthError}（点此关闭）
+        </p>
+      ) : null}
       {!gameId && screen === 'home' ? (
         <HomePage
           onWatch={watch}

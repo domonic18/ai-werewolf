@@ -15,8 +15,10 @@ export interface LobbyQuery {
   sort: LobbySort;
   limit: number;
   after: string | null;
-  /** filter=mine 时要找的对局 id（服务端不认识「我」，由前端把本地存档的 id 带上来） */
+  /** filter=mine 时要找的对局 id（未登录时用：由前端把本地存档的 id 带上来） */
   mine: string | null;
+  /** filter=mine 的账号维度：登录后由服务端解析出的账号 id，优先于 mine */
+  ownerId?: string | null;
 }
 
 export interface LobbyPage {
@@ -29,6 +31,8 @@ export interface LobbyPage {
 export interface LobbyRoomLike {
   createdAt: number;
   spectatorCount: number;
+  /** 开局者账号（匿名局为 null / 未提供） */
+  ownerId?: string | null;
   engine: {
     id: string;
     playerName: string;
@@ -81,7 +85,10 @@ function firstValue(raw: string | string[] | undefined): string | undefined {
 }
 
 /** 解析并夹紧查询参数，非法值一律回落到默认值（不抛错） */
-export function parseLobbyQuery(query: Record<string, string | string[] | undefined>): LobbyQuery {
+export function parseLobbyQuery(
+  query: Record<string, string | string[] | undefined>,
+  options: { ownerId?: string | null } = {},
+): LobbyQuery {
   const filterRaw = firstValue(query.filter);
   const sortRaw = firstValue(query.sort);
   const limitRaw = Number(firstValue(query.limit) ?? DEFAULT_LIMIT);
@@ -93,8 +100,15 @@ export function parseLobbyQuery(query: Record<string, string | string[] | undefi
   const limit = Number.isFinite(limitRaw) && limitRaw > 0 ? Math.min(Math.floor(limitRaw), MAX_LIMIT) : DEFAULT_LIMIT;
 
   const mine = firstValue(query.mine)?.slice(0, 64) || null;
-  /* filter=mine 但没带对局 id 时，退化成空结果而不是全量——否则「我的对局」会变成「所有对局」 */
-  return { filter: mine ? 'mine' : filter, sort, limit, after: afterRaw || null, mine };
+  const ownerId = options.ownerId ?? null;
+  /*
+   * filter=mine 需要「我是谁」的依据：
+   * - 登录后由服务端解析出账号（ownerId），换设备也能查；
+   * - 未登录只能靠前端带上来的本机对局 id（mine）。
+   * 两者都没有时由 listRooms 返回空结果，而不是退化成全量——
+   * 否则「我的对局」会变成「所有对局」（见 tests/lobby.test.ts）。
+   */
+  return { filter, sort, limit, after: afterRaw || null, mine, ownerId };
 }
 
 function sortValue(entry: LobbyGame, sort: LobbySort): number {
@@ -142,7 +156,11 @@ export function listRooms(rooms: Iterable<[string, LobbyRoomLike]>, query: Lobby
     if (!entry) continue;
     if (query.filter === 'human' && !entry.hasHuman) continue;
     if (query.filter === 'final' && !entry.isFinal) continue;
-    if (query.filter === 'mine' && entry.gameId !== query.mine) continue;
+    if (query.filter === 'mine') {
+      /* 登录后按账号归属匹配（跨设备可见）；未登录按本机存档的对局 id */
+      const hit = query.ownerId ? room.ownerId === query.ownerId : entry.gameId === query.mine;
+      if (!hit) continue;
+    }
     entries.push(entry);
   }
 

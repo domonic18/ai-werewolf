@@ -18,6 +18,7 @@ interface QueryResult {
 interface QueryBuilder extends PromiseLike<QueryResult> {
   insert(row: Record<string, unknown>): QueryBuilder;
   select(columns?: string): QueryBuilder;
+  eq(column: string, value: string): QueryBuilder;
   order(column: string, options: { ascending: boolean }): QueryBuilder;
   limit(count: number): QueryBuilder;
   single(): Promise<QueryResult>;
@@ -66,7 +67,8 @@ export class MatchStore {
     return client ? (client.database as unknown as DatabaseClient) : null;
   }
 
-  async save(row: ArchiveRow): Promise<SaveResult> {
+  /** 写入一局战绩；`ownerId` 有值就记账号归属（匿名局写 null，战绩墙照常全量展示） */
+  async save(row: ArchiveRow, ownerId: string | null = null): Promise<SaveResult> {
     if (this.readOnly) return { ok: false, error: 'staging_read_only' };
     if (!this.db) return { ok: false, error: 'cloud-not-initialized' };
     const { data, error } = await this.db
@@ -78,6 +80,7 @@ export class MatchStore {
         rounds: row.rounds || 0,
         survivors: row.survivors || 0,
         detail: row.detail ?? {},
+        owner_id: ownerId,
       })
       .select('id')
       .single();
@@ -87,21 +90,43 @@ export class MatchStore {
     return { ok: true, id: id ?? null };
   }
 
-  async recent(limit = 8): Promise<RecentResult> {
+  /** 最近战绩；给 ownerId 时只看这个账号的 */
+  async recent(limit = 8, ownerId?: string | null): Promise<RecentResult> {
     if (!this.db) return { ok: false, rows: [] };
-    const { data, error } = await this.db
-      .from(TABLE)
-      .select('id,player_name,player_role,result,rounds,created_at')
-      .order('created_at', { ascending: false })
-      .limit(limit);
+    const base = this.db.from(TABLE).select('id,player_name,player_role,result,rounds,created_at');
+    const scoped = ownerId ? base.eq('owner_id', ownerId) : base;
+    const { data, error } = await scoped.order('created_at', { ascending: false }).limit(limit);
 
     if (error) return { ok: false, rows: [] };
     return { ok: true, rows: Array.isArray(data) ? (data as MatchRow[]) : [] };
   }
 
-  async stats(): Promise<MatchStats | null> {
+  /**
+   * 个人累计战绩：本账号打了多少局、赢了多少。
+   * 「赢」要按自己那一局的身份判：狼人阵赢 = 自己是狼；好人阵赢 = 自己不是狼。
+   */
+  async personalStats(ownerId: string): Promise<{ total: number; wins: number } | null> {
     if (!this.db) return null;
-    const { data, error } = await this.db.from(TABLE).select('result').limit(200);
+    const { data, error } = await this.db
+      .from(TABLE)
+      .select('result,player_role')
+      .eq('owner_id', ownerId)
+      .limit(500);
+    if (error) return null;
+    const rows = Array.isArray(data) ? (data as { result?: string; player_role?: string }[]) : [];
+    const wins = rows.filter((row) => {
+      const isWolf = row.player_role === 'wolf';
+      return isWolf ? row.result === 'wolf' : row.result === 'good';
+    }).length;
+    return { total: rows.length, wins };
+  }
+
+  /** 胜率统计；给 ownerId 时只统计这个账号的 */
+  async stats(ownerId?: string | null): Promise<MatchStats | null> {
+    if (!this.db) return null;
+    const base = this.db.from(TABLE).select('result');
+    const scoped = ownerId ? base.eq('owner_id', ownerId) : base;
+    const { data, error } = await scoped.limit(200);
     if (error) return null;
 
     const rows = Array.isArray(data) ? (data as { result?: string }[]) : [];
