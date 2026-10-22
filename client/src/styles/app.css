@@ -504,6 +504,7 @@ body {
 .hero-start { height: 48px; border: 0; border-radius: 14px; background: var(--d-gold-grad); color: var(--d-ink); font-size: 15px; font-weight: 700; display: flex; align-items: center; justify-content: center; gap: 8px; cursor: pointer; }
 .hero-start:disabled { opacity: 0.75; cursor: not-allowed; }
 .hero-secondary { display: flex; align-items: center; justify-content: center; gap: 6px; background: none; border: 0; color: #9aa3bc; font-size: 10px; cursor: pointer; padding: 0; }
+.hero-secondary:disabled { opacity: 0.6; cursor: not-allowed; }
 .hero-secondary span:last-child { color: var(--d-dim); }
 
 .stats-card { display: flex; align-items: center; padding: 13px 8px; border-radius: 16px; background: var(--d-card-soft); border: 1px solid var(--d-line-soft); }

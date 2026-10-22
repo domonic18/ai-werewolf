@@ -10,7 +10,7 @@ const APP_VERSION = __APP_VERSION__;
 
 /**
  * 首页：逐项对齐 docs/designs/01-home.html。
- * 结构 = 品牌栏 / Hero 卡（徽标·标题·AI 阵容·开始一局）/ 断线恢复条 / 数据条 /
+ * 结构 = 品牌栏 / Hero 卡（徽标·标题·AI 阵容·开始一局·快速开始）/ 断线恢复条 / 数据条 /
  *        正在进行（两张横向卡）/ 收官条 / 页脚。
  * 代号与 AI 模型不在这屏（设计稿没有），挪到「新建对局」里调。
  */
@@ -26,7 +26,7 @@ const HERO_CAST = [
 interface HomePageProps {
   onWatch: (gameId: string) => void;
   onOpenLobby: () => void;
-  /** 进配置页（选人数/牌组） */
+  /** 开始一局：进配置页（选人数/牌组），不在首页直接开局 */
   onNewGame: () => void;
   /** 登录入口（可选增强，不做登录墙） */
   onOpenLogin: () => void;
@@ -37,7 +37,7 @@ export function HomePage({ onWatch, onOpenLobby, onNewGame, onOpenLogin }: HomeP
   const data = useHomeData();
   const { signedIn } = useSession();
 
-  const [starting, setStarting] = useState(false);
+  const [quickStarting, setQuickStarting] = useState(false);
   const [startError, setStartError] = useState<string | null>(null);
   const [resumeId, setResumeId] = useState<string | null>(null);
 
@@ -75,8 +75,9 @@ export function HomePage({ onWatch, onOpenLobby, onNewGame, onOpenLogin }: HomeP
     return () => window.clearTimeout(timer);
   }, [llmState, data.refresh]);
 
-  const startGame = async (): Promise<void> => {
-    setStarting(true);
+  /* 快速开始（6 人）：跳过配置页直接按服务端默认阵容开局。T016 旧路径保留 */
+  const quickStart = async (): Promise<void> => {
+    setQuickStarting(true);
     setStartError(null);
     try {
       const result = await api.createGame({ playerName: '你' });
@@ -84,7 +85,7 @@ export function HomePage({ onWatch, onOpenLobby, onNewGame, onOpenLogin }: HomeP
     } catch (e) {
       setStartError(e instanceof Error ? e.message : '开局失败');
     } finally {
-      setStarting(false);
+      setQuickStarting(false);
     }
   };
 
@@ -167,12 +168,16 @@ export function HomePage({ onWatch, onOpenLobby, onNewGame, onOpenLogin }: HomeP
           </div>
           <p className="hero-cast-names">{HERO_CAST.map((m) => m.name).join(' · ')}</p>
         </div>
-        <button className="hero-start" disabled={starting || !aiReady} onClick={() => void startGame()}>
-          {starting ? '开局中…' : aiReady ? '开始一局' : 'AI 通道准备中'}
+        <button className="hero-start" disabled={!aiReady} onClick={onNewGame}>
+          {aiReady ? '开始一局' : 'AI 通道准备中'}
           <span>→</span>
         </button>
-        <button className="hero-secondary" onClick={onNewGame}>
-          <span>自定义阵容 · 6 / 8 / 9 / 10 / 12 人</span>
+        <button
+          className="hero-secondary"
+          disabled={quickStarting || !aiReady}
+          onClick={() => void quickStart()}
+        >
+          <span>{quickStarting ? '开局中…' : '快速开始 · 默认 6 人标准局'}</span>
           <span>›</span>
         </button>
         {startError ? <p className="lg-hint" style={{ color: 'var(--wolf)' }}>开局失败：{startError}</p> : null}

@@ -123,7 +123,7 @@ export function App(): JSX.Element {
           onBack={() => setScreen('home')}
           onWatch={watch}
           onResume={resume}
-          onStart={() => setScreen('home')}
+          onStart={() => setScreen('setup')}
         />
       ) : null}
       {gameId && !finished ? <MatchPage lost={lost} lostReason={reason} /> : null}
