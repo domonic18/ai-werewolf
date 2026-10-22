@@ -49,7 +49,10 @@ export type IconName =
   | 'minus'
   | 'skull'
   | 'sun'
-  | 'info';
+  | 'info'
+  | 'sound'
+  | 'mute'
+  | 'cloudNight';
 
 const PATHS: Record<IconName, JSX.Element> = {
   /* 狼头：两只尖耳 + 吻部，比写实狼更好认 */
@@ -257,6 +260,26 @@ const PATHS: Record<IconName, JSX.Element> = {
     <>
       <circle cx="12" cy="12" r="8.4" />
       <path d="M12 11v5.2M12 8.2h.01" />
+    </>
+  ),
+  /* 喇叭 + 两道声波：夜里唯一的开关 */
+  sound: (
+    <>
+      <path d="M4.6 9.6h3L12 6v12l-4.4-3.6h-3z" />
+      <path d="M15.6 9.2a4 4 0 010 5.6M18.2 6.8a7.4 7.4 0 010 10.4" />
+    </>
+  ),
+  mute: (
+    <>
+      <path d="M4.6 9.6h3L12 6v12l-4.4-3.6h-3z" />
+      <path d="M16 10.2l4 3.6M20 10.2l-4 3.6" />
+    </>
+  ),
+  /* 月亮 + 一小片云：夜幕条用 */
+  cloudNight: (
+    <>
+      <path d="M13.4 3.8a5.2 5.2 0 106.8 6.8 6.4 6.4 0 01-6.8-6.8z" />
+      <path d="M5.2 19.4h9.2a2.4 2.4 0 00.2-4.8 3.4 3.4 0 00-6.4-1 2.7 2.7 0 00-3 5.8z" />
     </>
   ),
 };

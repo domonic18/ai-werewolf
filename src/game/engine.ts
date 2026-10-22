@@ -409,7 +409,7 @@ export class GameEngine implements GameView {
 
   private async night(): Promise<void> {
     this.phase = 'night';
-    this.pushEvent('phase', { label: `第 ${this.round} 夜`, phase: 'night' });
+    this.pushEvent('phase', { label: `第 ${this.round} 夜`, phase: 'night', round: this.round });
     this.log(`—— 第 ${this.round} 夜 ——`, 'night');
     this.nightKill = null;
     this.saved = false;
@@ -629,7 +629,7 @@ export class GameEngine implements GameView {
 
   /** 法官口令（夜晚唯一允许的事件类型，不含玩家名与行动者） */
   private nightCue(text: string): void {
-    this.pushEvent('night-cue', { text });
+    this.pushEvent('night-cue', { text, round: this.round });
   }
 
   /**
@@ -701,7 +701,7 @@ export class GameEngine implements GameView {
 
   private async day(): Promise<void> {
     this.phase = 'day';
-    this.pushEvent('phase', { label: `第 ${this.round} 天`, phase: 'day' });
+    this.pushEvent('phase', { label: `第 ${this.round} 天`, phase: 'day', round: this.round });
     this.log(`—— 第 ${this.round} 天 ——`, 'day');
 
     const deaths = this.players.filter((p) => !p.alive && p.deadRound === this.round);
@@ -804,7 +804,7 @@ export class GameEngine implements GameView {
   private async vote(): Promise<void> {
     this.phase = 'vote';
     /* 广播投票阶段：事件流要能自解释，前端票型与大厅阶段标签都靠它复位/展示 */
-    this.pushEvent('phase', { label: `第 ${this.round} 天 · 投票`, phase: 'vote' });
+    this.pushEvent('phase', { label: `第 ${this.round} 天 · 投票`, phase: 'vote', round: this.round });
     const alive = this.alivePlayers();
     const votes: { voter: number; target: number }[] = [];
 

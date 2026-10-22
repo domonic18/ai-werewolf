@@ -1964,3 +1964,251 @@ button {
   letter-spacing: 0.1em;
   color: var(--brass);
 }
+
+/* ==========================================================================
+   夜晚过场「夜幕」
+   夜里原本只有一行口令和等待，狼人杀一半的氛围就没了。这里的做法是：
+   全屏压暗 - 月亮升起 - 口令一次一句地落下，配低频环境音（可静音）。
+   只用暖黑 + 陈纸白 + 黄铜，不做彩色光晕；月亮是一个带内阴影的圆盘，
+   颗粒感由全局 body 的噪点提供。
+   ========================================================================== */
+
+.nc {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  padding: calc(28px + env(safe-area-inset-top)) 24px calc(72px + env(safe-area-inset-bottom));
+  background: var(--ink-900);
+  color: var(--bone);
+  opacity: 1;
+  transition: opacity 260ms var(--ease);
+}
+.nc-out { opacity: 0; }
+
+.nc-sky {
+  position: absolute;
+  inset: 0;
+  background:
+    radial-gradient(120% 62% at 50% -6%, rgba(185, 154, 99, 0.1), transparent 62%),
+    radial-gradient(80% 50% at 50% 118%, rgba(0, 0, 0, 0.7), transparent 70%);
+  pointer-events: none;
+}
+
+.nc-moon {
+  position: absolute;
+  top: 13%;
+  left: 50%;
+  width: 88px;
+  height: 88px;
+  margin-left: -44px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 38% 32%, #f4eee1 0%, #d3cab8 58%, #8d8677 100%);
+  box-shadow:
+    0 0 0 1px rgba(237, 231, 218, 0.16),
+    0 0 76px rgba(237, 231, 218, 0.12),
+    inset -12px -10px 26px rgba(0, 0, 0, 0.42);
+  animation: moon-rise 1600ms var(--ease) both;
+}
+
+.nc-body {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  width: 100%;
+  max-width: 340px;
+  text-align: center;
+}
+
+.nc-label {
+  margin: 0;
+  font-size: 10px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.26em;
+  text-transform: uppercase;
+  color: var(--brass);
+}
+
+.nc-cues {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  min-height: 68px;
+}
+
+/* 口令用衬线大字：这是全站少有的「仪式时刻」，与结算判定同一档语气 */
+.nc-cue {
+  margin: 0;
+  font-family: var(--font-mark);
+  font-size: 27px;
+  line-height: 1.5;
+  letter-spacing: 0.16em;
+  color: var(--bone);
+  animation: cue-fall 620ms var(--ease) both;
+}
+.nc-cue.pending {
+  font-size: 20px;
+  letter-spacing: 0.4em;
+  color: var(--faint);
+  animation: cue-breathe 2400ms ease-in-out infinite;
+}
+
+.nc-ticks {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.nc-ticks i {
+  display: block;
+  width: 16px;
+  height: 2px;
+  border-radius: 1px;
+  background: rgba(255, 255, 255, 0.12);
+  transition: background 320ms var(--ease);
+}
+.nc-ticks i.on { background: var(--brass); opacity: 0.75; }
+
+.nc-foot {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: calc(22px + env(safe-area-inset-bottom));
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+}
+.nc-hint {
+  font-size: 10.5px;
+  letter-spacing: 0.12em;
+  color: var(--faint);
+}
+.nc-skip {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 6px 10px;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: none;
+  color: var(--ash);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  cursor: pointer;
+}
+.nc-skip:hover { color: var(--bone); border-color: var(--line-strong); }
+
+.nc-sound {
+  position: absolute;
+  top: calc(16px + env(safe-area-inset-top));
+  right: 18px;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--r-md);
+  border: 1px solid var(--line);
+  background: none;
+  color: var(--ash);
+  cursor: pointer;
+}
+.nc-sound:hover { color: var(--bone); border-color: var(--line-strong); }
+
+.nc-progress {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: 1px;
+  background: rgba(255, 255, 255, 0.05);
+}
+.nc-progress i {
+  display: block;
+  height: 100%;
+  background: var(--brass);
+  opacity: 0.6;
+  transition: width 420ms linear;
+}
+
+@keyframes moon-rise {
+  from { opacity: 0; transform: translateY(14px) scale(0.94); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+@keyframes cue-fall {
+  from { opacity: 0; transform: translateY(8px); letter-spacing: 0.24em; }
+  to { opacity: 1; transform: translateY(0); letter-spacing: 0.16em; }
+}
+@keyframes cue-breathe {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 0.8; }
+}
+
+/* 夜幕条：过场演完后的夜里常驻态，替代上一轮的旧发言 */
+.ig-night {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 14px;
+  border-radius: var(--r-lg);
+  border: 1px solid rgba(185, 154, 99, 0.2);
+  background:
+    radial-gradient(120% 90% at 50% 0%, rgba(185, 154, 99, 0.07), transparent 70%),
+    var(--ink-850);
+}
+.ig-night-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.ig-night-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 10.5px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--brass);
+}
+.ig-night-sound {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: none;
+  color: var(--smoke);
+  cursor: pointer;
+}
+.ig-night-sound:hover { color: var(--bone); }
+.ig-night-cue {
+  margin: 0;
+  font-family: var(--font-mark);
+  font-size: 18px;
+  letter-spacing: 0.12em;
+  color: var(--bone);
+}
+.ig-night-hint {
+  margin: 0;
+  font-size: 10.5px;
+  line-height: 1.6;
+  color: var(--faint);
+}
+
+/* 尊重系统的「减少动态效果」：保留信息，去掉位移与呼吸 */
+@media (prefers-reduced-motion: reduce) {
+  .nc-moon,
+  .nc-cue,
+  .nc-cue.pending {
+    animation: none;
+  }
+  .nc-progress i { transition: none; }
+}

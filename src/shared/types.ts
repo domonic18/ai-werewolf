@@ -186,8 +186,12 @@ export interface VoteResultPayload {
 /** 事件类型 → 负载。新增事件必须同时在此登记，否则 tsc 报错。 */
 export interface EventPayloads {
   'game-start': { gameId: string };
-  phase: { label: string; phase: Phase };
-  'night-cue': { text: string };
+  phase: { label: string; phase: Phase; round?: number };
+  /**
+   * 法官口令。round 用于前端把口令按「第几夜」分组：
+   * 夜幕过场只回放当前这一夜的口令，不能把前一夜的「预言家请睁眼」也演一遍。
+   */
+  'night-cue': { text: string; round?: number };
   dawn: { dead: number[]; firstNight: boolean };
   'night-settle': { dead: number[]; text: string };
   speech: SpeechPayload;

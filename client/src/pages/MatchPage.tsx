@@ -1,7 +1,10 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { api } from '../api/client';
 import { Avatar } from '../components/Avatar';
 import { Icon, roleIcon } from '../components/Icon';
+import { NightCurtain } from '../components/NightCurtain';
+import { nightCuesForRound, shouldRaiseCurtain } from '../lib/night';
+import { playDawnChime, setSoundEnabled, soundEnabled } from '../lib/sound';
 import { highlightNames } from '../lib/highlight';
 import { roundBadge } from '../lib/format';
 import { deriveVoteTally } from '../lib/tally';
@@ -106,6 +109,76 @@ function ChatBubbles({ events, names }: { events: GameEvent[]; names: string[] }
   );
 }
 
+/**
+ * 夜晚过场的状态门控：这一夜要不要拉起夜幕、演到哪、演完记住。
+ * 两个视角（玩家 / 观战）共用一套规则，避免「观战有戏、自己打没有」。
+ */
+function useNight(phase: Phase, round: number, events: GameEvent[], hasPending: boolean) {
+  const [watchedRound, setWatchedRound] = useState(0);
+  const [openRound, setOpenRound] = useState<number | null>(null);
+  const cues = useMemo(() => nightCuesForRound(events, round), [events, round]);
+
+  /* 口令一到达就拉起夜幕；同一夜只拉一次，跳过/演完都记进 watchedRound */
+  useEffect(() => {
+    if (openRound !== null) return;
+    if (shouldRaiseCurtain({ phase, round, hasPending, watchedRound, cueCount: cues.length })) {
+      setOpenRound(round);
+    }
+  }, [phase, round, hasPending, watchedRound, cues.length, openRound]);
+
+  return {
+    openRound,
+    cues,
+    lastCue: cues.length ? (cues[cues.length - 1] as string) : null,
+    onDone: () => {
+      setOpenRound(null);
+      setWatchedRound(round);
+    },
+  };
+}
+
+/** 天亮的一记上行动机：过场落幕、白天开场时响一次 */
+function useDawnChime(phase: Phase): void {
+  const prev = useRef<Phase | null>(null);
+  useEffect(() => {
+    if (prev.current === 'night' && phase === 'day') playDawnChime();
+    prev.current = phase;
+  }, [phase]);
+}
+
+/**
+ * 夜幕条：过场演完（或玩家跳过）后，夜里的常驻状态。
+ * 没有它，长夜里整屏只剩上一轮的旧发言，看起来像卡住了。
+ */
+function NightStrip({ round, cue }: { round: number; cue: string | null }): JSX.Element {
+  const [on, setOn] = useState(() => soundEnabled());
+  const toggle = (): void => {
+    const next = !on;
+    setOn(next);
+    setSoundEnabled(next);
+  };
+  return (
+    <div className="ig-night">
+      <div className="ig-night-head">
+        <span className="ig-night-title">
+          <Icon name="cloudNight" size={14} />
+          <span>第 {round} 夜</span>
+        </span>
+        <button
+          className="ig-night-sound"
+          onClick={toggle}
+          aria-label={on ? '静音' : '开启声音'}
+          title={on ? '静音' : '开启声音'}
+        >
+          <Icon name={on ? 'sound' : 'mute'} size={13} />
+        </button>
+      </div>
+      <p className="ig-night-cue">{cue ?? '天黑请闭眼'}</p>
+      <p className="ig-night-hint">AI 正在夜里行动，结果天亮后公布</p>
+    </div>
+  );
+}
+
 /* -------------------------------------------------------------- 玩家视角 */
 
 function PlayView(): JSX.Element {
@@ -151,6 +224,10 @@ function PlayView(): JSX.Element {
   const promptKey = pending ? `${round}-${pending.kind}-${pending.prompt.title}-${pending.options.length}` : null;
   const active = pending && promptKey !== answeredKey ? pending : null;
 
+  /* 夜里有挂起动作（验人/用药/狼刀）时过场必须让位，否则会挡住玩家自己的决策 */
+  const night = useNight(phase, round, events, Boolean(active));
+  useDawnChime(phase);
+
   const submit = async (value: string | number | null): Promise<void> => {
     if (!gameId || !token) return;
     setAnsweredKey(promptKey);
@@ -178,6 +255,16 @@ function PlayView(): JSX.Element {
 
   return (
     <section className="screen page-game">
+      {night.openRound !== null ? (
+        <NightCurtain
+          round={night.openRound}
+          cues={night.cues}
+          phase={phase}
+          hasPending={Boolean(active)}
+          onDone={night.onDone}
+        />
+      ) : null}
+
       <div className="ig-status">
         <div className="ig-status-left">
           <span className="ig-badge">{roundBadge(phase, round)}</span>
@@ -228,7 +315,11 @@ function PlayView(): JSX.Element {
         </div>
       ) : null}
 
-      <ChatBubbles events={events} names={names} />
+      {phase === 'night' && !active ? (
+        <NightStrip round={round} cue={night.lastCue} />
+      ) : (
+        <ChatBubbles events={events} names={names} />
+      )}
 
       {ranked.length ? (
         <div className="ig-vote">
@@ -337,6 +428,11 @@ function SpectateView({ players }: { players: Seat[] }): JSX.Element {
   const messages = useMessages(events);
   const human = players.find((p) => p.isHuman);
   const factions = spectate?.factions;
+  const phase: Phase = spectate?.phase ?? 'night';
+  const round = spectate?.round ?? 0;
+  /* 观战没有自己的决策，永远不会因为挂起动作让位 */
+  const night = useNight(phase, round, events, false);
+  useDawnChime(phase);
 
   const roleClass = (role?: string | null): string => {
     if (!role) return '';
@@ -348,6 +444,10 @@ function SpectateView({ players }: { players: Seat[] }): JSX.Element {
 
   return (
     <section className="screen page-game">
+      {night.openRound !== null ? (
+        <NightCurtain round={night.openRound} cues={night.cues} phase={phase} hasPending={false} onDone={night.onDone} />
+      ) : null}
+
       <div className="sp-bar">
         <div className="sp-bar-left">
           <span className="sp-live">
@@ -423,6 +523,8 @@ function SpectateView({ players }: { players: Seat[] }): JSX.Element {
           </div>
         </div>
       ) : null}
+
+      {phase === 'night' ? <NightStrip round={round} cue={night.lastCue} /> : null}
 
       <div className="sp-chat">
         {messages.length === 0 ? (
