@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react';
 import { fetchAuthProviders, sendOtp, signInWithOAuth, verifyOtp } from '../auth/actions';
 import { clearSession, setSession } from '../auth/session';
 import { Icon } from '../components/Icon';
+import { SiteFooter } from '../components/SiteFooter';
 import { useSession } from '../auth/useSession';
 
-const APP_VERSION = __APP_VERSION__;
 
 interface LoginPageProps {
   onBack: () => void;
@@ -293,10 +293,7 @@ export function LoginPage({ onBack, onSignedIn }: LoginPageProps): JSX.Element {
         </>
       )}
 
-      <footer className="d-footer">
-        <p>by domonic · 17aitech.com</p>
-        <p>WorkBuddy 1024 造物挑战 · v{APP_VERSION}</p>
-      </footer>
+      <SiteFooter />
     </section>
   );
 }

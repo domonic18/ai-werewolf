@@ -2,11 +2,11 @@ import { useState } from 'react';
 import type { LobbyGame } from '@shared/types';
 import { Avatar } from '../components/Avatar';
 import { Icon } from '../components/Icon';
+import { SiteFooter } from '../components/SiteFooter';
 import { useLobby } from '../hooks/useLobby';
 import type { LobbyState } from '../hooks/useLobby';
 import { readSavedGame } from '../lib/storage';
 
-const APP_VERSION = __APP_VERSION__;
 
 const FILTERS: { key: NonNullable<LobbyState['filter']>; label: string }[] = [
   { key: 'all', label: '全部' },
@@ -251,10 +251,7 @@ export function LobbyPage({ onBack, onWatch, onResume, onStart }: LobbyPageProps
         )
       ) : null}
 
-      <footer className="d-footer">
-        <p>by domonic · 17aitech.com</p>
-        <p>WorkBuddy 1024 造物挑战 · v{APP_VERSION}</p>
-      </footer>
+      <SiteFooter />
     </section>
   );
 }

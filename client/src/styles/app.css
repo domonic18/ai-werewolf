@@ -198,6 +198,17 @@ button {
 .d-footer p + p {
   color: #45423c;
 }
+/* 站点名是可点的外链：不加下划线太重，用虚点提示可点 */
+.d-footer a {
+  color: inherit;
+  text-decoration: none;
+  border-bottom: 1px dotted rgba(255, 255, 255, 0.22);
+  transition: color 160ms var(--ease), border-color 160ms var(--ease);
+}
+.d-footer a:hover {
+  color: var(--brass);
+  border-bottom-color: rgba(185, 154, 99, 0.5);
+}
 
 /* 页头：返回 + 标题 + 右侧动作 */
 .d-nav {
@@ -2211,4 +2222,47 @@ button {
     animation: none;
   }
   .nc-progress i { transition: none; }
+}
+
+/* 观战：夜里的那一行口令。观众不该被全屏过场挡住棋盘与身份，只留一行提示 */
+.sp-night {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border-radius: var(--r-lg);
+  border: 1px solid rgba(185, 154, 99, 0.18);
+  background: rgba(185, 154, 99, 0.05);
+  color: var(--brass);
+}
+.sp-night .cue {
+  font-family: var(--font-mark);
+  font-size: 13px;
+  letter-spacing: 0.1em;
+  color: var(--bone);
+}
+.sp-night .hint {
+  margin-left: auto;
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  color: var(--faint);
+}
+
+/* 观战发言里的身份标签：上帝视角的价值就在这里 */
+.role-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 1px 6px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: rgba(113, 132, 155, 0.1);
+  font-size: 9.5px;
+  letter-spacing: 0.02em;
+  color: #a5b6c8;
+}
+.role-tag.wolf {
+  border-color: rgba(192, 82, 63, 0.32);
+  background: rgba(192, 82, 63, 0.1);
+  color: var(--ember-soft);
 }

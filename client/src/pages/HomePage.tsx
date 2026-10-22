@@ -3,12 +3,11 @@ import { api } from '../api/client';
 import { useSession } from '../auth/useSession';
 import { AccountCard } from '../components/AccountCard';
 import { Avatar } from '../components/Avatar';
+import { SiteFooter } from '../components/SiteFooter';
 import { Icon } from '../components/Icon';
 import { useHomeData } from '../hooks/useHomeData';
 import { clearSavedGame, readSavedGame } from '../lib/storage';
 import { useGameStore } from '../store/gameStore';
-
-const APP_VERSION = __APP_VERSION__;
 
 /**
  * 首页（设计规范 v2「夜席」）。
@@ -284,13 +283,7 @@ export function HomePage({ onWatch, onOpenLobby, onNewGame, onOpenLogin }: HomeP
         <span className="arrow">›</span>
       </button>
 
-      <footer className="d-footer">
-        <p>by domonic · 17aitech.com</p>
-        <p>
-          WorkBuddy 1024 造物挑战 · v{APP_VERSION}
-          {env === 'staging' ? ' · STAGING' : ''}
-        </p>
-      </footer>
+      <SiteFooter env={env} />
     </section>
   );
 }

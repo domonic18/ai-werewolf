@@ -1,10 +1,10 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api/client';
 import { Icon, roleIcon } from '../components/Icon';
+import { SiteFooter } from '../components/SiteFooter';
 import { useHomeData } from '../hooks/useHomeData';
 import type { RoleKey, RolesResponse } from '@shared/types';
 
-const APP_VERSION = __APP_VERSION__;
 
 const CHOICES = [6, 8, 9, 10, 12];
 /** 设计稿只列 3 个锁定角色，其余折叠成「还有 N 个进阶角色」 */
@@ -320,10 +320,7 @@ export function SetupPage({ onBack, onStarted }: SetupPageProps): JSX.Element {
         </button>
       </div>
 
-      <footer className="d-footer">
-        <p>by domonic · 17aitech.com</p>
-        <p>WorkBuddy 1024 造物挑战 · v{APP_VERSION}</p>
-      </footer>
+      <SiteFooter />
     </section>
   );
 }

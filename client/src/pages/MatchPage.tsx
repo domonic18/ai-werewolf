@@ -3,6 +3,7 @@ import { api } from '../api/client';
 import { Avatar } from '../components/Avatar';
 import { Icon, roleIcon } from '../components/Icon';
 import { NightCurtain } from '../components/NightCurtain';
+import { SiteFooter } from '../components/SiteFooter';
 import { nightCuesForRound, nightLabel, shouldRaiseCurtain } from '../lib/night';
 import { playDawnChime, setSoundEnabled, soundEnabled } from '../lib/sound';
 import { highlightNames } from '../lib/highlight';
@@ -14,7 +15,6 @@ import { useGameStore } from '../store/gameStore';
 import { ROLES } from '@shared/roles';
 import type { GameEvent, Phase } from '@shared/types';
 
-const APP_VERSION = __APP_VERSION__;
 const QUICK_LINES = ['我是平民', '我怀疑他', '我先过'];
 const CHAT_LIMIT = 6;
 
@@ -407,10 +407,7 @@ function PlayView(): JSX.Element {
         </div>
       ) : null}
 
-      <footer className="d-footer">
-        <p>by domonic · 17aitech.com</p>
-        <p>WorkBuddy 1024 造物挑战 · v{APP_VERSION}</p>
-      </footer>
+      <SiteFooter />
     </section>
   );
 }
@@ -427,8 +424,13 @@ function SpectateView({ players }: { players: Seat[] }): JSX.Element {
   const factions = spectate?.factions;
   const phase: Phase = spectate?.phase ?? 'night';
   const round = spectate?.round ?? 0;
-  /* 观战没有自己的决策，永远不会因为挂起动作让位 */
-  const night = useNight(phase, round, events, false);
+  /*
+   * 观战**不拉全屏夜幕**：过场是给玩家制造悬念的，观众本来就是上帝视角，
+   * 黑屏只会挡住身份和棋盘 —— 观战要能一直看着全场。
+   * 这里只取当前口令，做成一行小字挂在阵营卡下面。
+   */
+  const nightCues = useMemo(() => nightCuesForRound(events, round), [events, round]);
+  const lastCue = nightCues.length ? (nightCues[nightCues.length - 1] as string) : null;
   useDawnChime(phase);
 
   const roleClass = (role?: string | null): string => {
@@ -441,10 +443,6 @@ function SpectateView({ players }: { players: Seat[] }): JSX.Element {
 
   return (
     <section className="screen page-game">
-      {night.openRound !== null ? (
-        <NightCurtain round={night.openRound} cues={night.cues} phase={phase} hasPending={false} onDone={night.onDone} />
-      ) : null}
-
       <div className="sp-bar">
         <div className="sp-bar-left">
           <span className="sp-live">
@@ -521,7 +519,13 @@ function SpectateView({ players }: { players: Seat[] }): JSX.Element {
         </div>
       ) : null}
 
-      {phase === 'night' ? <NightStrip round={round} cue={night.lastCue} /> : null}
+      {phase === 'night' ? (
+        <div className="sp-night">
+          <Icon name="cloudNight" size={13} />
+          <span className="cue">{lastCue ?? '天黑请闭眼'}</span>
+          <span className="hint">夜里无人发言</span>
+        </div>
+      ) : null}
 
       <div className="sp-chat">
         {messages.length === 0 ? (
@@ -529,11 +533,21 @@ function SpectateView({ players }: { players: Seat[] }): JSX.Element {
         ) : (
           messages.map((event) => {
             const p = event.payload;
+            const seat = players.find((row) => row.id === p.playerId);
+            const role = seat?.role ?? null;
+            const card = role ? ROLES[role as keyof typeof ROLES] : null;
             return (
               <div key={event.seq} className="sp-msg">
                 <div className="sp-msg-head">
                   <Avatar name={p.name} seat={p.playerId} isHuman={p.isHuman} size={18} />
                   <span className="nm">{p.name}</span>
+                  {/* 上帝视角的价值就在这儿：说话的人是什么身份，看的时候不用回忆 */}
+                  {card ? (
+                    <span className={role === 'wolf' || role === 'wolfking' ? 'role-tag wolf' : 'role-tag'}>
+                      <Icon name={roleIcon(role)} size={10} />
+                      {card.name}
+                    </span>
+                  ) : null}
                 </div>
                 <p>{highlightNames(p.text, names)}</p>
               </div>
@@ -542,10 +556,7 @@ function SpectateView({ players }: { players: Seat[] }): JSX.Element {
         )}
       </div>
 
-      <footer className="d-footer">
-        <p>by domonic · 17aitech.com</p>
-        <p>WorkBuddy 1024 造物挑战 · v{APP_VERSION}</p>
-      </footer>
+      <SiteFooter />
     </section>
   );
 }
