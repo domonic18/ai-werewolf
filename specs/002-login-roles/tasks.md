@@ -25,7 +25,7 @@
 - [x] T010 `src/game/behaviors.ts` 新增 `DeathHook` 类型与 `hunterBehavior.onDeath`：非毒杀可开枪（1d）
 - [x] T011 引擎在「死讯公布后、判胜负前」调用死亡钩子；开枪结果写入事件与时间轴（0.5d）
 - [x] T012 [P] 单测：被刀可开枪、被放逐可开枪、被毒不能开枪、猎人开枪带走最后一狼判好人胜（1d）
-- [ ] T013 前端：猎人开枪的选项面板复用 `pendingAction`，文案与选项由服务端给（0.5d）
+- [x] T013 前端：猎人开枪的选项面板复用 `pendingAction`，文案与选项由服务端给（0.5d）
 
 ## Phase 4: 建局配置页（US2）
 
@@ -37,20 +37,20 @@
 
 - [x] T017 `src/server/auth.ts`：`getOwner(req)` 解析 Bearer token → userId（不通过则 null）（0.5d）
 - [x] T018 前半：`POST /api/games` 解析登录态并写入 `Room.ownerId`（匿名局 ownerId=null，不阻塞开局）；`ww_matches.owner_id` 待云表结构确认后补（1d）
-- [ ] T019 前端 `client/src/auth/useSession.ts`：登录态、静默刷新、降级为未登录（1d）
-- [ ] T020 前端 `LoginPage`：手机号 OTP 主推 + 微信/WorkBuddy 按钮（Provider 未开则隐藏）+ 60s 重发（1.5d）
-- [ ] T021 「我的对局」改为账号维度：登录后查 `GET /api/live?filter=mine&owner=me`，未登录回落本机存档 id（1d）
-- [ ] T022 [P] 单测：无 token 不影响开局、有 token 归属正确、会话过期降级（0.5d）
+- [x] T019 前端 `client/src/auth/useSession.ts`：登录态、静默刷新、降级为未登录（1d）
+- [x] T020 前端 `LoginPage`：手机号 OTP 主推 + 微信/WorkBuddy 按钮（Provider 未开则隐藏）+ 60s 重发（1.5d）
+- [x] T021 「我的对局」改为账号维度：登录后查 `GET /api/live?filter=mine&owner=me`，未登录回落本机存档 id（1d）
+- [x] T022 [P] 单测：无 token 不影响开局、有 token 归属正确、会话过期降级（0.5d）
 
 ## Phase 6: 战绩归属（US4）
 
-- [ ] T023 `GET /api/matches?mine=1` 按 owner 过滤；结算页显示累计战绩（1d）
-- [ ] T024 [P] 单测：mine=1 只返回自己的、未登录回落全量（0.5d）
+- [x] T023 `GET /api/matches?mine=1` 按 owner 过滤；结算页显示累计战绩（1d）
+- [x] T024 [P] 单测：mine=1 只返回自己的、未登录回落全量（0.5d）
 
 ## Phase 7: 收尾
 
-- [ ] T025 版本 v1.5.0、PRD/AGENTS 同步、`docs/REGRESSION-v1.5.md`（0.5d）
-- [ ] T026 线上回归补断言：8 人局可开、守卫/猎人事件出现、登录态不影响未登录路径（0.5d）
+- [x] T025 版本 v1.5.0、PRD/AGENTS 同步、`docs/REGRESSION-v1.5.md`（0.5d）
+- [x] T026 线上回归补断言：8 人局可开、守卫/猎人事件出现、登录态不影响未登录路径（0.5d）
 - [ ] T027 OAuth（微信/WorkBuddy）上线后验证清单（0.5d）
 
 ## 依赖
