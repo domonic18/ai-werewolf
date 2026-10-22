@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react';
 import { api } from '../api/client';
 import { useSession } from '../auth/useSession';
 import { AccountCard } from '../components/AccountCard';
+import { Avatar } from '../components/Avatar';
+import { Icon } from '../components/Icon';
 import { useHomeData } from '../hooks/useHomeData';
 import { clearSavedGame, readSavedGame } from '../lib/storage';
 import { useGameStore } from '../store/gameStore';
@@ -9,20 +11,9 @@ import { useGameStore } from '../store/gameStore';
 const APP_VERSION = __APP_VERSION__;
 
 /**
- * 首页：逐项对齐 docs/designs/01-home.html。
- * 结构 = 品牌栏 / Hero 卡（徽标·标题·AI 阵容·开始一局·快速开始）/ 断线恢复条 / 数据条 /
- *        正在进行（两张横向卡）/ 收官条 / 页脚。
- * 代号与 AI 模型不在这屏（设计稿没有），挪到「新建对局」里调。
+ * 首页（设计规范 v2「夜席」）。
+ * 主视觉是月夜狼影插画，文字压在暗部；人物用插画头像，界面图标用 SVG，不再出现 emoji。
  */
-/* 与 src/game/roles.ts 的 AI_CAST 前 5 位保持一致，仅用于首页展示 */
-const HERO_CAST = [
-  { emoji: '🕶️', name: '老K' },
-  { emoji: '🍊', name: '小满' },
-  { emoji: '🧊', name: '阿岚' },
-  { emoji: '🍬', name: '豆豆' },
-  { emoji: '🎭', name: '七喜' },
-];
-
 interface HomePageProps {
   onWatch: (gameId: string) => void;
   onOpenLobby: () => void;
@@ -120,19 +111,22 @@ export function HomePage({ onWatch, onOpenLobby, onNewGame, onOpenLogin }: HomeP
   /* 徽标要反映真实状态，不能永远写「已就位」 */
   const badgeText = !data.health
     ? data.healthError
-      ? '服务不可达，正在重试…'
-      : '正在连接服务…'
+      ? '服务不可达，正在重试'
+      : '正在连接服务'
     : llm?.state === 'initializing'
-      ? 'AI 通道正在启动…'
+      ? 'AI 通道启动中'
       : aiReady
-        ? '5 个 AI 玩家已就位'
+        ? '5 名 AI 已就位'
         : 'AI 通道不可用';
+  const badgeTone = aiReady ? 'ok' : data.health ? 'bad' : 'warn';
 
   return (
     <section className="screen page-home">
       <div className="home-top">
         <div className="home-brand">
-          <div className="home-brand-logo">🐺</div>
+          <div className="home-brand-logo" aria-hidden>
+            狼
+          </div>
           <div className="home-brand-text">
             <b>AI 狼人杀</b>
             <span>Agent 补位局</span>
@@ -142,35 +136,39 @@ export function HomePage({ onWatch, onOpenLobby, onNewGame, onOpenLogin }: HomeP
           <button className="home-lobby-btn" onClick={onOpenLobby}>
             大厅
           </button>
-          <button className="home-avatar" onClick={onOpenLogin} aria-label={signedIn ? '已登录' : '登录'}>
-            {signedIn ? '🙋' : '👤'}
+          <button
+            className="home-avatar"
+            onClick={onOpenLogin}
+            aria-label={signedIn ? '已登录，查看账号' : '登录'}
+          >
+            <Icon name={signedIn ? 'shieldCheck' : 'villager'} size={16} />
           </button>
         </div>
       </div>
 
       <div className="hero-card">
+        <div className="hero-art" aria-hidden />
+        <div className="hero-body">
         <div className="hero-badge">
-          <span className="dot" />
+          <span className={`dot ${badgeTone}`} />
           <span>{badgeText}</span>
         </div>
         <div className="hero-title">
-          <b>5 个 AI 会说话，</b>
-          <b>也会怀疑你</b>
+          <b>五个会说谎的 AI</b>
+          <b>等你入席</b>
         </div>
-        <p className="hero-desc">发言、怀疑、投票全部由大模型实时生成，不是固定话术</p>
+        <p className="hero-desc">发言、怀疑、投票都由大模型当场生成，没有一句写死的台词</p>
         <div className="hero-cast">
           <div className="hero-cast-avas">
-            {HERO_CAST.map((member) => (
-              <div key={member.name} className="hero-cast-ava">
-                {member.emoji}
-              </div>
+            {['老K', '小满', '阿岚', '豆豆', '七喜'].map((name, index) => (
+              <Avatar key={name} name={name} seat={index + 1} size={24} />
             ))}
           </div>
-          <p className="hero-cast-names">{HERO_CAST.map((m) => m.name).join(' · ')}</p>
+          <p className="hero-cast-names">老K · 小满 · 阿岚 · 豆豆 · 七喜</p>
         </div>
         <button className="hero-start" disabled={!aiReady} onClick={onNewGame}>
           {aiReady ? '开始一局' : 'AI 通道准备中'}
-          <span>→</span>
+          <Icon name="chevronRight" size={16} />
         </button>
         <button
           className="hero-secondary"
@@ -178,23 +176,26 @@ export function HomePage({ onWatch, onOpenLobby, onNewGame, onOpenLogin }: HomeP
           onClick={() => void quickStart()}
         >
           <span>{quickStarting ? '开局中…' : '快速开始 · 默认 6 人标准局'}</span>
-          <span>›</span>
+          <Icon name="chevronRight" size={12} />
         </button>
-        {startError ? <p className="lg-hint" style={{ color: 'var(--wolf)' }}>开局失败：{startError}</p> : null}
+        {startError ? <p className="login-msg err">开局失败：{startError}</p> : null}
+        </div>
       </div>
 
       {resumeId ? (
         <div className="resume-card">
           <div className="resume-left">
-            <span className="icon">⏸️</span>
+            <span className="icon">
+              <Icon name="pause" size={16} />
+            </span>
             <div className="resume-text">
-              <b>进行中 · 有一局没打完</b>
-              <span>刷新不丢进度 · 对局存在服务端</span>
+              <b>有一局还没打完</b>
+              <span>进度存在服务端，刷新不丢</span>
             </div>
           </div>
           <div className="resume-actions">
             <button className="resume-drop" onClick={() => void dropGame()} aria-label="结束这一局">
-              ✕
+              <Icon name="close" size={14} />
             </button>
             <button className="resume-go" onClick={resumeGame}>
               继续
@@ -225,17 +226,17 @@ export function HomePage({ onWatch, onOpenLobby, onNewGame, onOpenLogin }: HomeP
       <div className="live-head">
         <div className="live-head-left">
           <span className="dot" />
-          <b>正在进行</b>
-          <span>{liveTotal} 局 · 可随时观战</span>
+          <b>进行中</b>
+          <span>{liveTotal} 局可观战</span>
         </div>
         <button className="live-all" onClick={onOpenLobby}>
-          全部 <span>›</span>
+          全部 <Icon name="chevronRight" size={12} />
         </button>
       </div>
 
       <div className="live-cards">
         {live.length === 0 ? (
-          <div className="live-empty">暂时没有进行中的对局，开一局就有观众了</div>
+          <div className="live-empty">此刻没有进行中的对局。开一局，第一个观众就是你。</div>
         ) : (
           live.map((game, index) => (
             <button
@@ -245,13 +246,15 @@ export function HomePage({ onWatch, onOpenLobby, onNewGame, onOpenLogin }: HomeP
             >
               <div className="lc-top">
                 <span className="lc-stage">{game.phaseLabel}</span>
-                <span className="lc-view">👁 {game.spectators}</span>
+                <span className="lc-view">
+                  <Icon name="eye" size={11} /> {game.spectators}
+                </span>
               </div>
               <div className="lc-mid">
                 <div className="lc-avas">
-                  <div className="lc-ava">{game.hasHuman ? '🙋' : '🕶️'}</div>
-                  <div className="lc-ava">🍊</div>
-                  <div className="lc-ava">🧊</div>
+                  <Avatar name={game.host} seat={1} isHuman={game.hasHuman} size={20} />
+                  <Avatar name="老K" seat={2} size={20} />
+                  <Avatar name="小满" seat={3} size={20} />
                 </div>
                 <p className="lc-name">{game.host} 的局</p>
               </div>
@@ -276,7 +279,7 @@ export function HomePage({ onWatch, onOpenLobby, onNewGame, onOpenLogin }: HomeP
       </div>
 
       <button className="replay-row" onClick={onOpenLobby}>
-        <span>🎬</span>
+        <Icon name="note" size={13} />
         <span>今日 {totalGames} 局已结束 · 进大厅看全部对局</span>
         <span className="arrow">›</span>
       </button>

@@ -148,7 +148,7 @@ export class GameEngine implements GameView {
       mk({
         name: this.playerName,
         isHuman: true,
-        emoji: '😎',
+        emoji: '',
         persona: '你自己',
         role: roles[0] as RoleKey,
         seat: (seats[0] as number) + 1,
@@ -372,7 +372,7 @@ export class GameEngine implements GameView {
       'ack',
       {
         title: '天黑了',
-        html: `这一局你拿到的是 <b style="color:var(--gold)">${meta.emoji} ${meta.name}</b>。<br>${tips[this.human.role]}`,
+        html: `这一局你拿到的是 <b style="color:var(--gold)">${meta.name}</b>。<br>${tips[this.human.role]}`,
         confirm: '开始',
       },
       [],
@@ -392,7 +392,7 @@ export class GameEngine implements GameView {
     this.guardedId = null;
 
     /* 法官口令制：只有口令，不含任何"谁在行动" */
-    this.nightCue('天黑请闭眼 🌙');
+    this.nightCue('天黑请闭眼');
     await this.pause(900);
 
     /* 按角色注册表依次睁眼：新增角色只改 behaviors.ts，night() 不用动 */
@@ -500,7 +500,7 @@ export class GameEngine implements GameView {
             html: `你出局了，可以开枪带走一名存活玩家，也可以压枪不开。<br><span style="color:var(--muted)">带错人会直接改变局势</span>`,
             confirm: null,
           },
-          [{ label: '压枪不开', value: '' }, ...candidates.map((p) => ({ label: `带走 ${p.emoji} ${p.name}`, value: p.id }))],
+          [{ label: '压枪不开', value: '' }, ...candidates.map((p) => ({ label: `带走 ${p.name}`, value: p.id }))],
         );
         target = typeof value === 'number' ? this.byId(value) ?? null : null;
       } else {
@@ -725,7 +725,7 @@ export class GameEngine implements GameView {
         const value = await this.waitHuman(
           'pick',
           { title: '投票放逐', html: '你这一票投给谁？', confirm: null },
-          alive.filter((x) => x.id !== p.id).map((x) => ({ label: `${x.emoji} ${x.name}`, value: x.id })),
+          alive.filter((x) => x.id !== p.id).map((x) => ({ label: x.name, value: x.id })),
         );
         target = typeof value === 'number' ? value : null;
       } else if (target == null || !this.byId(target)?.alive || target === p.id) {

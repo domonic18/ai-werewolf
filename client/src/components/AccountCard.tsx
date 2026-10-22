@@ -1,4 +1,5 @@
 import { clearSession } from '../auth/session';
+import { Icon } from './Icon';
 import { useSession } from '../auth/useSession';
 
 /**
@@ -20,7 +21,9 @@ export function AccountCard(): JSX.Element | null {
   return (
     <div className="account-card">
       <div className="account-left">
-        <span className="avatar">🙋</span>
+        <span className="avatar avatar-human">
+          <Icon name="villager" size={15} />
+        </span>
         <div className="account-text">
           <b>已登录 · 战绩记在账号下</b>
           <span>{maskId(session.userId)}</span>

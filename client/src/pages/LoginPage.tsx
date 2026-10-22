@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { sendOtp, signInWithOAuth, verifyOtp } from '../auth/actions';
 import { clearSession, setSession } from '../auth/session';
+import { Icon } from '../components/Icon';
 import { useSession } from '../auth/useSession';
 
 const APP_VERSION = __APP_VERSION__;
@@ -13,7 +14,7 @@ interface LoginPageProps {
 type Channel = 'phone' | 'email';
 
 /**
- * 登录页：逐项对齐 docs/designs/05-login.html。
+ * 登录页（设计规范 v2「夜席」）：手机号/邮箱验证码 + 第三方登录。
  * 结构 = 返回栏 / Logo+标题 / 登录卡（Tab·手机号·验证码·登录）/ 其他方式 /
  *        协议行 / 托管说明 / 页脚。已登录时整卡换成账号状态，避免重复登录。
  */
@@ -107,14 +108,16 @@ export function LoginPage({ onBack, onSignedIn }: LoginPageProps): JSX.Element {
     <section className="screen page-login">
       <div className="d-nav lg-nav">
         <button className="d-back" onClick={onBack} aria-label="返回">
-          ←
+          <Icon name="back" size={16} />
         </button>
         <p className="d-nav-title">账号登录</p>
         <span style={{ width: 30, height: 30 }} />
       </div>
 
       <div className="lg-hero">
-        <div className="lg-logo">🐺</div>
+        <div className="lg-logo" aria-hidden>
+          狼
+        </div>
         <h1>{session ? '已登录' : '登录后开局'}</h1>
         <p>{session ? '战绩、对局与观战记录都记在这个账号下' : '战绩、未完成的对局、观战记录都记在账号下'}</p>
       </div>
@@ -124,7 +127,9 @@ export function LoginPage({ onBack, onSignedIn }: LoginPageProps): JSX.Element {
           <div className="lg-card">
             <div className="account-card" style={{ border: 0, background: 'transparent', padding: 0 }}>
               <div className="account-left">
-                <span className="avatar">🙋</span>
+                <span className="avatar avatar-human">
+                  <Icon name="villager" size={15} />
+                </span>
                 <div className="account-text">
                   <b>已登录</b>
                   <span>{session.userId}</span>
@@ -206,7 +211,10 @@ export function LoginPage({ onBack, onSignedIn }: LoginPageProps): JSX.Element {
             {verifying ? '登录中…' : '登录 / 注册'}
           </button>
           {msg ? <p className={msg.kind === 'err' ? 'login-msg err' : 'login-msg'}>{msg.text}</p> : null}
-          <p className="lg-note">ⓘ 未注册的手机号会自动创建账号，全程验证码，不设密码</p>
+          <p className="lg-note">
+            <Icon name="info" size={12} />
+            <span>未注册的手机号会自动创建账号，全程验证码，不设密码</span>
+          </p>
         </div>
       )}
 
@@ -220,14 +228,14 @@ export function LoginPage({ onBack, onSignedIn }: LoginPageProps): JSX.Element {
 
           <button className="lg-oauth wechat" onClick={() => void oauth('wechat')}>
             <span className="lg-oauth-left">
-              <span>💬</span>
+              <Icon name="users" size={16} />
               <span>微信登录</span>
             </span>
             <em>一键授权 / 扫码</em>
           </button>
           <button className="lg-oauth wb" onClick={() => void oauth('workbuddy')}>
             <span className="lg-oauth-left">
-              <span>⚡</span>
+              <Icon name="seal" size={16} />
               <span>使用 WorkBuddy 登录</span>
             </span>
             <em>统一账号</em>
@@ -239,14 +247,17 @@ export function LoginPage({ onBack, onSignedIn }: LoginPageProps): JSX.Element {
               onClick={() => setAgreed((v) => !v)}
               aria-label="同意用户协议与隐私政策"
             >
-              {agreed ? <span>✓</span> : null}
+              {agreed ? <Icon name="check" size={10} /> : null}
             </button>
             <p>
               我已阅读并同意 <b>用户协议</b> 与 <b>隐私政策</b>，手机号仅用于登录验证
             </p>
           </div>
 
-          <div className="lg-trust">🔒 登录由 WorkBuddy 云服务托管，不接触你的密码</div>
+          <div className="lg-trust">
+            <Icon name="lock" size={12} />
+            <span>登录由 WorkBuddy 云服务托管，不接触你的密码</span>
+          </div>
         </>
       )}
 

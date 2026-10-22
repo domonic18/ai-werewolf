@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import type { LobbyGame } from '@shared/types';
+import { Avatar } from '../components/Avatar';
+import { Icon } from '../components/Icon';
 import { useLobby } from '../hooks/useLobby';
 import type { LobbyState } from '../hooks/useLobby';
 import { readSavedGame } from '../lib/storage';
@@ -32,20 +34,18 @@ function stageClass(game: LobbyGame): string {
 /** 一局一行（设计稿 row：头像组 + 名称/人数 + 阶段/存活 + 观战人数） */
 function GameRow({
   game,
-  mine,
   onOpen,
 }: {
   game: LobbyGame;
-  mine: boolean;
   onOpen: (game: LobbyGame) => void;
 }): JSX.Element {
   return (
     <button className="lb-row" onClick={() => onOpen(game)}>
       <div className="lb-row-left">
         <div className="lb-avas">
-          <div className={mine ? 'lb-ava me' : 'lb-ava'}>{mine ? '🙋' : '🕶️'}</div>
-          <div className="lb-ava">🍊</div>
-          <div className="lb-ava">🧊</div>
+          <Avatar name={game.host} seat={1} isHuman={game.hasHuman} size={22} />
+          <Avatar name="老K" seat={2} size={22} />
+          <Avatar name="小满" seat={3} size={22} />
         </div>
         <div className="lb-info">
           <div className="lb-line">
@@ -61,8 +61,12 @@ function GameRow({
         </div>
       </div>
       <div className="lb-right">
-        <span className="lb-view-count">👁 {game.spectators}</span>
-        <span className="lb-arrow">›</span>
+        <span className="lb-view-count">
+          <Icon name="eye" size={11} /> {game.spectators}
+        </span>
+        <span className="lb-arrow">
+          <Icon name="chevronRight" size={13} />
+        </span>
       </div>
     </button>
   );
@@ -71,23 +75,23 @@ function GameRow({
 /** 网格视图：两列卡片，信息量与行视图一致 */
 function GameCard({
   game,
-  mine,
   onOpen,
 }: {
   game: LobbyGame;
-  mine: boolean;
   onOpen: (game: LobbyGame) => void;
 }): JSX.Element {
   return (
     <button className="lb-row" style={{ height: 'auto', flexDirection: 'column', alignItems: 'stretch', gap: 8, padding: 11 }} onClick={() => onOpen(game)}>
       <div className="lb-line" style={{ justifyContent: 'space-between' }}>
         <span className={stageClass(game)}>{game.phaseLabel}</span>
-        <span className="lb-view-count">👁 {game.spectators}</span>
+        <span className="lb-view-count">
+          <Icon name="eye" size={11} /> {game.spectators}
+        </span>
       </div>
       <div className="lb-avas">
-        <div className={mine ? 'lb-ava me' : 'lb-ava'}>{mine ? '🙋' : '🕶️'}</div>
-        <div className="lb-ava">🍊</div>
-        <div className="lb-ava">🧊</div>
+        <Avatar name={game.host} seat={1} isHuman={game.hasHuman} size={22} />
+        <Avatar name="老K" seat={2} size={22} />
+        <Avatar name="小满" seat={3} size={22} />
       </div>
       <span className="lb-name">{game.host} 的局</span>
       <div className="lb-line" style={{ justifyContent: 'space-between' }}>
@@ -101,7 +105,7 @@ function GameCard({
 }
 
 /**
- * 游戏大厅：逐项对齐 docs/designs/06-lobby.html。
+ * 游戏大厅（设计规范 v2「夜席」）。
  * 结构 = 返回栏 / 概览卡（进行中·观战·决赛圈）/ 筛选 chips（带角标）/
  *        排序 + 视图切换 / 对局列表 / 加载更多 / 页脚。
  */
@@ -131,11 +135,11 @@ export function LobbyPage({ onBack, onWatch, onResume, onStart }: LobbyPageProps
     <section className="screen page-lobby">
       <div className="d-nav lb-nav">
         <button className="d-back" onClick={onBack} aria-label="返回">
-          ←
+          <Icon name="back" size={16} />
         </button>
         <p className="lb-nav-title">游戏大厅</p>
         <button className="lb-search" onClick={() => void lobby.reload()} disabled={lobby.loading} aria-label="刷新">
-          ↻
+          <Icon name="refresh" size={15} />
         </button>
       </div>
 
@@ -186,15 +190,15 @@ export function LobbyPage({ onBack, onWatch, onResume, onStart }: LobbyPageProps
           className="lb-sort-left"
           onClick={() => lobby.setSort(lobby.sort === 'spectators' ? 'created' : 'spectators')}
         >
+          <Icon name="sort" size={12} />
           <span>{lobby.sort === 'spectators' ? '按观战人数' : '按开局时间'}</span>
-          <span className="arrow">▾</span>
         </button>
         <div className="lb-views">
           <button className={grid ? 'lb-view' : 'lb-view on'} onClick={() => setGrid(false)} aria-label="列表视图">
-            ☰
+            <Icon name="list" size={14} />
           </button>
           <button className={grid ? 'lb-view on' : 'lb-view'} onClick={() => setGrid(true)} aria-label="网格视图">
-            ▦
+            <Icon name="grid" size={14} />
           </button>
         </div>
       </div>
@@ -227,9 +231,9 @@ export function LobbyPage({ onBack, onWatch, onResume, onStart }: LobbyPageProps
         <div className="lb-list" style={grid ? { display: 'grid', gridTemplateColumns: '1fr 1fr' } : undefined}>
           {lobby.games.map((game) =>
             grid ? (
-              <GameCard key={game.gameId} game={game} mine={game.gameId === mineId} onOpen={open} />
+              <GameCard key={game.gameId} game={game} onOpen={open} />
             ) : (
-              <GameRow key={game.gameId} game={game} mine={game.gameId === mineId} onOpen={open} />
+              <GameRow key={game.gameId} game={game} onOpen={open} />
             ),
           )}
         </div>

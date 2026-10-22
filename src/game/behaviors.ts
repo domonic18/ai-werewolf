@@ -68,7 +68,7 @@ const wolfBehavior: RoleBehavior = {
           html: `你的队友：<b>${teammates || '（没有其他狼）'}</b><br>今晚要杀谁？（可以自刀伪装）`,
           confirm: null,
         },
-        candidates.map((p) => ({ label: `${p.emoji} ${p.name}`, value: p.id })),
+        candidates.map((p) => ({ label: p.name, value: p.id })),
       );
       host.setWolfKill(typeof value === 'number' ? value : null);
       return;
@@ -100,7 +100,7 @@ const seerBehavior: RoleBehavior = {
           html: '今晚要验谁？验过的人不会重复出现。',
           confirm: null,
         },
-        candidates.map((p) => ({ label: `${p.emoji} ${p.name}`, value: p.id })),
+        candidates.map((p) => ({ label: p.name, value: p.id })),
       );
       const target = host.byId(typeof value === 'number' ? value : -1);
       if (!target) return;

@@ -21,3 +21,6 @@ coverage/
 
 # README 界面截图需要入库（覆盖全局 *.png 忽略规则）
 !docs/screenshots/*.png
+
+# Ardot 导入用的静态稿是生成物（npm run design:export 可重建）
+docs/designs-v2/

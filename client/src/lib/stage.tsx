@@ -56,14 +56,14 @@ export function buildStage(events: GameEvent[], context: StageContext): StageVie
         };
       case 'speech':
         return {
-          title: `${event.payload.emoji} ${event.payload.name}`,
+          title: event.payload.name,
           body: highlightNames(event.payload.text, names),
           tone: 'idle',
         };
       case 'ai-thinking': {
         const player = context.players.find((p) => p.id === event.payload.playerId);
         return {
-          title: player ? `${player.emoji} ${player.name}` : 'AI',
+          title: player ? player.name : 'AI',
           body: (
             <div className="think">
               {event.payload.label}
@@ -92,7 +92,7 @@ export function buildStage(events: GameEvent[], context: StageContext): StageVie
         };
       case 'hunter-shot':
         return {
-          title: '🔫 猎人开枪',
+          title: '猎人开枪',
           body: event.payload.targetName ? (
             <>
               <b>{event.payload.hunterName}</b>（猎人）出局后开枪，带走了{' '}
@@ -128,8 +128,7 @@ export function buildStage(events: GameEvent[], context: StageContext): StageVie
 
 function roleLabel(role: RoleKey | undefined): string {
   if (!role) return '未知身份';
-  const meta = ROLES[role];
-  return `${meta.emoji} ${meta.name}`;
+  return ROLES[role].name;
 }
 
 /** 当前正在发言/思考的玩家 id（用于座位高亮与顺序条） */

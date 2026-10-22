@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 import { api } from '../api/client';
+import { Avatar } from '../components/Avatar';
+import { Icon, roleIcon } from '../components/Icon';
 import { highlightNames } from '../lib/highlight';
 import { roundBadge } from '../lib/format';
 import { deriveVoteTally } from '../lib/tally';
@@ -29,7 +31,7 @@ type Seat = {
 };
 
 /**
- * 对局中：对齐 docs/designs/03-ingame.html（玩家视角）。
+ * 对局中（设计规范 v2「夜席」）：玩家视角与观战视角。
  * 观战走 SpectateView，对齐 04-spectate.html —— 两屏数据源互斥（私有快照 / 上帝视角），
  * 所以分成两个组件，绝不在一个组件里互相兜底。
  */
@@ -88,7 +90,7 @@ function ChatBubbles({ events, names }: { events: GameEvent[]; names: string[] }
         return (
           <div key={event.seq} className={p.isHuman ? 'ig-msg me' : 'ig-msg'}>
             <div className="ig-msg-head">
-              <span>{p.emoji}</span>
+              <Avatar name={p.name} seat={p.playerId} isHuman={p.isHuman} size={20} />
               <span className="nm">{p.isHuman ? '你' : p.name}</span>
               {p.order ? (
                 <span className="tag">
@@ -186,11 +188,12 @@ function PlayView(): JSX.Element {
         <div className="ig-status-right">
           {myRole ? (
             <span className="ig-badge role">
-              {ROLES[myRole].emoji} {ROLES[myRole].name}
+              <Icon name={roleIcon(myRole)} size={12} />
+              {ROLES[myRole].name}
             </span>
           ) : null}
           <button className="ig-quit" onClick={() => void quit()}>
-            退出
+            <Icon name="close" size={12} /> 退出
           </button>
         </div>
       </div>
@@ -199,7 +202,7 @@ function PlayView(): JSX.Element {
         <div className="ig-order">
           <div className="ig-order-head">
             <div className="ig-order-title">
-              <i>📋</i>
+              <Icon name="note" size={13} />
               <span>发言顺序</span>
             </div>
             <span className="ig-order-progress">
@@ -216,7 +219,7 @@ function PlayView(): JSX.Element {
               if (spokenIds.has(ref.id)) classes.push('spoken');
               return (
                 <div key={ref.id} className={classes.join(' ')}>
-                  <div className="ava">{seat.emoji}</div>
+                  <Avatar name={seat.name} seat={seat.seat} isHuman={seat.isHuman} size={32} />
                   <span className="nm">{seat.isHuman ? '你' : seat.name}</span>
                 </div>
               );
@@ -230,7 +233,7 @@ function PlayView(): JSX.Element {
       {ranked.length ? (
         <div className="ig-vote">
           <div className="ig-vote-left">
-            <span>🗳️</span>
+            <Icon name="ballot" size={13} />
             <span>实时票型</span>
           </div>
           <div className="ig-vote-right">
@@ -253,7 +256,7 @@ function PlayView(): JSX.Element {
         <div className="ig-say">
           <div className="ig-say-head">
             <div className="ig-say-title">
-              <span>🎤</span>
+              <Icon name="mic" size={14} />
               <span>{active.prompt.title}</span>
             </div>
             <span className="ig-say-hint">{active.kind === 'input' ? '不发言可点「过」' : ''}</span>
@@ -356,14 +359,14 @@ function SpectateView({ players }: { players: Seat[] }): JSX.Element {
           </span>
         </div>
         <button className="ig-quit" onClick={close}>
-          退出
+          <Icon name="close" size={12} /> 退出
         </button>
       </div>
 
       <div className="sp-god">
         <div className="sp-god-head">
           <div className="sp-god-title">
-            <span>👁️</span>
+            <Icon name="eye" size={14} />
             <span>上帝视角 · 身份已公开</span>
           </div>
           <em>实时</em>
@@ -384,11 +387,12 @@ function SpectateView({ players }: { players: Seat[] }): JSX.Element {
                 <span className="sp-seat-state">{player.alive ? '存活' : '出局'}</span>
               </div>
               <div className="sp-seat-mid">
-                <span className="emoji">{player.emoji}</span>
+                <Avatar name={player.name} seat={player.seat} isHuman={player.isHuman} size={22} />
                 <span className="nm">{player.name}</span>
               </div>
               <div className="sp-role">
-                {card ? `${card.emoji} ${card.name}` : '未知'}
+                <Icon name={roleIcon(player.role)} size={11} />
+                {card ? card.name : '未知'}
               </div>
             </div>
           );
@@ -429,7 +433,7 @@ function SpectateView({ players }: { players: Seat[] }): JSX.Element {
             return (
               <div key={event.seq} className="sp-msg">
                 <div className="sp-msg-head">
-                  <span>{p.emoji}</span>
+                  <Avatar name={p.name} seat={p.playerId} isHuman={p.isHuman} size={18} />
                   <span className="nm">{p.name}</span>
                 </div>
                 <p>{highlightNames(p.text, names)}</p>

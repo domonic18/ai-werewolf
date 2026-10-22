@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { ROLES } from '@shared/roles';
 import type { GameEvent } from '@shared/types';
 import { api } from '../api/client';
+import { Icon, roleIcon } from '../components/Icon';
 import { RoundTimeline } from '../components/RoundTimeline';
 import { useSession } from '../auth/useSession';
 import { timelineFromRecords, timelineFromReview } from '../lib/timeline';
@@ -56,7 +57,9 @@ export function ResultPage(): JSX.Element {
     return (
       <section className="screen">
         <div className="result-hero">
-          <div className="result-icon">📡</div>
+          <div className="result-icon">
+            <Icon name="info" size={30} />
+          </div>
           <h2>对局中止</h2>
           <p>{aborted ? aborted.payload.reason : '这一局没有正常结束'}</p>
         </div>
@@ -81,7 +84,9 @@ export function ResultPage(): JSX.Element {
   return (
     <section className="screen">
       <div className="result-hero">
-        <div className="result-icon">{humanWin ? '🏆' : '💀'}</div>
+        <div className="result-icon" style={{ color: humanWin ? 'var(--brass)' : 'var(--ember)' }}>
+          <Icon name={humanWin ? 'crown' : 'skull'} size={34} />
+        </div>
         <h2 style={{ color: winner === 'good' ? 'var(--good)' : 'var(--wolf)' }}>
           {winner === 'good' ? '好人阵营胜利' : '狼人阵营胜利'}
         </h2>
@@ -99,7 +104,9 @@ export function ResultPage(): JSX.Element {
         <div className="reveal-list">
           {reveal.map((row) => (
             <div key={row.id} className="reveal">
-              <span className="e">{ROLES[row.role].emoji}</span>
+              <span className="e">
+                <Icon name={roleIcon(row.role)} size={16} />
+              </span>
               <span className="n">
                 {row.name}
                 {row.isHuman ? '（你）' : ''}
@@ -125,7 +132,8 @@ export function ResultPage(): JSX.Element {
           {thoughts.map((item) => (
             <div key={item.name} className="thought">
               <div className="h">
-                🤖 {item.name} <span className="role">{ROLES[item.role].name}</span>
+                <Icon name="seal" size={12} />
+                {item.name} <span className="role">{ROLES[item.role].name}</span>
               </div>
               {item.thoughts.map((thought, index) => (
                 <p key={index}>

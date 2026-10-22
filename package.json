@@ -1,6 +1,6 @@
 {
   "name": "werewolf-ai",
-  "version": "1.5.1",
+  "version": "1.6.0",
   "private": true,
   "type": "module",
   "description": "AI 狼人杀 · Agent 补位局 —— 6 人局狼人杀（1 真人 + 5 LLM 智能体），全部 AI 言行由大模型实时生成",
@@ -19,7 +19,9 @@
     "typecheck": "tsc -p tsconfig.json --noEmit && tsc -p tsconfig.server.json --noEmit",
     "test": "vitest run",
     "test:watch": "vitest",
-    "smoke:live": "node tools/live-smoke.mjs"
+    "smoke:live": "node tools/live-smoke.mjs",
+    "screens": "node tools/screens.mjs",
+    "design:export": "node tools/ardot-export.mjs"
   },
   "dependencies": {
     "@tencent-ai/workbuddy-cloud-sdk": "dev",
@@ -32,6 +34,7 @@
     "@types/react": "^18.3.31",
     "@types/react-dom": "^18.3.7",
     "@vitejs/plugin-react": "^4.7.0",
+    "playwright-core": "^1.64.1",
     "tsx": "^4.23.15",
     "typescript": "^5.9.3",
     "vite": "^5.4.21",
