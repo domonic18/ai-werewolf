@@ -86,7 +86,7 @@ werewolf-ai/
 │   └── cloud/                  # match-store.ts（ww_matches 战绩表）
 ├── tests/                      # vitest：json / engine（Mock LLM 10 局）/ API 全链路
 ├── tools/                      # 构建辅助 / 设计稿抽取 / 构建守护 / 线上冒烟
-└── docs/                       # PRD / 设计还原记录 / 原型页 / 界面截图（docs/screenshots/）
+└── docs/                       # PRD / 规范（standard/）/ AI 人格 / 界面截图
 ```
 
 ## 快速开始

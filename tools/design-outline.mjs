@@ -6,8 +6,9 @@
  * 任意值类名（w-[167px]、text-[13px]）和内联 style 里。直接读 2 万字符的单行
  * HTML 效率太低，这里还原成「缩进树 + 关键样式」，用来逐页对齐实现。
  *
- *   node tools/design-outline.mjs docs/designs/01-home.html
- *   node tools/design-outline.mjs docs/designs/*.html --all
+ *   node tools/ardot-export.mjs http://localhost:4399 docs/designs-v2
+ *   node tools/design-outline.mjs docs/designs-v2/01-home-v2.html
+ *   node tools/design-outline.mjs docs/designs-v2/*.html --all
  */
 
 const VOID = new Set(['br', 'img', 'input', 'hr', 'meta', 'link']);

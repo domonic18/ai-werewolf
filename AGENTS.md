@@ -19,10 +19,11 @@
 
 ## 2. 任务合同（specs）
 
-- 需求合同在本仓库 `specs/` 目录（spec-kit 管理），每条需求含 `spec.md`（EARS 验收条款）/ `plan.md` / `tasks.md`，与代码同分支。
-- **编码前必读**：对应的 `specs/<feature>/spec.md` 与 `tasks.md`。无合同不编码；合同变更随代码同一次提交。
-- 产品需求的全景描述在 `docs/PRD.md`（R1~R7 + 角色库），技术选型决策在 `docs/TECH-STACK.md`。specs 是 PRD 的可执行切片，二者冲突时以 specs 为准并回写 PRD。
-- 高保真原型在 `docs/designs/*.html`（浏览器可直接打开），对应 Ardot 设计文件 `739152426622950`。
+- 需求合同在本仓库 `specs/` 目录，只保留 `spec.md`（用户故事 + 验收条款）。`plan.md` / `tasks.md` 属过程产物，完成后结论并入 `docs/PRD.md`，不再留档。
+- **编码前必读**：对应的 `specs/<feature>/spec.md` 与 `docs/PRD.md`。无合同不编码；合同变更随代码同一次提交。
+- 产品与范围的唯一事实来源是 `docs/PRD.md`（R1~R7 + 角色库 + 路线图 + 决策记录）；文档索引见 `docs/README.md`。
+- 视觉以 `docs/standard/DESIGN-V2.md` 为准，设计稿在 Ardot（`739278326396024`）；仓库不再保存原型 HTML。
+- 安全与反作弊以 `docs/standard/SECURITY.md` 为准，新增接口先过文末清单。
 
 ## 3. 技术栈与项目结构
 
