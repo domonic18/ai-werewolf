@@ -170,15 +170,22 @@
         $('logList').scrollTop = $('logList').scrollHeight;
       } else if (ev.type === 'await-human') {
         this.showPrompt(p);
+      } else if (ev.type === 'night-cue') {
+        /* 法官口令：全场统一播报，不携带任何身份信息 */
+        $('stageTitle').textContent = `第 ${snap.round} 夜`;
+        $('stageBody').innerHTML = `<div style="text-align:center;padding:8px 0;font-size:15px;letter-spacing:1px">${esc(p.text)}</div>`;
+        $('stageActions').innerHTML = '';
+      } else if (ev.type === 'dawn') {
+        $('stageTitle').textContent = '天亮了';
+        $('stageBody').innerHTML = p.dead.length
+          ? `天亮了，昨夜 <b style="color:var(--wolf)">${p.dead.length} 人</b> 出局。${p.firstNight ? '（首夜出局有遗言）' : ''}`
+          : '天亮了，昨夜是<b style="color:var(--good)">平安夜</b>。';
       } else if (ev.type === 'ai-thinking') {
         const pl = snap.players.find(x => x.id === p.playerId);
         $('stageTitle').textContent = pl ? `${pl.emoji} ${pl.name}` : 'AI';
         $('stageBody').innerHTML = `<div class="think">${esc(p.label)}<i></i><i></i><i></i></div>`;
       } else if (ev.type === 'night-settle') {
-        $('stageTitle').textContent = '天亮了';
-        $('stageBody').innerHTML = p.dead.length
-          ? `昨晚倒下的是 <b style="color:var(--wolf)">${esc(p.text.replace(' 出局', ''))}</b>。`
-          : '昨晚是<b style="color:var(--good)">平安夜</b>。';
+        /* 死讯已由 dawn 事件统一公布；此处仅保留兼容，不重复展示 */
       } else if (ev.type === 'vote-result') {
         $('stageTitle').textContent = '投票结果';
         $('stageBody').innerHTML = p.tie

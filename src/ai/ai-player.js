@@ -128,6 +128,17 @@ class AIPlayer {
     return out;
   }
 
+  /** 首夜遗言（出局玩家） */
+  async lastWords(game) {
+    const sys = SYS_BASE + '\n你在首夜出局，现在可以说一段遗言。可以用遗言传递信息（如预言家的验人结果）、指认怀疑对象，也可以保持沉默。注意：狼人也可能用遗言带偏好人。';
+    const user = [
+      this.publicBrief(game), '', this.privateBrief(), '',
+      '请输出 JSON：{"text":"你的遗言（30~60字，可以为空字符串表示不说话）","reason":"一句话内心想法"}'
+    ].join('\n');
+    const obj = await this.llm.task(sys, user, { temperature: 0.9 });
+    return { text: String(obj.text || '').slice(0, 120), reason: String(obj.reason || '') };
+  }
+
   /** 白天：补投票 */
   async vote(game) {
     const cands = game.alivePlayers().filter(p => p.id !== this.p.id);

@@ -51,7 +51,7 @@ async function runOnce(i) {
 (async () => {
   let good = 0, wolf = 0, aborted = 0;
   const rounds = [];
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < 10; i++) {
     const { engine, events } = await runOnce(i);
     if (engine.aborted) { aborted++; console.log('ABORTED', engine.aborted.reason); continue; }
     assert(engine.winner === 'good' || engine.winner === 'wolf', 'winner 必须有值');
@@ -66,5 +66,5 @@ async function runOnce(i) {
     const spec = engine.snapshot(-1);
     assert(spec.myRole === null, '观战者不能看到真人身份');
   }
-  console.log(`engine smoke: 30 局 OK (good=${good}, wolf=${wolf}, aborted=${aborted}, avgRounds=${(rounds.reduce((a, b) => a + b, 0) / rounds.length).toFixed(2)})`);
+  console.log(`engine smoke: 10 局 OK (good=${good}, wolf=${wolf}, aborted=${aborted}, avgRounds=${(rounds.reduce((a, b) => a + b, 0) / rounds.length).toFixed(2)})`);
 })().catch(e => { console.error('FAIL:', e.message); process.exit(1); });

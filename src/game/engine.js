@@ -198,7 +198,7 @@ class GameEngine {
     }, []);
   }
 
-  /* ---------- 夜晚 ---------- */
+  /* ---------- 夜晚（法官口令制：所有人听到同样的口令，无人知道谁在行动） ---------- */
 
   async night() {
     this.phase = 'night';
@@ -208,32 +208,42 @@ class GameEngine {
     this.saved = false;
     this.poisonId = null;
 
+    /* 统一的夜晚舞台提示：不携带任何角色/人名信息 */
+    const nightCue = text => this.pushEvent('night-cue', { text });
+
+    /* ── 1. 天黑请闭眼 ── */
+    nightCue('天黑请闭眼 🌙');
+    await sleep(900);
+
+    /* ── 2. 狼人行动 ── */
+    nightCue('狼人请睁眼，选择今晚的目标…');
     const wolves = this.alivePlayers().filter(p => p.role === 'wolf');
     const humanWolf = wolves.find(p => p.isHuman);
-
     if (wolves.length) {
       if (humanWolf) {
         const cands = this.alivePlayers().filter(p => p.role !== 'wolf');
         if (cands.length) {
           const v = await this.waitHuman('pick', {
-            title: '狼人行动',
-            html: `你的队友：<b>${wolves.filter(p => !p.isHuman).map(p => p.name).join('、') || '（没有其他狼）'}</b><br>今晚要杀谁？`,
+            title: '狼人行动（只有你们知道）',
+            html: `你的队友：<b>${wolves.filter(p => !p.isHuman).map(p => p.name).join('、') || '（没有其他狼）'}</b><br>今晚要杀谁？（可以自刀伪装）`,
             confirm: null
           }, cands.map(p => ({ label: `${p.emoji} ${p.name}`, value: p.id })));
           this.nightKill = v;
-          this.log('狼人选择了目标（你参与了决策）', 'night');
         }
       } else {
+        /* AI 狼人：不推送 ai-thinking 事件（会泄露身份），静默决策 */
         const leader = wolves[0];
-        this.pushEvent('ai-thinking', { playerId: leader.id, label: '和队友商议中…' });
         const ai = new AIPlayer(leader, this.llm);
         const r = await ai.wolfKill(this);
         this.nightKill = r.target;
         leader.thoughts.push({ round: this.round, phase: '夜', text: r.reason });
-        this.log('狼人完成了选择', 'night');
       }
     }
+    nightCue('狼人请闭眼');
+    await sleep(600);
 
+    /* ── 3. 预言家行动 ── */
+    nightCue('预言家请睁眼，查验一名玩家…');
     const seer = this.alivePlayers().find(p => p.role === 'seer');
     if (seer) {
       const checked = new Set(seer.checks.map(c => c.id));
@@ -241,7 +251,7 @@ class GameEngine {
       if (seer.isHuman) {
         if (cands.length) {
           const v = await this.waitHuman('pick', {
-            title: '预言家查验',
+            title: '预言家查验（只有你知道）',
             html: '今晚要验谁？验过的人不会重复出现。',
             confirm: null
           }, cands.map(p => ({ label: `${p.emoji} ${p.name}`, value: p.id })));
@@ -249,13 +259,12 @@ class GameEngine {
           const isWolf = target.role === 'wolf';
           seer.checks.push({ id: target.id, name: target.name, isWolf, round: this.round });
           await this.waitHuman('ack', {
-            title: '查验结果',
+            title: '查验结果（只有你知道）',
             html: `<b>${target.name}</b> 的身份是：<b style="color:${isWolf ? 'var(--wolf)' : 'var(--good)'}">${isWolf ? '狼人' : '好人'}</b>`,
             confirm: '记下了'
           }, []);
         }
       } else if (cands.length) {
-        this.pushEvent('ai-thinking', { playerId: seer.id, label: '正在查验…' });
         const ai = new AIPlayer(seer, this.llm);
         const r = await ai.seerCheck(this);
         const target = this.byId(r.target);
@@ -263,33 +272,38 @@ class GameEngine {
         seer.thoughts.push({ round: this.round, phase: '夜', text: r.reason });
       }
     }
+    nightCue('预言家请闭眼');
+    await sleep(600);
 
+    /* ── 4. 女巫行动 ── */
+    nightCue('女巫请睁眼，决定是否用药…');
     const witch = this.alivePlayers().find(p => p.role === 'witch');
     if (witch) {
       const victim = this.nightKill != null ? this.byId(this.nightKill) : null;
       if (witch.isHuman) {
+        /* 首夜规则：女巫全程可自救 */
+        const canSave = witch.antidote && victim && (this.round > 1 || victim.id !== witch.id || true);
         if (witch.antidote && victim) {
           const v = await this.waitHuman('pick', {
-            title: '女巫的夜晚',
-            html: `今晚被刀的是 <b>${victim.name}</b>。要用解药救他吗？`,
+            title: '女巫的夜晚（只有你知道）',
+            html: `今晚被刀的是 <b>${victim.name}</b>。要用解药救他吗？（被刀的是你自己时，救不救由你）`,
             confirm: null
           }, [
             { label: '用解药救他', value: 'save' },
             { label: '不救', value: 'no' }
           ]);
-          if (v === 'save') { this.saved = true; witch.antidote = false; this.log('你使用了解药', 'night'); }
+          if (v === 'save') { this.saved = true; witch.antidote = false; }
         }
         if (!this.saved && witch.poison) {
           const cands = this.alivePlayers().filter(p => p.id !== witch.id);
           const v = await this.waitHuman('pick', {
-            title: '要下毒吗',
-            html: '毒药只有一瓶，用错会害死好人。',
+            title: '要下毒吗（只有你知道）',
+            html: '毒药只有一瓶，用错会害死好人。同一晚只能用一种药。',
             confirm: null
           }, [{ label: '今晚不毒', value: '' }].concat(cands.map(p => ({ label: `毒 ${p.name}`, value: p.id }))));
-          if (v !== '') { this.poisonId = v; witch.poison = false; this.log('你使用了毒药', 'night'); }
+          if (v !== '') { this.poisonId = v; witch.poison = false; }
         }
       } else {
-        this.pushEvent('ai-thinking', { playerId: witch.id, label: '正在权衡用药…' });
         const ai = new AIPlayer(witch, this.llm);
         const r = await ai.witchAction(this, victim);
         if (r.save && witch.antidote && victim) { this.saved = true; witch.antidote = false; }
@@ -297,7 +311,10 @@ class GameEngine {
         witch.thoughts.push({ round: this.round, phase: '夜', text: r.reason });
       }
     }
+    nightCue('女巫请闭眼');
+    await sleep(600);
 
+    /* ── 5. 天亮，结算（死讯统一公布，不披露死因与用药） ── */
     const dead = [];
     if (this.nightKill != null && !this.saved) dead.push(this.byId(this.nightKill));
     if (this.poisonId != null) {
@@ -323,6 +340,35 @@ class GameEngine {
 
     const deaths = this.players.filter(p => !p.alive && p.deadRound === this.round);
     this.log(deaths.length ? `昨夜 ${deaths.map(p => p.name).join('、')} 出局` : '昨夜是平安夜', deaths.length ? 'death' : 'sys');
+    this.pushEvent('dawn', {
+      dead: deaths.map(p => p.id),
+      firstNight: this.round === 1
+    });
+
+    /* 首夜出局者有遗言（规则）；之后夜晚出局无遗言，直接进入白天 */
+    if (this.round === 1 && deaths.length) {
+      for (const d of deaths) {
+        if (d.isHuman) {
+          const text = await this.waitHuman('input', {
+            title: '你的遗言（首夜出局）',
+            html: '首夜出局有遗言。留下你的判断，帮好人一把。',
+            confirm: '留下遗言'
+          }, []);
+          const say = String(text || '').trim();
+          if (say) {
+            this.publicLog.push(`第${this.round}天 ${d.name}（遗言）：${say}`);
+            this.pushEvent('speech', { playerId: d.id, name: d.name, emoji: d.emoji, text: say, isHuman: true, isLastWord: true });
+          }
+        } else {
+          const ai = new AIPlayer(d, this.llm);
+          const r = await ai.lastWords(this);
+          if (r && r.text) {
+            this.publicLog.push(`第${this.round}天 ${d.name}（遗言）：${r.text}`);
+            this.pushEvent('speech', { playerId: d.id, name: d.name, emoji: d.emoji, text: r.text, isHuman: false, isLastWord: true });
+          }
+        }
+      }
+    }
 
     // 发言：死者下一位开始
     const order = this._speechOrder();
@@ -338,6 +384,7 @@ class GameEngine {
         this.publicLog.push(`第${this.round}天 ${p.name}：${say}`);
         this.pushEvent('speech', { playerId: p.id, name: p.name, emoji: p.emoji, text: say, isHuman: true });
       } else {
+        /* 白天发言的思考提示不含身份信息，安全 */
         this.pushEvent('ai-thinking', { playerId: p.id, label: '思考中…' });
         const ai = new AIPlayer(p, this.llm);
         const r = await ai.speak(this);
