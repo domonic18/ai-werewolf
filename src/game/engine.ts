@@ -132,7 +132,16 @@ export class GameEngine implements GameView {
     const seats = shuffle(Array.from({ length: total }, (_, i) => i));
     const cast = shuffle(AI_CAST).slice(0, Math.max(0, total - 1));
 
-    const mk = (partial: Pick<Player, 'name' | 'emoji' | 'persona' | 'role' | 'seat' | 'isHuman'>): Player => ({
+    /* 每局给每个人抽一个「状态」，配合牌感抖动，让同一个角色两天表现不一样 */
+    const MOODS = ['calm', 'sharp', 'tilted', 'lazy'] as const;
+    const jitter = (base: number): number =>
+      Math.min(0.95, Math.max(0.15, base + (Math.random() - 0.5) * 0.16));
+
+    const mk = (
+      partial: Pick<Player, 'name' | 'emoji' | 'persona' | 'role' | 'seat' | 'isHuman'> & {
+        traits?: Player['traits'];
+      },
+    ): Player => ({
       id: nextId(),
       alive: true,
       thoughts: [],
@@ -156,6 +165,7 @@ export class GameEngine implements GameView {
     ];
     for (let i = 0; i < total - 1; i++) {
       const member = cast[i] as (typeof AI_CAST)[number];
+      const mood = MOODS[Math.floor(Math.random() * MOODS.length)] as (typeof MOODS)[number];
       this.players.push(
         mk({
           name: member.name,
@@ -164,6 +174,7 @@ export class GameEngine implements GameView {
           persona: member.persona,
           role: roles[i + 1] as RoleKey,
           seat: (seats[i + 1] as number) + 1,
+          traits: { ...member.traits, skill: jitter(member.traits.skill), mood },
         }),
       );
     }

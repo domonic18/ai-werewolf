@@ -5,6 +5,7 @@
  */
 import type { RoleKey } from '../shared/types.js';
 import { ROLES } from '../shared/roles.js';
+import type { CastTraits, ReasoningStyle } from '../game/roles.js';
 import type { LLMClient } from './types.js';
 import { matchPlayerByName } from './json.js';
 import type { GameView, Player } from '../game/types.js';
@@ -51,6 +52,109 @@ export class AIPlayer {
     this.llm = llm;
   }
 
+  /* ---------- 人格与能力 ---------- */
+
+  private get traits(): CastTraits {
+    /* 兜底：老数据 / 人类玩家没有 traits，给一个中性档，避免个性化逻辑崩掉 */
+    return this.p.traits ?? { skill: 0.55, style: 'logic', talk: 0.5, push: 0.5, suggestibility: 0.5 };
+  }
+
+  /** 牌感 → 玩家口语里的档位（不给模型看数字，避免它「按分数」表演） */
+  private skillTier(): { label: string; memory: string; depth: string } {
+    const s = this.traits.skill;
+    if (s >= 0.78) {
+      return {
+        label: '老玩家',
+        memory: '你记得住大部分人的发言，能串起前后矛盾。',
+        depth: '可以有多步推理，但要说得像人话，不写推理报告。',
+      };
+    }
+    if (s >= 0.6) {
+      return {
+        label: '熟手',
+        memory: '你能记住明显的矛盾和谁站过谁的边，细节会漏一些。',
+        depth: '推理一两层就够，别把话说得过于严密。',
+      };
+    }
+    if (s >= 0.42) {
+      return {
+        label: '普通玩家',
+        memory: '你只记得最近几轮谁说了什么，前面的事有点模糊。',
+        depth: '凭印象判断，说不出复杂推理，偶尔跟着别人走。',
+      };
+    }
+    return {
+      label: '新手',
+      memory: '你记不太清前面的发言，只能抓住刚才的印象。',
+      depth: '别做复杂推理。可以凭感觉、跟风、甚至记错一两个人的发言（但别编规则）。',
+    };
+  }
+
+  private styleNote(): { how: string; flaw: string } {
+    const style: ReasoningStyle = this.traits.style;
+    switch (style) {
+      case 'logic':
+        return { how: '你习惯先摆事实再下结论，会算票、会追问细节。', flaw: '你的短板是过度自信：一旦认定就很难改，容易把巧合当逻辑。' };
+      case 'emotion':
+        return { how: '你靠语气、态度、谁在急来判断人。', flaw: '你的短板是容易被情绪带走，被针对时会顶回去。' };
+      case 'intuition':
+        return { how: '你凭第一印象和直觉说话，讲不清太细的理由。', flaw: '你的短板是说不出所以然，被追问时容易含糊。' };
+      case 'chaos':
+        return { how: '你爱试探、爱反着说、喜欢逼人表态，说话带点刺。', flaw: '你的短板是试探过头，会说出自己都不全信的话，容易误伤好人。' };
+      case 'probe':
+        return { how: '你习惯用提问施压，抓别人回答里的迟疑。', flaw: '你的短板是问得多、说得少，容易被当成在藏身份的狼。' };
+    }
+  }
+
+  private moodNote(): string {
+    switch (this.traits.mood) {
+      case 'sharp':
+        return '本局状态：头脑格外清醒，抓细节比平时准。';
+      case 'tilted':
+        return '本局状态：有点上头，容易急、容易跟人顶起来。';
+      case 'lazy':
+        return '本局状态：不太想动脑，倾向跟着场上主流走。';
+      case 'calm':
+        return '本局状态：心态平稳，不急着站边。';
+      default:
+        return '本局状态：正常。';
+    }
+  }
+
+  /** 人格卡：性格 + 牌感 + 短板 + 说话习惯，替代原来一句 persona */
+  private personaCard(): string {
+    const t = this.traits;
+    const tier = this.skillTier();
+    const style = this.styleNote();
+    const talk = t.talk >= 0.7 ? '话多，喜欢举例子、铺开说' : t.talk <= 0.38 ? '话少，能一句说完不说两句' : '话量正常，不啰嗦也不闷着';
+    const push = t.push >= 0.7 ? '攻击性强，敢点人、敢归票' : t.push <= 0.3 ? '不太主动点人，更愿意先听' : '该点人的时候会点，但不带节奏';
+    const suggest = t.suggestibility >= 0.66 ? '容易被带节奏，别人一逼你就容易改口' : t.suggestibility <= 0.3 ? '不太受人影响，别人怎么说你还是按自己的判断' : '会参考别人的意见，但保留自己的判断';
+    return [
+      `你的名字：${this.p.name}（${this.p.seat} 号位）。你的性格：${this.p.persona}。`,
+      `牌感：${tier.label}。${tier.memory}${tier.depth}`,
+      `思维方式：${style.how}`,
+      `你的短板（真实存在，不要掩饰，也不要自己点破）：${style.flaw}`,
+      `说话与行动：${talk}；${push}；${suggest}。`,
+      this.moodNote(),
+    ].join('\n');
+  }
+
+  /** 记忆窗口随牌感缩放：新手只记得最近几条，老玩家能看全 —— 这是最直接的「推理能力差异」 */
+  private memoryLines(): number {
+    return Math.round(8 + this.traits.skill * 16); // 8 ~ 24
+  }
+
+  private thoughtsLimit(): number {
+    return Math.max(2, Math.round(2 + this.traits.skill * 4)); // 2 ~ 6
+  }
+
+  /** 温度随风格与状态浮动：混沌/情绪型更跳，逻辑型更稳 */
+  private temp(base: number): number {
+    const styleDelta = this.traits.style === 'chaos' ? 0.12 : this.traits.style === 'logic' ? -0.06 : 0;
+    const moodDelta = this.traits.mood === 'tilted' ? 0.08 : this.traits.mood === 'lazy' ? -0.05 : 0;
+    return Math.min(1.1, Math.max(0.6, base + styleDelta + moodDelta));
+  }
+
   /* ---------- prompt 组装 ---------- */
 
   private publicBrief(game: GameView): string {
@@ -68,7 +172,7 @@ export class AIPlayer {
 
     if (game.publicLog.length) {
       lines.push('- 本局此前的发言与事件：');
-      for (const line of game.publicLog.slice(-24)) lines.push(`  ${line}`);
+      for (const line of game.publicLog.slice(-this.memoryLines())) lines.push(`  ${line}`);
     } else {
       lines.push('- 目前还没有人发言。');
     }
@@ -78,7 +182,7 @@ export class AIPlayer {
   private privateBrief(): string {
     const p = this.p;
     const roleName: string = ROLES[p.role as RoleKey].name;
-    const parts = [`你的名字：${p.name}。你的性格：${p.persona}。你的身份：${roleName}。请始终用这种性格说话和做决定。`];
+    const parts = [this.personaCard(), `你的身份：${roleName}（只有你自己知道；不要直接说出来，除非你在悍跳或已经暴露）。`];
 
     if (p.role === 'wolf') {
       const mates = p.gameMates ?? [];
@@ -94,7 +198,7 @@ export class AIPlayer {
     }
     if (p.thoughts.length) {
       parts.push('你此前各回合的内心判断（保持连贯，不要自相矛盾）：');
-      for (const t of p.thoughts.slice(-6)) parts.push(`  第${t.round}${t.phase}：${t.text}`);
+      for (const t of p.thoughts.slice(-this.thoughtsLimit())) parts.push(`  第${t.round}${t.phase}：${t.text}`);
     }
     return parts.join('\n');
   }
@@ -109,10 +213,11 @@ export class AIPlayer {
       '',
       this.privateBrief(),
       '',
-      '请输出 JSON：{"speech":"你的发言（第一人称口语，贴合你的性格，40~80字）","vote":"你要投的存活玩家名字（不能是自己）","reason":"你真实的内心判断，一句话"}',
+      `发言长度：${this.traits.talk >= 0.7 ? '80~120 字，可以铺开讲、举例子' : this.traits.talk <= 0.38 ? '15~40 字，短句为主，别展开' : '40~80 字'}。`,
+      '请输出 JSON：{"speech":"你的发言（第一人称口语，贴合你的性格）","vote":"你要投的存活玩家名字（不能是自己）","reason":"你真实的内心判断，一句话"}',
     ].join('\n');
 
-    const obj = await this.llm.task(sys, user, { temperature: 0.95 });
+    const obj = await this.llm.task(sys, user, { temperature: this.temp(0.92) });
     const target = matchPlayerByName(obj.vote, game.alivePlayers(), this.p);
     return {
       speech: String(obj.speech ?? '').slice(0, 160),
@@ -136,7 +241,7 @@ export class AIPlayer {
       '请输出 JSON：{"target":"要杀的玩家名字","reason":"一句话理由"}',
     ].join('\n');
 
-    const obj = await this.llm.task(sys, user, { temperature: 0.85 });
+    const obj = await this.llm.task(sys, user, { temperature: this.temp(0.85) });
     const target = matchPlayerByName(obj.target, candidates, this.p) ?? (candidates[0] as Player);
     return { target: target.id, reason: String(obj.reason ?? '') };
   }
@@ -157,7 +262,7 @@ export class AIPlayer {
       '请输出 JSON：{"target":"要查验的玩家名字","reason":"一句话理由"}',
     ].join('\n');
 
-    const obj = await this.llm.task(sys, user, { temperature: 0.85 });
+    const obj = await this.llm.task(sys, user, { temperature: this.temp(0.85) });
     const target = matchPlayerByName(obj.target, candidates, this.p) ?? (candidates[0] as Player);
     return { target: target.id, reason: String(obj.reason ?? '') };
   }
@@ -180,7 +285,7 @@ export class AIPlayer {
       '请输出 JSON：{"save":true或false,"poison":"要毒的玩家名字，不用就填空字符串","reason":"一句话理由"}',
     ].join('\n');
 
-    const obj = await this.llm.task(sys, user, { temperature: 0.85 });
+    const obj = await this.llm.task(sys, user, { temperature: this.temp(0.85) });
     const result: WitchResult = { save: false, poison: null, reason: String(obj.reason ?? '') };
 
     if (obj.save === true && this.p.antidote && victim) result.save = true;
@@ -228,7 +333,7 @@ export class AIPlayer {
       '请输出 JSON：{"target":"要带走的玩家名字，选择压枪则填空字符串","reason":"一句话理由"}',
     ].join('\n');
 
-    const obj = await this.llm.task(sys, user, { temperature: 0.85 });
+    const obj = await this.llm.task(sys, user, { temperature: this.temp(0.85) });
     const target = matchPlayerByName(obj.target, candidates, this.p);
     if (!target) return null;
     return { target: target.id, reason: String(obj.reason ?? '') };

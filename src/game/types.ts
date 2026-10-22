@@ -2,6 +2,7 @@
  * 对局内部类型：引擎与 AI 玩家共用，避免二者循环依赖。
  */
 import type { RoleKey, SeerCheck, Thought, ThoughtPhase } from '../shared/types.js';
+import type { CastTraits } from './roles.js';
 
 export interface Player {
   id: number;
@@ -9,6 +10,8 @@ export interface Player {
   emoji: string;
   /** 性格 prompt（仅 AI） */
   persona: string;
+  /** 牌感与行为倾向（仅 AI）：决定推理深度、发言长度、是否容易被带节奏 */
+  traits?: CastTraits;
   role: RoleKey;
   seat: number;
   isHuman: boolean;
