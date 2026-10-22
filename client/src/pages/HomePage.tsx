@@ -72,6 +72,12 @@ export function HomePage({ onWatch, onOpenLobby }: HomePageProps): JSX.Element {
     }
   };
 
+  /* 恢复必须带凭证：P0-a 之后玩家私有接口都要 X-Player-Token，漏了只会拿到 401 */
+  const resumeGame = (): void => {
+    const saved = readSavedGame();
+    if (saved) open(saved.id, { token: saved.token });
+  };
+
   const dropGame = async (): Promise<void> => {
     if (!resumeId) return;
     const saved = readSavedGame();
@@ -124,7 +130,7 @@ export function HomePage({ onWatch, onOpenLobby }: HomePageProps): JSX.Element {
         <p className="sub">5 个 AI 玩家各有性格和记忆，会撒谎、会结盟、会翻车 · 游戏逻辑运行在服务端</p>
       </div>
 
-      {resumeId ? <ResumeBanner onResume={() => open(resumeId)} onDrop={() => void dropGame()} /> : null}
+      {resumeId ? <ResumeBanner onResume={resumeGame} onDrop={() => void dropGame()} /> : null}
 
       <div className="panel">
         <label className="field-label" htmlFor="playerName">
