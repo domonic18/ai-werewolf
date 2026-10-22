@@ -41,8 +41,9 @@ export interface LobbyRoomLike {
 const DEFAULT_LIMIT = 10;
 const MAX_LIMIT = 50;
 
-/** 阶段标签：第 N 夜 / 第 N 天 / 第 N 天 · 投票 */
+/** 阶段标签：第 N 夜 / 第 N 天 / 第 N 天 · 投票；round=0 表示还没真正开局 */
 export function phaseLabel(phase: Phase, round: number): string {
+  if (round === 0 && phase !== 'over') return '准备中';
   if (phase === 'night') return `第 ${round} 夜`;
   if (phase === 'vote') return `第 ${round} 天 · 投票`;
   if (phase === 'over') return '已结束';

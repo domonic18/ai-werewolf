@@ -19,9 +19,17 @@ interface SeatGridProps {
   speakingId: number | null;
   /** 观战（上帝视角）时直接展示身份 */
   revealRoles?: boolean;
+  /** 当前票型（玩家 id → 得票数），投票阶段显示角标 */
+  votes?: Record<number, number>;
 }
 
-export function SeatGrid({ players, myId, speakingId, revealRoles = false }: SeatGridProps): JSX.Element {
+export function SeatGrid({
+  players,
+  myId,
+  speakingId,
+  revealRoles = false,
+  votes,
+}: SeatGridProps): JSX.Element {
   return (
     <div className="seats">
       {players.map((player) => {
@@ -41,8 +49,11 @@ export function SeatGrid({ players, myId, speakingId, revealRoles = false }: Sea
               ? ROLES[player.revealed].name
               : '已出局';
 
+        const got = votes?.[player.id] ?? 0;
+
         return (
           <div key={player.id} className={classes.join(' ')}>
+            {got > 0 ? <span className="votes-badge">{got}</span> : null}
             <div className="ava">{player.alive ? player.emoji : '💀'}</div>
             <div className="nm">{player.name}</div>
             <div className="st">{status}</div>

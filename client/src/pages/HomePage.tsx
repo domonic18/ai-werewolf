@@ -11,7 +11,12 @@ import { useGameStore } from '../store/gameStore';
 
 const APP_VERSION = __APP_VERSION__;
 
-export function HomePage({ onWatch }: { onWatch: (gameId: string) => void }): JSX.Element {
+interface HomePageProps {
+  onWatch: (gameId: string) => void;
+  onOpenLobby: () => void;
+}
+
+export function HomePage({ onWatch, onOpenLobby }: HomePageProps): JSX.Element {
   const open = useGameStore((s) => s.open);
   const data = useHomeData();
 
@@ -171,9 +176,11 @@ export function HomePage({ onWatch }: { onWatch: (gameId: string) => void }): JS
       <div className="panel">
         <div className="panel-head">
           <span className="panel-title">🔥 正在进行（可观战）</span>
-          <span className="panel-sub">{data.live ? `${data.live.games.length} 局` : ''}</span>
+          <button className="link-btn" onClick={onOpenLobby}>
+            {data.live ? `全部 ${data.live.total} 局 ›` : '进入大厅 ›'}
+          </button>
         </div>
-        <LiveList games={data.live?.games ?? null} onWatch={onWatch} />
+        <LiveList games={data.live?.games.slice(0, 2) ?? null} onWatch={onWatch} />
       </div>
 
       <div className="panel">

@@ -44,6 +44,12 @@ describe('phaseLabel', () => {
     expect(phaseLabel('day', 3)).toBe('第 3 天');
     expect(phaseLabel('vote', 3)).toBe('第 3 天 · 投票');
   });
+
+  it('round=0 未开局显示准备中，而不是「第 0 夜」', () => {
+    expect(phaseLabel('night', 0)).toBe('准备中');
+    expect(phaseLabel('day', 0)).toBe('准备中');
+    expect(phaseLabel('over', 0)).toBe('已结束');
+  });
 });
 
 describe('toEntry', () => {

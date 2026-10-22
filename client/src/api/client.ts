@@ -10,6 +10,14 @@ import type {
   SpectateResponse,
 } from '@shared/types';
 
+/** 大厅查询：字段与 src/server/lobby.ts 的 LobbyQuery 一一对应 */
+export interface LiveQuery {
+  filter?: 'all' | 'human' | 'final';
+  sort?: 'spectators' | 'created';
+  limit?: number;
+  after?: string | null;
+}
+
 export class ApiError extends Error {
   readonly status: number;
 
@@ -47,7 +55,15 @@ export const api = {
   models: (): Promise<ModelsResponse> => request('/models'),
   selectModel: (id: string): Promise<OkResponse> => request('/models/select', { id }),
   matches: (): Promise<MatchesResponse> => request('/matches'),
-  live: (): Promise<LiveResponse> => request('/live'),
+  live: (query: LiveQuery = {}): Promise<LiveResponse> => {
+    const params = new URLSearchParams();
+    if (query.filter && query.filter !== 'all') params.set('filter', query.filter);
+    if (query.sort && query.sort !== 'spectators') params.set('sort', query.sort);
+    if (query.limit) params.set('limit', String(query.limit));
+    if (query.after) params.set('after', query.after);
+    const qs = params.toString();
+    return request(`/live${qs ? `?${qs}` : ''}`);
+  },
 
   createGame: (playerName: string): Promise<CreateGameResponse> => request('/games', { playerName }),
   snapshot: (gameId: string, token: string): Promise<Snapshot> => request(`/games/${gameId}`, undefined, token),

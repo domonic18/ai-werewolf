@@ -29,7 +29,7 @@ description: "Task list for 001 游戏大厅与对局观战"
 ## Phase 2: Foundational（阻塞项，必须先完成）
 
 - [ ] T004 `src/game/engine.js` 新增 `this.timeline[]` 累积：每次夜晚结算后写入 `{night, deaths:[{seat,name,cause,saved,guarded}]}`（1d）
-- [ ] T005 `src/game/engine.js` 新增 `tallyOf()`：从 `vote` 事件推导当前票型 `{seat: count}`，不引入新状态（0.5d）
+- [x] T005 票型从 `vote` 事件派生（实现为 `client/src/lib/tally.ts` 纯函数，引擎不新增状态——事件流即唯一事实来源）（0.5d）
 - [ ] T006 [P] `src/game/engine.js` 新增 `factionsOf()`：按阵营聚合存活数与初始数（0.5d）
 - [x] T007 `src/server/rooms.js` 增加 `spectators: Map<clientId, lastSeenAt>`、`touch(clientId)`、`pruneSpectators(30s)`、`spectatorCount`（0.5d）
 
@@ -45,8 +45,8 @@ description: "Task list for 001 游戏大厅与对局观战"
 - [x] T009 [US1] `src/server/lobby.js` 实现筛选（all/human/final）+ 排序（spectators/created）+ 稳定游标（`sortValue,startedAt,gameId`）（1d）
 - [x] T010 [US1] `src/server/routes.js` 改造 `/api/live`：解析 `filter/sort/limit/after`，返回 `games/nextCursor/total`，保留旧字段（0.5d）
 - [x] T011 [P] [US1] `tests/lobby.test.ts`：空列表、混入 over 局被过滤、同观战人数 30 局游标翻页无重无漏、筛选命中（0.5d）
-- [ ] T012 [US1] 前端大厅列表：列表项渲染（房主/人数/阶段徽章/存活条/👁 观战数）、空态、「开一局」入口（1d）
-- [ ] T013 [US1] 前端筛选 chips + 排序切换 + 上滑加载「还有 N 局」（1d）
+- [x] T012 [US1] 前端大厅列表：列表项渲染（房主/人数/阶段徽章/存活条/👁 观战数）、空态、「开一局」入口（1d）
+- [x] T013 [US1] 前端筛选 chips + 排序切换 + 上滑加载「还有 N 局」（1d）
 
 **独立验收**：造 3 局 → 大厅正确列出 → 点「观战」3 秒内进入；造 0 局 → 空态；造 30 局 → 上滑加载完 30 条无重复。
 
@@ -70,7 +70,7 @@ description: "Task list for 001 游戏大厅与对局观战"
 
 ## Phase 5: US3（P2）规模化浏览
 
-- [ ] T021 [US3] 密度自适应：≥6 局切紧凑列表，<6 局用卡片（0.5d）
+- [x] T021 [US3] 密度自适应：≥6 局切紧凑列表，<6 局用卡片（0.5d）
 - [ ] T022 [US3] 「我的对局」筛选（基于 localStorage 中的对局 ID，无需登录）（0.5d）
 - [ ] T023 [P] [US3] `tests/lobby.test.js` 增加 100 局压测：`list()` P95 < 50ms（纯函数层）（0.3d）
 
@@ -80,7 +80,7 @@ description: "Task list for 001 游戏大厅与对局观战"
 
 ## Phase 6: US4（P2）局势可读
 
-- [ ] T024 [US4] 对局页接入 `tally`：投票阶段逐票飞入 + 实时条形（只在事件到达时增长）（1d）
+- [x] T024 [US4] 对局页接入 `tally`：投票阶段实时条形 + 座位得票角标（只在事件到达时增长）（1d）
 - [ ] T025 [US4] 结算页时间轴：每晚死亡/死因/是否被救被守（1d）
 - [ ] T026 [P] [US4] `tests/engine-smoke.test.js` 断言：女巫/守卫参与时 `saved`、`guarded` 字段与实际用药一致（0.5d）
 - [ ] T027 [US4] 移动端走查：安全区、字号、横竖屏（0.5d）

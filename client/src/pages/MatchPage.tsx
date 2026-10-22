@@ -6,7 +6,9 @@ import { SeatGrid } from '../components/SeatGrid';
 import type { SeatLike } from '../components/SeatGrid';
 import { SpeechLog } from '../components/SpeechLog';
 import { SpeechOrderBar } from '../components/SpeechOrderBar';
+import { VoteBar } from '../components/VoteBar';
 import { roundBadge } from '../lib/format';
+import { deriveVoteTally } from '../lib/tally';
 import type { LostReason } from '../hooks/useMatchPolling';
 import { buildStage, speakingPlayerId } from '../lib/stage';
 import { useGameStore } from '../store/gameStore';
@@ -52,6 +54,13 @@ export function MatchPage({ lost, lostReason }: MatchPageProps): JSX.Element {
     }
     return set;
   }, [events, currentRound]);
+
+  /* 票型完全由事件流派生：刷新、断线恢复、观战都得到同一份结果 */
+  const tally = useMemo(() => deriveVoteTally(events), [events]);
+  const labelOf = useMemo(() => {
+    const byId = new Map(players.map((p) => [p.id, `${p.emoji} ${p.name}`]));
+    return (playerId: number): string => byId.get(playerId) ?? `座位 ${playerId}`;
+  }, [players]);
 
   const stage = buildStage(events, {
     round: currentRound,
@@ -116,7 +125,15 @@ export function MatchPage({ lost, lostReason }: MatchPageProps): JSX.Element {
         </div>
       ) : null}
 
-      <SeatGrid players={players} myId={myId} speakingId={speakingId} revealRoles={watching} />
+      <SeatGrid
+        players={players}
+        myId={myId}
+        speakingId={speakingId}
+        revealRoles={watching}
+        votes={tally.counts}
+      />
+
+      <VoteBar tally={tally} labelOf={labelOf} />
 
       <div className="stage">
         <SpeechOrderBar order={order} speakingId={speakingId} spokenIds={spokenIds} />
