@@ -366,3 +366,37 @@ body {
 .timeline-line.tone-save { color: var(--good); }
 .timeline-line.tone-vote { color: var(--gold); }
 .timeline-line.tone-calm { color: var(--muted); }
+
+/* ---------- 建局配置 ---------- */
+.role-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 9px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+  margin-top: 8px;
+}
+.role-row.locked { opacity: 0.5; }
+.role-emoji { flex: 0 0 26px; font-size: 18px; text-align: center; }
+.role-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.role-name { font-size: 12.5px; font-weight: 600; }
+.role-ability { font-size: 10.5px; color: var(--muted); line-height: 1.5; }
+.role-lock { flex: 0 0 20px; text-align: center; font-size: 12px; color: var(--muted); }
+.stepper { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+.stepper b { min-width: 14px; text-align: center; font-size: 13px; font-variant-numeric: tabular-nums; }
+.step-btn {
+  width: 24px;
+  height: 24px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--text);
+  font-size: 13px;
+  line-height: 1;
+  cursor: pointer;
+  transition: 0.15s;
+}
+.step-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.14); }
+.step-btn:disabled { opacity: 0.35; cursor: not-allowed; }

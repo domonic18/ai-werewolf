@@ -29,9 +29,9 @@
 
 ## Phase 4: 建局配置页（US2）
 
-- [ ] T014 前端 `client/src/pages/SetupPage.tsx`：人数 6/8/9/10/12 分段 + 推荐牌组 + 角色加减 + 校验提示（1.5d）
-- [ ] T015 `client/src/api/client.ts` 增加 `roles(players)` 与 `createGame({players, deck, playerName})`（0.3d）
-- [ ] T016 首页「开始一局」改为进配置页；旧路径保留为「快速开始（6 人）」（0.5d）
+- [x] T014 前端 `client/src/pages/SetupPage.tsx`：人数 6/8/9/10/12 分段 + 推荐牌组 + 角色加减 + 校验提示（1.5d）
+- [x] T015 `client/src/api/client.ts` 增加 `roles(players)` 与 `createGame({players, deck, playerName})`（0.3d）
+- [x] T016 首页「开始一局」改为进配置页；旧路径保留为「快速开始（6 人）」（0.5d）
 
 ## Phase 5: 登录（US1）
 

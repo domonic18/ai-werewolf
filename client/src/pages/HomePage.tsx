@@ -14,9 +14,11 @@ const APP_VERSION = __APP_VERSION__;
 interface HomePageProps {
   onWatch: (gameId: string) => void;
   onOpenLobby: () => void;
+  /** 进配置页（选人数/牌组） */
+  onNewGame: () => void;
 }
 
-export function HomePage({ onWatch, onOpenLobby }: HomePageProps): JSX.Element {
+export function HomePage({ onWatch, onOpenLobby, onNewGame }: HomePageProps): JSX.Element {
   const open = useGameStore((s) => s.open);
   const data = useHomeData();
 
@@ -63,7 +65,7 @@ export function HomePage({ onWatch, onOpenLobby }: HomePageProps): JSX.Element {
     setStarting(true);
     setStartError(null);
     try {
-      const result = await api.createGame(name.trim() || '你');
+      const result = await api.createGame({ playerName: name.trim() || '你' });
       open(result.gameId, { token: result.playerToken });
     } catch (e) {
       setStartError(e instanceof Error ? e.message : '开局失败');
@@ -146,7 +148,7 @@ export function HomePage({ onWatch, onOpenLobby }: HomePageProps): JSX.Element {
             onChange={(e) => setName(e.target.value)}
           />
           <button className="btn primary" disabled={starting || !aiReady} onClick={() => void startGame()}>
-            {starting ? '开局中…' : aiReady ? '开始一局' : 'AI 通道准备中'}
+            {starting ? '开局中…' : aiReady ? '快速开始（6 人）' : 'AI 通道准备中'}
           </button>
         </div>
 
@@ -176,6 +178,9 @@ export function HomePage({ onWatch, onOpenLobby }: HomePageProps): JSX.Element {
           <span>{statusText}</span>
         </div>
         {startError ? <p className="hint" style={{ color: 'var(--wolf)' }}>开局失败：{startError}</p> : null}
+        <button className="btn ghost big" style={{ marginTop: 10 }} onClick={onNewGame}>
+          新建对局 · 选人数与角色 ›
+        </button>
         <p className="hint">🚀 多人真人房（好友同局）已预留入口，敬请期待。</p>
       </div>
 

@@ -5,6 +5,7 @@ import type {
   LiveResponse,
   MatchesResponse,
   ModelsResponse,
+  RolesResponse,
   OkResponse,
   Snapshot,
   SpectateResponse,
@@ -88,7 +89,10 @@ export const api = {
     return request(`/live${qs ? `?${qs}` : ''}`);
   },
 
-  createGame: (playerName: string): Promise<CreateGameResponse> => request('/games', { playerName }),
+  roles: (players: number): Promise<RolesResponse> => request(`/roles?players=${players}`),
+  createGame: (
+    payload: { playerName: string; players?: number; deck?: { key: string; count: number }[] },
+  ): Promise<CreateGameResponse> => request('/games', payload),
   snapshot: (gameId: string, token: string): Promise<Snapshot> => request(`/games/${gameId}`, undefined, token),
   events: (gameId: string, since: number, token: string): Promise<EventsResponse> =>
     request(`/games/${gameId}/events?since=${since}`, undefined, token),

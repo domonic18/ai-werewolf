@@ -3,11 +3,12 @@ import { HomePage } from './pages/HomePage';
 import { LobbyPage } from './pages/LobbyPage';
 import { MatchPage } from './pages/MatchPage';
 import { ResultPage } from './pages/ResultPage';
+import { SetupPage } from './pages/SetupPage';
 import { useMatchPolling } from './hooks/useMatchPolling';
 import { clearSavedGame, readSavedGame } from './lib/storage';
 import { useGameStore } from './store/gameStore';
 
-type Screen = 'home' | 'lobby';
+type Screen = 'home' | 'lobby' | 'setup';
 
 export function App(): JSX.Element {
   const gameId = useGameStore((s) => s.gameId);
@@ -37,7 +38,17 @@ export function App(): JSX.Element {
   return (
     <div id="app">
       {!gameId && screen === 'home' ? (
-        <HomePage onWatch={watch} onOpenLobby={() => setScreen('lobby')} />
+        <HomePage
+          onWatch={watch}
+          onOpenLobby={() => setScreen('lobby')}
+          onNewGame={() => setScreen('setup')}
+        />
+      ) : null}
+      {!gameId && screen === 'setup' ? (
+        <SetupPage
+          onBack={() => setScreen('home')}
+          onStarted={(id, token) => open(id, { token })}
+        />
       ) : null}
       {!gameId && screen === 'lobby' ? (
         <LobbyPage
