@@ -1,11 +1,38 @@
 # AI 狼人杀 · Agent 补位局
 
+![TypeScript](https://img.shields.io/badge/TypeScript-5.x-3178C6?logo=typescript&logoColor=white)
+![React](https://img.shields.io/badge/React-18-61DAFB?logo=react&logoColor=white)
+![Node.js](https://img.shields.io/badge/Node.js-%E2%89%A518-339933?logo=node.js&logoColor=white)
+![Tests](https://img.shields.io/badge/tests-vitest-6E9F18?logo=vitest&logoColor=white)
+![License](https://img.shields.io/badge/license-MIT-green)
+
 WorkBuddy「1024 造物挑战」参赛作品。6 人局狼人杀：1 名真人玩家 + 5 个 AI Agent 补位。
 
 **AI 的全部言行（发言、投票、刀人、验人、用药）由云服务大模型实时生成**——游戏逻辑运行在 Node 服务端，前端只是"渲染快照 + 提交动作"的薄客户端；没有任何写死的台词或规则话术，LLM 调用失败即中止对局并亮明原因。
 
 - 线上地址: https://werewolf-ai-01048.app.workbuddy.host/?sharecode=2IBHTRFFFL
 - 技术形态: React 18 + TypeScript（Vite 构建）+ Node.js ≥18（原生 http，零 Web 框架）+ WorkBuddy Cloud Service（LLM + 云数据库）
+
+## 界面预览
+
+| 首页 | 登录 | 新建对局 |
+|---|---|---|
+| ![首页](docs/screenshots/home.png) | ![登录](docs/screenshots/login.png) | ![新建对局](docs/screenshots/setup.png) |
+
+| 游戏大厅 | 观战视角 |
+|---|---|
+| ![游戏大厅](docs/screenshots/lobby.png) | ![观战视角](docs/screenshots/spectate.png) |
+
+## 功能特性
+
+- 🐺 **真人 + AI 混编对局**：1 名真人玩家与 5 个 AI Agent（狼人 / 预言家 / 女巫 / 猎人 / 平民等角色）同场竞技
+- 🤖 **纯 LLM 驱动 AI**：发言、投票、刀人、验人、用药全部由大模型实时生成，每个 Agent 带独立性格人设与跨回合记忆
+- 👻 **观战模式**：上帝视角只读投影，实时查看发言、票型与内心戏，观战不消耗任何 LLM 调用
+- 📱 **移动端优先**：390px 设计稿逐屏还原（首页 / 登录 / 新建对局 / 大厅 / 对局中 / 观战）
+- 🔐 **账号闭环**：手机号 / 邮箱验证码 + OAuth 登录，对局战绩按账号归属，「我的对局」与累计战绩独立筛选
+- 🛡️ **服务端权威**：身份与夜晚行动对前端不可见，真人凭证一次性下发，旁观者无法读隐私或代操作
+- 🔁 **事件溯源 + 断线恢复**：对局以事件流记录，客户端增量拉取，刷新 / 断线后无感续玩
+- 🧪 **两层回归**：Mock LLM 单测（10 局引擎冒烟 ~1.3s）+ 对线上实例的 23 项冒烟检查
 
 ## 架构
 
@@ -50,8 +77,8 @@ werewolf-ai/
 │   ├── ai/                     # llm-gateway.ts / ai-player.ts / json.ts / types.ts
 │   └── cloud/                  # match-store.ts（ww_matches 战绩表）
 ├── tests/                      # vitest：json / engine（Mock LLM 10 局）/ API 全链路
-├── tools/                      # 构建辅助（.js → .ts 解析插件）
-└── docs/                       # PRD / 技术选型 ADR / 原型页
+├── tools/                      # 构建辅助 / 设计稿抽取 / 构建守护 / 线上冒烟
+└── docs/                       # PRD / 设计还原记录 / 原型页 / 界面截图（docs/screenshots/）
 ```
 
 ## 快速开始
@@ -72,7 +99,7 @@ npm run dev        # 前端 HMR（:5173，/api 代理到 :8787）
 npm run dev:server # 后端热重载（tsx watch，默认 :3000，可 PORT=8787）
 npm test           # vitest：单元 + 引擎冒烟 + API 全链路（Mock LLM，无需网络）
 npm run typecheck  # 前后端类型检查
-npm run smoke:live # 线上回归：对已部署实例跑 19 项检查（发版后必跑，失败退出码非 0）
+npm run smoke:live # 线上回归：对已部署实例跑 23 项检查（发版后必跑，失败退出码非 0）
 
 # 以测试环境启动（页面显示 STAGING 徽章，且默认不写生产战绩表）
 WB_ENV=staging npm start
@@ -114,7 +141,7 @@ WB_ENV=staging WB_WRITE_MATCHES=1 npm start
 3. **服务端权威 + 投影隔离**：玩家快照与观战投影是两个函数，语义互斥；夜晚事件流只有法官口令，不含「谁在行动」
 4. **观战零成本**：观战只读事件流，不触发任何 LLM 调用
 5. **测试不依赖网络**：引擎与 API 测试注入 Mock LLM，并支持 `pace` 系数压缩演出等待（10 局冒烟 ~1.3s）
-6. **两层回归**：`npm test` 用 Mock LLM 验逻辑（不耗额度）；`npm run smoke:live` 对已部署实例验「发上去到底能不能用」——首页与产物、404 语义、凭证隔离、真实 LLM 发言、观战投影，共 19 项
+6. **两层回归**：`npm test` 用 Mock LLM 验逻辑（不耗额度）；`npm run smoke:live` 对已部署实例验「发上去到底能不能用」——首页与产物、404 语义、凭证隔离、账号边界、真实 LLM 发言、观战投影，共 23 项
 
 ## 云资源
 
