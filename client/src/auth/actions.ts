@@ -75,6 +75,23 @@ interface AuthConfig {
   endpoint: string;
   publishableKey: string;
   oauthRelayBaseUrl?: string;
+  providers?: string[];
+}
+
+/**
+ * 问服务端「这台部署到底开了哪些登录方式」。
+ * OAuth 的 Provider 必须在云服务管理页单独开启，代码端无法代开；
+ * 没开却把按钮摆出来，用户点下去只会拿到一个英文错误——所以由部署方声明、前端照做。
+ */
+export async function fetchAuthProviders(): Promise<string[]> {
+  try {
+    const res = await fetch('/api/auth-config');
+    const cfg = (await res.json()) as Partial<AuthConfig>;
+    const list = Array.isArray(cfg.providers) ? cfg.providers.filter((v) => typeof v === 'string') : [];
+    return list.length ? list : ['phone', 'email'];
+  } catch {
+    return ['phone', 'email'];
+  }
 }
 
 let cached: CloudAuth | null | undefined;

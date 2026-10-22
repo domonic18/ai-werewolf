@@ -87,6 +87,15 @@ export async function main(): Promise<import('node:http').Server> {
       endpoint: config.endpoint,
       publishableKey: config.publishableKey,
       ...(config.oauthRelayBaseUrl ? { oauthRelayBaseUrl: config.oauthRelayBaseUrl } : {}),
+      /*
+       * 哪些登录方式真的可用，由部署方声明（WB_AUTH_PROVIDERS=phone,email,wechat,workbuddy）。
+       * 默认只开验证码：OAuth Provider 需要在 WorkBuddy 云服务管理页单独开启，
+       * 没开却在登录页摆一个按钮，点下去只会报错——那是最糟的体验。
+       */
+      providers: (process.env.WB_AUTH_PROVIDERS ?? 'phone,email')
+        .split(',')
+        .map((v) => v.trim())
+        .filter(Boolean),
     },
   });
   const port = Number(process.env.PORT ?? 3000);

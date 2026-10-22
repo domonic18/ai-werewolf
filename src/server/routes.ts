@@ -28,6 +28,7 @@ import {
 } from '../game/catalog.js';
 import type { DeckSlot } from '../game/catalog.js';
 import { listRooms, parseLobbyQuery } from './lobby.js';
+import { SlidingWindowLimiter, actorKey, clientIp } from './rate-limit.js';
 import type {
   CreateGameResponse,
   ErrorResponse,
@@ -42,6 +43,33 @@ import type {
   AppEnv,
 } from '../shared/types.js';
 
+/**
+ * 限流器集合。放在 ctx 里而不是模块单例，测试才能每个用例拿到干净的窗口。
+ * 规则全部是「单进程内存滑动窗口」，多实例部署时需要替换成共享存储。
+ */
+export interface ApiLimiters {
+  /** 同一个人（账号或 IP）10 分钟内最多开几局 */
+  createGameActor: SlidingWindowLimiter;
+  /** 全站每分钟最多开几局，防止分布式小号绕开单账号限制 */
+  createGameGlobal: SlidingWindowLimiter;
+  /** 单局提交动作：防止脚本刷动作把 AI 调用打满 */
+  action: SlidingWindowLimiter;
+  /** 切换模型：成本高、影响所有人，单独收紧 */
+  modelSelect: SlidingWindowLimiter;
+  /** 只读接口（大厅/战绩）的粗暴保护 */
+  read: SlidingWindowLimiter;
+}
+
+export function createLimiters(): ApiLimiters {
+  return {
+    createGameActor: new SlidingWindowLimiter({ limit: 3, windowMs: 10 * 60_000 }),
+    createGameGlobal: new SlidingWindowLimiter({ limit: 10, windowMs: 60_000 }),
+    action: new SlidingWindowLimiter({ limit: 30, windowMs: 60_000 }),
+    modelSelect: new SlidingWindowLimiter({ limit: 6, windowMs: 60 * 60_000 }),
+    read: new SlidingWindowLimiter({ limit: 240, windowMs: 60_000 }),
+  };
+}
+
 export interface ApiContext {
   llm: LLMService;
   rooms: RoomManager;
@@ -49,9 +77,42 @@ export interface ApiContext {
   /** 运行环境：前端据此显示区分标识 */
   env: AppEnv;
   /** 前端登录所需的可公开配置（endpoint / publishableKey / oauthRelayBaseUrl），不含密钥 */
-  publicConfig?: { endpoint?: string; publishableKey?: string; oauthRelayBaseUrl?: string };
+  publicConfig?: {
+    endpoint?: string;
+    publishableKey?: string;
+    oauthRelayBaseUrl?: string;
+    /** 已开启的登录方式（phone / email / wechat / workbuddy） */
+    providers?: string[];
+  };
   /** 解析请求归属的账号；未配置则一律匿名（登录是可选项） */
   resolveOwner?: (req: IncomingMessage) => Promise<string | null>;
+  /** 限流器（不传则用默认规则） */
+  limiters?: ApiLimiters;
+}
+
+/** 请求体上限：一局请求就十几个字段，32KB 足够；再大就是攻击或 bug */
+const MAX_BODY_BYTES = 32 * 1024;
+/** 真人发言长度上限（前端 textarea 是 200，服务端留一点余量） */
+const MAX_ACTION_TEXT = 300;
+
+class HttpError extends Error {
+  constructor(readonly status: number, message: string) {
+    super(message);
+  }
+}
+
+/** 去掉控制字符与零宽字符：这些字符会污染 UI 与 AI prompt */
+function cleanText(raw: string, max: number): string {
+  return raw
+    .replace(/[\u0000-\u0008\u000B-\u001F\u007F]/g, '')
+    .replace(/[\u200B-\u200F\u202A-\u202E\uFEFF]/g, '')
+    .trim()
+    .slice(0, max);
+}
+
+function tooMany(res: ServerResponse, retryAfterSec: number, error: string): void {
+  res.setHeader('Retry-After', String(retryAfterSec));
+  sendJson(res, 429, { error, retryAfterSec });
 }
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
@@ -70,9 +131,19 @@ function hasPlayerToken(req: IncomingMessage, expected: string): boolean {
   return diff === 0;
 }
 
-async function readBody<T extends Record<string, unknown>>(req: IncomingMessage): Promise<Partial<T>> {
+async function readBody<T extends Record<string, unknown>>(
+  req: IncomingMessage,
+  maxBytes = MAX_BODY_BYTES,
+): Promise<Partial<T>> {
   const chunks: Buffer[] = [];
-  for await (const chunk of req) chunks.push(chunk as Buffer);
+  let size = 0;
+  for await (const chunk of req) {
+    const buf = chunk as Buffer;
+    size += buf.length;
+    /* 边读边判：不等到收完再拒绝，否则大包已经进内存了 */
+    if (size > maxBytes) throw new HttpError(413, '请求体过大');
+    chunks.push(buf);
+  }
   if (!chunks.length) return {};
   try {
     const parsed: unknown = JSON.parse(Buffer.concat(chunks).toString('utf8'));
@@ -82,10 +153,24 @@ async function readBody<T extends Record<string, unknown>>(req: IncomingMessage)
   }
 }
 
+/**
+ * 真人动作的取值规整：
+ * - 字符串（发言）去掉控制字符并限长，避免超大文本进事件流、进 AI prompt
+ * - 数字只接受有限整数，其它一律当作「继续」
+ */
+function normalizeActionValue(value: unknown): string | number | null {
+  if (typeof value === 'string') return cleanText(value, MAX_ACTION_TEXT);
+  if (typeof value === 'number' && Number.isFinite(value)) return Math.trunc(value);
+  if (value === null || value === undefined) return null;
+  return null;
+}
+
 export async function handleApi(req: IncomingMessage, res: ServerResponse, ctx: ApiContext): Promise<void> {
   const parsed = parseUrl(req.url ?? '/', true);
   const path = (parsed.pathname ?? '/').replace(/\/+$/, '') || '/';
   const method = req.method ?? 'GET';
+  const limits = ctx.limiters ?? (ctx.limiters = createLimiters());
+  const ip = clientIp(req.headers);
 
   try {
     /* ---------- 服务状态 ---------- */
@@ -113,6 +198,16 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, ctx: 
     }
 
     if (path === '/api/models/select' && method === 'POST') {
+      /*
+       * 切模型是全局生效的动作（影响所有人的成本与质量），不能匿名调。
+       * production 要求登录；staging / 本地保留匿名，方便开发时对比模型。
+       */
+      const ownerId = ctx.resolveOwner ? await ctx.resolveOwner(req) : null;
+      if (ctx.env === 'production' && !ownerId) {
+        return sendJson(res, 403, { error: '切换模型需要先登录' } satisfies ErrorResponse);
+      }
+      const rl = limits.modelSelect.take(actorKey(ownerId, ip));
+      if (!rl.ok) return tooMany(res, rl.retryAfterSec, '切换模型过于频繁，请稍后再试');
       const body = await readBody<{ id: string }>(req);
       if (!body.id) return sendJson(res, 400, { error: 'missing id' } satisfies ErrorResponse);
       try {
@@ -127,6 +222,8 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, ctx: 
 
     /* ---------- 战绩 ---------- */
     if (path === '/api/matches' && method === 'GET') {
+      const rl = limits.read.take(`matches:${ip || 'unknown'}`);
+      if (!rl.ok) return tooMany(res, rl.retryAfterSec, '请求过于频繁，请稍后再试');
       /* mine=1 且已登录 → 只看自己的；未登录退回全量（匿名也能看战绩墙） */
       const mine = (parsed.query.mine ?? '') === '1';
       const ownerId = mine && ctx.resolveOwner ? await ctx.resolveOwner(req) : null;
@@ -150,6 +247,7 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, ctx: 
         endpoint: ctx.publicConfig?.endpoint ?? null,
         publishableKey: ctx.publicConfig?.publishableKey ?? null,
         oauthRelayBaseUrl: ctx.publicConfig?.oauthRelayBaseUrl ?? null,
+        providers: ctx.publicConfig?.providers ?? ['phone', 'email'],
       });
     }
 
@@ -172,11 +270,16 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, ctx: 
 
     /* ---------- 进行中对局（大厅） ---------- */
     if (path === '/api/live' && method === 'GET') {
+      const rl = limits.read.take(`live:${ip || 'unknown'}`);
+      if (!rl.ok) return tooMany(res, rl.retryAfterSec, '请求过于频繁，请稍后再试');
+      /* 顺手回收弃局：大厅每次刷新都是一次自然清扫点，不额外起定时器 */
+      ctx.rooms.sweep();
       /* 「我的对局」：登录了就按账号查（换设备也能看到），否则只能靠前端带的本机 id */
       const wantsMine = (parsed.query.filter ?? '') === 'mine';
       const ownerId = wantsMine && ctx.resolveOwner ? await ctx.resolveOwner(req) : null;
       const query = parseLobbyQuery(parsed.query, { ownerId });
-      const page = listRooms(ctx.rooms.rooms, query);
+      /* 挂起的对局（长时间无人操作）不再展示：既不误导观众，也不给攻击者「占坑可视」的反馈 */
+      const page = listRooms(ctx.rooms.liveRooms(), query);
       const body: LiveResponse = { games: page.games, nextCursor: page.nextCursor, total: page.total };
       return sendJson(res, 200, body);
     }
@@ -192,12 +295,24 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, ctx: 
           state: ctx.llm.state,
         });
       }
+      /* 归属先解析：限流要按账号算，匿名才退回 IP */
+      const ownerId = ctx.resolveOwner ? await ctx.resolveOwner(req) : null;
+      const actor = limits.createGameActor.take(actorKey(ownerId, ip));
+      if (!actor.ok) {
+        return tooMany(res, actor.retryAfterSec, `开局太频繁了，${actor.retryAfterSec} 秒后再试`);
+      }
+      const global = limits.createGameGlobal.take('global');
+      if (!global.ok) {
+        return tooMany(res, global.retryAfterSec, '当前开局人数较多，稍等片刻再试');
+      }
+
       const body = await readBody<{
         playerName: string;
         players?: number;
         deck?: { key: string; count: number }[];
       }>(req);
-      const name = String(body.playerName ?? '').slice(0, 8) || '你';
+      /* 代号会进 AI prompt 与战绩表：去掉控制字符、限长，空则用「你」 */
+      const name = cleanText(String(body.playerName ?? ''), 8) || '你';
 
       /* 牌组：显式传入则校验，否则按人数给推荐（不传人数 = 6 人基础局） */
       let deckSlots: DeckSlot[] = recommendDeck(body.players ?? MIN_PLAYERS);
@@ -212,8 +327,6 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, ctx: 
         return sendJson(res, 400, { error: check.errors.join('；'), errors: check.errors });
       }
 
-      /* 归属：有登录态就记账号，没有就是匿名局，不影响能不能玩 */
-      const ownerId = ctx.resolveOwner ? await ctx.resolveOwner(req) : null;
       const room = ctx.rooms.create(name, expandDeck(deckSlots), ownerId);
       if (!room) {
         return sendJson(res, 503, { error: '同时进行的对局已满，请稍后再试（不会踢掉别人正在进行的对局）' });
@@ -274,6 +387,9 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, ctx: 
         } satisfies ErrorResponse & { hint: string });
       }
 
+      /* 有凭证的访问都算「人还在」：弃局判定看这个时间，而不是开局时间 */
+      room.touch();
+
       if (method === 'GET' && !sub) {
         return sendJson(res, 200, engine.snapshot(engine.human.id));
       }
@@ -289,8 +405,11 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, ctx: 
       }
 
       if (method === 'POST' && sub === 'action') {
+        /* 每次动作都会推动一轮 AI 决策，脚本狂刷等于直接烧额度 */
+        const rl = limits.action.take(`act:${roomId}`);
+        if (!rl.ok) return tooMany(res, rl.retryAfterSec, '操作过于频繁，请稍后再试');
         const body = await readBody<{ value: string | number | null }>(req);
-        const value = body.value === undefined ? null : body.value;
+        const value = normalizeActionValue(body.value);
         const accepted = engine.submitHuman(value);
         if (!accepted) return sendJson(res, 409, { error: 'no pending action' } satisfies ErrorResponse);
         return sendJson(res, 200, { ok: true } satisfies OkResponse);
@@ -304,6 +423,7 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, ctx: 
 
     return sendJson(res, 404, { error: 'not found' } satisfies ErrorResponse);
   } catch (e) {
+    if (e instanceof HttpError) return sendJson(res, e.status, { error: e.message } satisfies ErrorResponse);
     return sendJson(res, 500, { error: (e as Error).message } satisfies ErrorResponse);
   }
 }

@@ -53,6 +53,9 @@ const cardOf = (key: RoleKey): RoleCard => {
   return card;
 };
 
+/** 不抛异常的查询：校验牌组时客户端可能塞进来任意字符串，不能让它变成 500 */
+const cardOrNull = (key: string): RoleCard | null => ROLE_CATALOG.find((c) => c.key === key) ?? null;
+
 /** 该人数下「能选」的角色（已实装且人数够） */
 export function availableRoles(total: number): RoleCard[] {
   return ROLE_CATALOG.filter((card) => card.implemented && total >= card.minPlayers);
@@ -111,17 +114,26 @@ export function validateDeck(deck: DeckSlot[], total: number): DeckCheck {
   const sum = deck.reduce((acc, slot) => acc + slot.count, 0);
   if (sum !== total) errors.push(`角色数量合计 ${sum}，与人数 ${total} 不一致`);
 
-  const wolves = deck.filter((slot) => cardOf(slot.key).team === 'wolf').reduce((a, s) => a + s.count, 0);
+  const wolves = deck
+    .filter((slot) => cardOrNull(slot.key)?.team === 'wolf')
+    .reduce((a, s) => a + s.count, 0);
   if (wolves < 2) errors.push('狼人至少 2 名');
   if (wolves >= total / 2) errors.push('狼人不能达到半数，否则开局即结束');
 
   const gods = deck
-    .filter((slot) => cardOf(slot.key).team === 'good' && slot.key !== 'villager')
+    .filter((slot) => {
+      const card = cardOrNull(slot.key);
+      return card?.team === 'good' && slot.key !== 'villager';
+    })
     .reduce((a, s) => a + s.count, 0);
   if (gods >= total / 2) errors.push('神职数量不能达到半数');
 
   for (const slot of deck) {
-    const card = cardOf(slot.key);
+    const card = cardOrNull(slot.key);
+    if (!card) {
+      errors.push(`未知角色：${slot.key}`);
+      continue;
+    }
     if (slot.count < 0) errors.push(`${card.name} 数量不能为负`);
     if (slot.count > 0 && !card.implemented) errors.push(`${card.name} 尚未开放`);
     if (slot.count > 0 && total < card.minPlayers) errors.push(`${card.name} 需要至少 ${card.minPlayers} 人`);

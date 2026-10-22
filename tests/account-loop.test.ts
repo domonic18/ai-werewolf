@@ -9,6 +9,7 @@ import type { TokenVerifier } from '../src/server/auth.js';
 import type { LLMService } from '../src/server/llm-service.js';
 import type { LiveResponse } from '../src/shared/types.js';
 import { createMockLLM } from './helpers/mock-llm.js';
+import { permissiveLimiters } from './helpers/limiters.js';
 
 /**
  * 账号闭环：登录态要真的影响服务端行为。
@@ -69,6 +70,7 @@ beforeAll(async () => {
     rooms,
     matchStore: new MatchStore(null),
     resolveOwner: createOwnerResolver(verifier),
+    limiters: permissiveLimiters(),
   });
   await new Promise<void>((resolve) => app.listen(0, '127.0.0.1', resolve));
   server = app;

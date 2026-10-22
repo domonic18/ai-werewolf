@@ -5,6 +5,7 @@ import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { createApp } from '../src/server/app.js';
+import { permissiveLimiters } from './helpers/limiters.js';
 import { RoomManager } from '../src/server/rooms.js';
 import { MatchStore } from '../src/cloud/match-store.js';
 import { LLMRuntime } from '../src/server/llm-runtime.js';
@@ -30,7 +31,7 @@ describe('AI 通道不可用时的降级', () => {
     );
 
     const rooms = new RoomManager({ llm: runtime });
-    const app = createApp({ llm: runtime, rooms, matchStore: new MatchStore(null), staticDir });
+    const app = createApp({ llm: runtime, rooms, matchStore: new MatchStore(null), staticDir, limiters: permissiveLimiters() });
     await new Promise<void>((resolve) => app.listen(0, '127.0.0.1', resolve));
     server = app;
     base = `http://127.0.0.1:${(app.address() as AddressInfo).port}`;

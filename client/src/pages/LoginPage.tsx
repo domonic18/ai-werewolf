@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { sendOtp, signInWithOAuth, verifyOtp } from '../auth/actions';
+import { fetchAuthProviders, sendOtp, signInWithOAuth, verifyOtp } from '../auth/actions';
 import { clearSession, setSession } from '../auth/session';
 import { Icon } from '../components/Icon';
 import { useSession } from '../auth/useSession';
@@ -30,8 +30,28 @@ export function LoginPage({ onBack, onSignedIn }: LoginPageProps): JSX.Element {
   const [sending, setSending] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [agreed, setAgreed] = useState(true);
+  /* 登录方式由服务端声明：没开启的 Provider 不显示，避免「点了必失败」的按钮 */
+  const [providers, setProviders] = useState<string[]>(['phone', 'email']);
+  const canWechat = providers.includes('wechat');
+  const canWorkbuddy = providers.includes('workbuddy');
+  const canOauth = canWechat || canWorkbuddy;
+  const canPhone = providers.includes('phone');
+  const canEmail = providers.includes('email');
   /* 提示紧跟按钮显示：失败信息藏在页面底部会被当成「点了没反应」 */
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    void fetchAuthProviders().then((list) => {
+      if (cancelled) return;
+      setProviders(list);
+      /* 没开手机号通道时，默认落到邮箱 */
+      if (!list.includes('phone') && list.includes('email')) setChannel('email');
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (countdown <= 0) return;
@@ -147,12 +167,16 @@ export function LoginPage({ onBack, onSignedIn }: LoginPageProps): JSX.Element {
       ) : (
         <div className="lg-card">
           <div className="lg-tabs">
-            <button className={channel === 'phone' ? 'lg-tab on' : 'lg-tab'} onClick={() => setChannel('phone')}>
-              手机号
-            </button>
-            <button className={channel === 'email' ? 'lg-tab on' : 'lg-tab'} onClick={() => setChannel('email')}>
-              邮箱
-            </button>
+            {canPhone ? (
+              <button className={channel === 'phone' ? 'lg-tab on' : 'lg-tab'} onClick={() => setChannel('phone')}>
+                手机号
+              </button>
+            ) : null}
+            {canEmail ? (
+              <button className={channel === 'email' ? 'lg-tab on' : 'lg-tab'} onClick={() => setChannel('email')}>
+                邮箱
+              </button>
+            ) : null}
           </div>
 
           {channel === 'phone' ? (
@@ -220,26 +244,34 @@ export function LoginPage({ onBack, onSignedIn }: LoginPageProps): JSX.Element {
 
       {session ? null : (
         <>
-          <div className="lg-divider">
-            <i />
-            <span>其他方式</span>
-            <i />
-          </div>
+          {canOauth ? (
+            <>
+              <div className="lg-divider">
+                <i />
+                <span>其他方式</span>
+                <i />
+              </div>
 
-          <button className="lg-oauth wechat" onClick={() => void oauth('wechat')}>
-            <span className="lg-oauth-left">
-              <Icon name="users" size={16} />
-              <span>微信登录</span>
-            </span>
-            <em>一键授权 / 扫码</em>
-          </button>
-          <button className="lg-oauth wb" onClick={() => void oauth('workbuddy')}>
-            <span className="lg-oauth-left">
-              <Icon name="seal" size={16} />
-              <span>使用 WorkBuddy 登录</span>
-            </span>
-            <em>统一账号</em>
-          </button>
+              {canWechat ? (
+                <button className="lg-oauth wechat" onClick={() => void oauth('wechat')}>
+                  <span className="lg-oauth-left">
+                    <Icon name="users" size={16} />
+                    <span>微信登录</span>
+                  </span>
+                  <em>一键授权 / 扫码</em>
+                </button>
+              ) : null}
+              {canWorkbuddy ? (
+                <button className="lg-oauth wb" onClick={() => void oauth('workbuddy')}>
+                  <span className="lg-oauth-left">
+                    <Icon name="seal" size={16} />
+                    <span>使用 WorkBuddy 登录</span>
+                  </span>
+                  <em>统一账号</em>
+                </button>
+              ) : null}
+            </>
+          ) : null}
 
           <div className="lg-agree">
             <button

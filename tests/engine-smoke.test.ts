@@ -242,11 +242,29 @@ describe('多人局（按牌组发牌）', () => {
     expect(['good', 'wolf']).toContain(engine.winner);
   }, 180_000);
 
-  it('12 人局也能发牌，且阵营统计覆盖全部座位', async () => {
+  it('6 人局（最小档）能打到结束，狼人数为 2', async () => {
+    const engine = await runWithDeck(6);
+    expect(engine.players).toHaveLength(6);
+    expect(engine.players.filter((p) => p.role === 'wolf')).toHaveLength(2);
+    expect(['good', 'wolf']).toContain(engine.winner);
+  }, 180_000);
+
+  it('10 人局能打到结束，3 狼 4 神 3 民', async () => {
+    const engine = await runWithDeck(10);
+    expect(engine.players).toHaveLength(10);
+    expect(engine.players.filter((p) => p.role === 'wolf')).toHaveLength(3);
+    const gods = engine.players.filter((p) => p.role !== 'wolf' && p.role !== 'villager');
+    expect(gods).toHaveLength(4);
+    expect(engine.players.filter((p) => p.role === 'villager')).toHaveLength(3);
+    expect(['good', 'wolf']).toContain(engine.winner);
+  }, 180_000);
+
+  it('12 人局（最大档）能发牌并打到结束', async () => {
     const engine = await runWithDeck(12);
     expect(engine.players).toHaveLength(12);
     const view = engine.spectateSnapshot();
     expect(view.factions.wolf.total + view.factions.good.total).toBe(12);
     expect(view.factions.wolf.total).toBe(4);
+    expect(['good', 'wolf']).toContain(engine.winner);
   }, 180_000);
 });

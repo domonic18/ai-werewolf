@@ -204,6 +204,20 @@ if (SKIP_GAME) {
   });
 }
 
+/* 12 人局是配置页最大档，也是唯一没被线上验证过的路径：至少验到「能发牌、座位数对」 */
+if (!SKIP_GAME && llmReady) {
+  await check('12 人局可开局（最大档牌组能发出来）', async () => {
+    const { status, body } = await postJson('/api/games', { playerName: '十二人回归', players: 12 });
+    assert(status === 200, `HTTP ${status} ${JSON.stringify(body).slice(0, 120)}`);
+    const snap = await getWith(`/api/games/${body.gameId}`, body.playerToken);
+    assert(snap.status === 200, `快照 HTTP ${snap.status}`);
+    assert(snap.body.players.length === 12, `期望 12 个座位，实际 ${snap.body.players.length}`);
+    /* 验完立刻退出，别让回归用例自己占着房间名额 */
+    await postJson(`/api/games/${body.gameId}/quit`, {}, body.playerToken);
+    return `12 座 · gameId=${body.gameId}`;
+  });
+}
+
 await check('无凭证读快照被拒绝（401，而不是交出真人身份）', async () => {
   /* 用真实对局验才有意义：不存在的 id 会先命中 404 */
   assert(gameId, '需要一个真实对局才能验证');

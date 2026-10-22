@@ -10,6 +10,7 @@ import { MatchStore } from '../src/cloud/match-store.js';
 import type { LLMService } from '../src/server/llm-service.js';
 import type { Snapshot, SpectateResponse } from '../src/shared/types.js';
 import { createMockLLM } from './helpers/mock-llm.js';
+import { permissiveLimiters } from './helpers/limiters.js';
 
 const mock = createMockLLM();
 
@@ -37,7 +38,7 @@ beforeAll(async () => {
   writeFileSync(path.join(staticDir, 'index.html'), '<!doctype html><title>spa</title><div id="root"></div>');
 
   rooms = new RoomManager({ llm, pace: 0.05 });
-  const app = createApp({ llm, rooms, matchStore: new MatchStore(null), staticDir });
+  const app = createApp({ llm, rooms, matchStore: new MatchStore(null), staticDir, limiters: permissiveLimiters() });
   await new Promise<void>((resolve) => app.listen(0, '127.0.0.1', resolve));
   server = app;
   base = `http://127.0.0.1:${(app.address() as AddressInfo).port}`;
@@ -229,6 +230,7 @@ describe('环境标识与测试环境数据隔离', () => {
 
   it('传入 staging 时健康检查如实上报', async () => {
     const stagingApp = createApp({
+      limiters: permissiveLimiters(),
       llm,
       rooms: new RoomManager({ llm, pace: 0 }),
       matchStore: new MatchStore(null),
@@ -361,6 +363,7 @@ describe('账号归属（匿名不阻塞）', () => {
 
   it('解析器返回账号时对局记录归属，且不影响开局', async () => {
     const app = createApp({
+      limiters: permissiveLimiters(),
       llm,
       rooms: new RoomManager({ llm, pace: 0.05 }),
       matchStore: new MatchStore(null),

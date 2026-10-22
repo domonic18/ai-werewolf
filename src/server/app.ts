@@ -83,6 +83,35 @@ async function serveStatic(
   }
 }
 
+/**
+ * 安全响应头：单页应用的默认风险是「被别的站点框住」与「资源类型嗅探」，
+ * CSP 在这里只做保守收紧（不允许内联脚本、不允许外域脚本），conncect 放开到 https
+ * 是因为登录 SDK 需要直连云服务域名。
+ */
+function applySecurityHeaders(req: http.IncomingMessage, res: http.ServerResponse): void {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'strict-origin-when-cross-origin');
+  res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=(), payment=()');
+  res.setHeader(
+    'Content-Security-Policy',
+    [
+      "default-src 'self'",
+      "script-src 'self'",
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: blob:",
+      "font-src 'self' data:",
+      "connect-src 'self' https:",
+      "frame-ancestors 'none'",
+      "base-uri 'self'",
+      "object-src 'none'",
+      "form-action 'self'",
+    ].join('; '),
+  );
+  const proto = String(req.headers['x-forwarded-proto'] ?? '').split(',')[0]?.trim();
+  if (proto === 'https') res.setHeader('Strict-Transport-Security', 'max-age=15552000; includeSubDomains');
+}
+
 export function createApp(options: AppOptions): http.Server {
   const staticDir = options.staticDir ?? STATIC_DIR;
   const ctx: ApiContext = {
@@ -92,9 +121,11 @@ export function createApp(options: AppOptions): http.Server {
     env: options.env ?? 'production',
     resolveOwner: options.resolveOwner,
     publicConfig: options.publicConfig,
+    limiters: options.limiters,
   };
 
   return http.createServer((req, res) => {
+    applySecurityHeaders(req, res);
     const url = req.url ?? '/';
     if (url.startsWith('/api/')) {
       void handleApi(req, res, ctx);

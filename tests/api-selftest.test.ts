@@ -2,6 +2,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import type { AddressInfo } from 'node:net';
 import type { Server } from 'node:http';
 import { createApp } from '../src/server/app.js';
+import { permissiveLimiters } from './helpers/limiters.js';
 import { RoomManager } from '../src/server/rooms.js';
 import { MatchStore } from '../src/cloud/match-store.js';
 import type { LLMService } from '../src/server/llm-service.js';
@@ -41,7 +42,7 @@ const post = async <T>(path: string, body?: unknown, token?: string): Promise<{ 
 
 beforeAll(async () => {
   const rooms = new RoomManager({ llm: llmStub, pace: 0.05 });
-  const app = createApp({ llm: llmStub, rooms, matchStore: new MatchStore(null) });
+  const app = createApp({ llm: llmStub, rooms, matchStore: new MatchStore(null), limiters: permissiveLimiters() });
   await new Promise<void>((resolve) => app.listen(0, '127.0.0.1', resolve));
   server = app;
   const address = app.address() as AddressInfo;
