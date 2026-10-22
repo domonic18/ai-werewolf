@@ -66,7 +66,17 @@ export async function main(): Promise<import('node:http').Server> {
   const matchStore = new MatchStore(() => llm.cloud, { readOnly: readOnlyMatches });
   const rooms = new RoomManager({ llm, matchStore });
 
-  const server = createApp({ llm, rooms, matchStore, env, publicConfig: { endpoint: config.endpoint, publishableKey: config.publishableKey } });
+  const server = createApp({
+    llm,
+    rooms,
+    matchStore,
+    env,
+    publicConfig: {
+      endpoint: config.endpoint,
+      publishableKey: config.publishableKey,
+      ...(config.oauthRelayBaseUrl ? { oauthRelayBaseUrl: config.oauthRelayBaseUrl } : {}),
+    },
+  });
   const port = Number(process.env.PORT ?? 3000);
 
   await new Promise<void>((resolve) => server.listen(port, '0.0.0.0', resolve));

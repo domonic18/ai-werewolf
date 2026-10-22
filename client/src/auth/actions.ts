@@ -1,17 +1,22 @@
 /**
  * 登录动作（SDK 适配层）。
  *
- * 严格按 SDK 类型定义实现（node_modules/@tencent-ai/workbuddy-cloud-sdk/lib/client-*.d.ts）：
- * - sendOtp(credentials: OtpCredentials) → CloudResult<OtpChallenge>
- *   手机号字段是 `phone_number`，并带 `target: 'ANY'`（新老用户都允许发码）；
- *   返回 `{ data: { verificationId, isExistingUser }, error }`。
- * - verifyOtp(params: VerifyOtpParams & { isExistingUser }) → CloudResult<CloudSession>
- *   必须同时带 verificationId + token + phone（与发码时一致）+ isExistingUser。
- * - signInWithOAuth({ provider }) → CloudResult<{ url }>
- *   SDK 不自己跳转，由调用方 location.assign；workbuddy 的 PKCE 存在当前标签页，
- *   所以必须同标签页跳转，不能 window.open。
+ * 契约来自 SDK **运行时实现**（node_modules/@tencent-ai/workbuddy-cloud-sdk/lib/chunk-*.js
+ * 的 `resolveAuthIdentifier` / `sendOtp` / `verifyOtp`），不是只看 .d.ts：
  *
- * 以上三条都来自类型定义，不再靠猜测字段名。
+ * - `sendOtp(credentials)`：运行时只认 `credentials.phone` / `credentials.email`
+ *   （`phone_number`、`target` 是 SDK 内部转发给上游的**请求体**字段，由它自己拼，
+ *   调用方传了也不会被读）。两个都不传 → 直接返回
+ *   "sendOtp requires exactly one of email or phone"。
+ *   返回 `{ data: { verificationId, isExistingUser }, error }`。
+ * - `verifyOtp(params)`：同样靠 `params.phone` 认人，另需 `verificationId` + `token`；
+ *   `isExistingUser` 决定走登录还是注册（由发码结果给出，SDK 不猜）。
+ *   返回 `{ data: { accessToken, refreshToken, expiresAt, user }, error }`。
+ * - `signInWithOAuth({ provider, redirectTo })`：返回 `{ data: { url } }`，
+ *   SDK 不代跳，必须由调用方 `location.assign`（workbuddy 走 PKCE，必须同标签页）。
+ *
+ * 教训（2026-10 三次线上故障）：字段名只能从运行时实现确认，不能凭 .d.ts 注释或猜测。
+ * tests/auth-actions.test.ts 用假 SDK 把这三条契约钉住了，改错会直接测试失败。
  */
 export type AuthResult<T> = { ok: true; data: T } | { ok: false; error: string };
 
@@ -29,44 +34,87 @@ interface OtpChallenge {
   isExistingUser: boolean;
 }
 
-type CloudResult<T> = { data: T | null; error: { message?: string; msg?: string } | null };
+interface CloudError {
+  kind?: string;
+  status?: number;
+  message?: string;
+  msg?: string;
+}
+
+type CloudResult<T> = { data: T | null; error: CloudError | null };
 
 interface CloudAuth {
-  sendOtp(credentials: { phone_number: string; target: 'ANY' }): Promise<CloudResult<OtpChallenge>>;
+  sendOtp(credentials: { phone: string }): Promise<CloudResult<OtpChallenge>>;
   verifyOtp(params: {
-    verificationId: string;
-    token: string;
     phone: string;
+    token: string;
+    verificationId: string;
     isExistingUser: boolean;
   }): Promise<CloudResult<CloudSession>>;
-  signInWithOAuth(options: { provider: 'wechat' | 'workbuddy' }): Promise<CloudResult<{ url: string }>>;
+  signInWithOAuth(options: {
+    provider: 'wechat' | 'workbuddy';
+    redirectTo?: string;
+  }): Promise<CloudResult<{ url: string }>>;
+}
+
+type CloudModule = {
+  createWorkBuddyCloud?: (options: Record<string, unknown>) => { auth?: CloudAuth };
+};
+
+interface AuthConfig {
+  endpoint: string;
+  publishableKey: string;
+  oauthRelayBaseUrl?: string;
 }
 
 let cached: CloudAuth | null | undefined;
+
+/** 失败时把缓存清回 undefined，下次点击重新初始化 —— 一次网络抖动不该让整页永久不可用 */
+function resetCache(): null {
+  cached = undefined;
+  return null;
+}
 
 async function getAuth(): Promise<CloudAuth | null> {
   if (cached !== undefined) return cached;
   try {
     const res = await fetch('/api/auth-config');
-    const cfg = (await res.json()) as { endpoint?: string | null; publishableKey?: string | null };
-    if (!cfg.endpoint || !cfg.publishableKey) {
-      cached = null;
-      return null;
-    }
-    const mod = (await import('@tencent-ai/workbuddy-cloud-sdk')) as unknown as {
-      createWorkBuddyCloud?: (options: Record<string, unknown>) => { auth?: CloudAuth };
-    };
+    const cfg = (await res.json()) as Partial<AuthConfig>;
+    if (!cfg.endpoint || !cfg.publishableKey) return resetCache();
+    const mod = (await import('@tencent-ai/workbuddy-cloud-sdk')) as unknown as CloudModule;
     const factory = mod.createWorkBuddyCloud;
-    cached = factory ? (factory({ endpoint: cfg.endpoint, publishableKey: cfg.publishableKey }).auth ?? null) : null;
+    if (!factory) return resetCache();
+    const options: Record<string, unknown> = {
+      endpoint: cfg.endpoint,
+      publishableKey: cfg.publishableKey,
+    };
+    if (cfg.oauthRelayBaseUrl) options.oauthRelayBaseUrl = cfg.oauthRelayBaseUrl;
+    const client = factory(options);
+    cached = client.auth ?? null;
     return cached;
   } catch {
-    cached = null;
-    return null;
+    return resetCache();
   }
 }
 
-const errText = (error: { message?: string; msg?: string } | null): string =>
-  error?.message ?? error?.msg ?? '未知错误';
+function errText(error: CloudError | null): string {
+  if (!error) return '未知错误';
+  const message = error.message ?? error.msg;
+  if (message) return message;
+  return `登录服务返回错误（kind=${error.kind ?? 'unknown'}，status=${error.status ?? 0}）`;
+}
+
+/** 兜底：个别上游响应不带 `sub`，从 JWT 里取 `sub` 当 userId，避免拿到空 id 直接判失败 */
+function fallbackUserId(accessToken: string): string {
+  const parts = accessToken.split('.');
+  if (parts.length !== 3) return '';
+  try {
+    const payload = JSON.parse(atob(parts[1].replace(/-/g, '+').replace(/_/g, '/'))) as { sub?: string };
+    return typeof payload.sub === 'string' ? payload.sub : '';
+  } catch {
+    return '';
+  }
+}
 
 /** 发码：返回 verificationId 与「是否老用户」（后者决定验码走登录还是注册） */
 export async function sendOtp(
@@ -75,17 +123,18 @@ export async function sendOtp(
   const auth = await getAuth();
   if (!auth) return { ok: false, error: NOT_READY };
   try {
-    const result = await auth.sendOtp({ phone_number: phone, target: 'ANY' });
+    /* 运行时只认 `phone`；SDK 自己归一化成 `+86 xxx` 并补 `target: 'ANY'` */
+    const result = await auth.sendOtp({ phone });
     if (result.error) return { ok: false, error: errText(result.error) };
     const data = result.data;
     if (!data?.verificationId) return { ok: false, error: '验证码已发出，但没有拿到 verificationId' };
-    return { ok: true, data: { verificationId: data.verificationId, isExistingUser: data.isExistingUser } };
+    return { ok: true, data: { verificationId: data.verificationId, isExistingUser: data.isExistingUser === true } };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : '验证码发送失败' };
   }
 }
 
-/** 验码：四个参数缺一不可，phone 必须与发码时一致 */
+/** 验码：phone 必须与发码时一致，isExistingUser 来自发码结果 */
 export async function verifyOtp(params: {
   phone: string;
   code: string;
@@ -96,17 +145,20 @@ export async function verifyOtp(params: {
   if (!auth) return { ok: false, error: NOT_READY };
   try {
     const result = await auth.verifyOtp({
-      verificationId: params.verificationId,
-      token: params.code,
       phone: params.phone,
+      token: params.code,
+      verificationId: params.verificationId,
       isExistingUser: params.isExistingUser,
     });
     if (result.error) return { ok: false, error: errText(result.error) };
     const session = result.data;
-    if (!session?.accessToken || !session.user?.id) {
-      return { ok: false, error: '验码成功但会话信息不完整' };
-    }
-    return { ok: true, data: { accessToken: session.accessToken, userId: session.user.id, expiresAt: session.expiresAt } };
+    if (!session?.accessToken) return { ok: false, error: '验码成功但会话信息不完整' };
+    const userId = session.user?.id || fallbackUserId(session.accessToken);
+    if (!userId) return { ok: false, error: '验码成功但拿不到用户标识' };
+    return {
+      ok: true,
+      data: { accessToken: session.accessToken, userId, expiresAt: session.expiresAt ?? 0 },
+    };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : '验证码校验失败' };
   }

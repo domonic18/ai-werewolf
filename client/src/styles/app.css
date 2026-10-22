@@ -83,6 +83,9 @@ body {
 .rule b { font-size: 12.5px; }
 .rule i { font-size: 11px; color: var(--muted); font-style: normal; line-height: 1.5; }
 .hint { font-size: 12px; color: var(--muted); line-height: 1.65; margin: 10px 0 0; }
+/* 登录页的结果提示：紧跟按钮，失败要一眼看见，不能藏在页尾 */
+.login-msg { margin: 10px 0 0; font-size: 12.5px; line-height: 1.6; padding: 9px 11px; border-radius: 12px; border: 1px solid rgba(106, 214, 168, 0.28); background: rgba(106, 214, 168, 0.09); color: var(--good); word-break: break-word; }
+.login-msg.err { border-color: rgba(255, 107, 107, 0.32); background: rgba(255, 107, 107, 0.09); color: #ff9b9b; }
 .foot { text-align: center; font-size: 11px; color: #5b627a; margin-top: 18px; line-height: 1.7; }
 .foot a { color: inherit; }
 

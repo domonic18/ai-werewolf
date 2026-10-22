@@ -18,7 +18,8 @@ export function LoginPage({ onBack, onSignedIn }: LoginPageProps): JSX.Element {
   const [isExistingUser, setIsExistingUser] = useState(true);
   const [sending, setSending] = useState(false);
   const [verifying, setVerifying] = useState(false);
-  const [hint, setHint] = useState<string | null>(null);
+  /* 提示紧跟按钮显示：失败信息藏在页面底部会被当成「点了没反应」 */
+  const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
   useEffect(() => {
     if (countdown <= 0) return;
@@ -31,37 +32,37 @@ export function LoginPage({ onBack, onSignedIn }: LoginPageProps): JSX.Element {
   const requestCode = async (): Promise<void> => {
     if (!validPhone || countdown > 0) return;
     setSending(true);
-    setHint(null);
+    setMsg(null);
     const result = await sendOtp(phone);
     setSending(false);
     if (result.ok) {
       setVerificationId(result.data.verificationId);
       setIsExistingUser(result.data.isExistingUser);
       setCountdown(60);
-      setHint('验证码已发送，请查收短信');
+      setMsg({ kind: 'ok', text: '验证码已发送，请查收短信' });
     } else {
-      setHint(result.error);
+      setMsg({ kind: 'err', text: `发送失败：${result.error}` });
     }
   };
 
   const submit = async (): Promise<void> => {
     if (!validPhone || code.trim().length < 4) return;
     setVerifying(true);
-    setHint(null);
+    setMsg(null);
     const result = await verifyOtp({ phone, code: code.trim(), verificationId, isExistingUser });
     setVerifying(false);
     if (result.ok) {
       setSession({ accessToken: result.data.accessToken, userId: result.data.userId, expiresAt: 0 });
       onSignedIn();
     } else {
-      setHint(result.error);
+      setMsg({ kind: 'err', text: `登录失败：${result.error}` });
     }
   };
 
   const oauth = async (provider: 'wechat' | 'workbuddy'): Promise<void> => {
-    setHint(null);
+    setMsg(null);
     const result = await signInWithOAuth(provider);
-    if (!result.ok) setHint(result.error);
+    if (!result.ok) setMsg({ kind: 'err', text: `拉起失败：${result.error}` });
   };
 
   return (
@@ -108,6 +109,7 @@ export function LoginPage({ onBack, onSignedIn }: LoginPageProps): JSX.Element {
         >
           {verifying ? '登录中…' : '登录 / 注册'}
         </button>
+        {msg ? <p className={msg.kind === 'err' ? 'login-msg err' : 'login-msg'}>{msg.text}</p> : null}
         <p className="hint">同一按钮覆盖新老用户，不会暴露手机号是否已注册。</p>
       </div>
 
@@ -121,8 +123,6 @@ export function LoginPage({ onBack, onSignedIn }: LoginPageProps): JSX.Element {
         </button>
         <p className="hint">这两种需要已发布的 HTTPS 域名回调，本地预览不可用。</p>
       </div>
-
-      {hint ? <p className="hint" style={{ textAlign: 'center' }}>{hint}</p> : null}
 
       <p className="hint" style={{ textAlign: 'center', opacity: 0.7 }}>
         不登录也能玩 —— 登录只是让战绩与对局跟着账号走 · v{APP_VERSION}
