@@ -324,3 +324,45 @@ body {
 .empty-lobby { text-align: center; padding: 26px 18px; }
 .empty-lobby .empty-emoji { font-size: 40px; margin-bottom: 8px; }
 .empty-lobby .btn { margin-top: 14px; }
+
+/* ---------- 阵营存活条（观战） ---------- */
+.factionbar {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px 12px;
+  margin-bottom: 10px;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--line);
+}
+.faction-row { display: flex; align-items: center; gap: 8px; }
+.faction-label { flex: 0 0 62px; font-size: 11.5px; color: #dfe4f2; white-space: nowrap; }
+.faction-track { flex: 1; height: 7px; border-radius: 999px; background: rgba(255, 255, 255, 0.08); overflow: hidden; }
+.faction-fill { display: block; height: 100%; border-radius: 999px; transition: width 0.35s ease; }
+.faction-row.wolf .faction-fill { background: linear-gradient(90deg, rgba(255, 107, 107, 0.5), var(--wolf)); }
+.faction-row.good .faction-fill { background: linear-gradient(90deg, rgba(106, 214, 168, 0.5), var(--good)); }
+.faction-count { flex: 0 0 28px; text-align: right; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+
+/* ---------- 复盘时间轴 ---------- */
+.timeline { display: flex; flex-direction: column; gap: 10px; }
+.timeline-hint { font-size: 11px; color: var(--muted); }
+.timeline-row { display: flex; gap: 10px; align-items: flex-start; }
+.timeline-badge {
+  flex: 0 0 auto;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--gold);
+  background: rgba(246, 199, 106, 0.14);
+  border: 1px solid rgba(246, 199, 106, 0.3);
+  white-space: nowrap;
+}
+.timeline-lines { display: flex; flex-direction: column; gap: 3px; padding-top: 2px; min-width: 0; }
+.timeline-line { font-size: 12.5px; line-height: 1.6; color: #dfe4f2; }
+.timeline-line.tone-wolf { color: #ffb3b3; }
+.timeline-line.tone-poison { color: #c9bcff; }
+.timeline-line.tone-save { color: var(--good); }
+.timeline-line.tone-vote { color: var(--gold); }
+.timeline-line.tone-calm { color: var(--muted); }

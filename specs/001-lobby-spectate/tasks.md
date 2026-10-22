@@ -28,7 +28,7 @@ description: "Task list for 001 游戏大厅与对局观战"
 
 ## Phase 2: Foundational（阻塞项，必须先完成）
 
-- [ ] T004 `src/game/engine.js` 新增 `this.timeline[]` 累积：每次夜晚结算后写入 `{night, deaths:[{seat,name,cause,saved,guarded}]}`（1d）
+- [x] T004 `src/game/engine.ts` 新增 `timeline: NightRecord[]`：夜晚结算写入狼刀/解药/毒药/死因，投票后补 `exiled`/`tie`（1d）
 - [x] T005 票型从 `vote` 事件派生（实现为 `client/src/lib/tally.ts` 纯函数，引擎不新增状态——事件流即唯一事实来源）（0.5d）
 - [ ] T006 [P] `src/game/engine.js` 新增 `factionsOf()`：按阵营聚合存活数与初始数（0.5d）
 - [x] T007 `src/server/rooms.js` 增加 `spectators: Map<clientId, lastSeenAt>`、`touch(clientId)`、`pruneSpectators(30s)`、`spectatorCount`（0.5d）
@@ -61,8 +61,8 @@ description: "Task list for 001 游戏大厅与对局观战"
 - [x] T016 [US2] 写操作守卫：`/action`、`/quit` 校验 `X-Player-Token`，无凭证 401（实现为 P0-a 一次性凭证，比 403 更严格）（0.5d）
 - [x] T017 [P] [US2] `tests/server-hardening.test.ts` 新增隐私断言：观战快照能读到他人 `role`；玩家快照 `players[].role` 不存在；夜晚事件流无「玩家名+行为词」共现（1d）
 - [x] T018 [P] [US2] `tests/server-hardening.test.ts` 新增观战写断言：观战者 `POST /action` → 403，且 `version` 不变（0.3d）
-- [ ] T019 [US2] 观战视图前端：身份座位卡（阵营色）、阵营存活进度条、夜晚时间轴、「延迟/实时」标注（1.5d）
-- [ ] T020 [US2] 观战终局与失效：`game-over`/`aborted`/404 三态切换与回大厅入口（0.5d）
+- [x] T019 [US2] 观战视图前端：身份座位卡、阵营存活进度条（`FactionBar`）、实时票型；「延迟/实时」标注随 Q3 待定（1.5d）
+- [x] T020 [US2] 观战终局与失效：结算页按当前视角判定结束（修掉观战永远进不去结算页的 bug）、观战走上帝视角时间轴、「离开观战」入口（0.5d）
 
 **独立验收**：同一局分别用玩家与观战身份请求，字段对照表通过；观战页 390px 无横向滚动；中途结束/中止均有明确终态。
 
@@ -81,7 +81,7 @@ description: "Task list for 001 游戏大厅与对局观战"
 ## Phase 6: US4（P2）局势可读
 
 - [x] T024 [US4] 对局页接入 `tally`：投票阶段实时条形 + 座位得票角标（只在事件到达时增长）（1d）
-- [ ] T025 [US4] 结算页时间轴：每晚死亡/死因/是否被救被守（1d）
+- [x] T025 [US4] 结算页时间轴：玩家看公开信息、观战看死因/用药/票数（`RoundTimeline` + `lib/timeline.ts`）（1d）
 - [ ] T026 [P] [US4] `tests/engine-smoke.test.js` 断言：女巫/守卫参与时 `saved`、`guarded` 字段与实际用药一致（0.5d）
 - [ ] T027 [US4] 移动端走查：安全区、字号、横竖屏（0.5d）
 

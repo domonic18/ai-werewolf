@@ -323,7 +323,8 @@ if (gameId) {
     assert(!('pendingAction' in body.snapshot), '观战投影泄露了 pendingAction');
     assert(!('myRole' in body.snapshot), '观战投影不该有 myRole');
     assert(typeof body.spectators === 'number', '缺少 spectators');
-    return `${seats.length} 座 · 狼 ${wolf.alive}/${wolf.total} · 观战 ${body.spectators}`;
+    assert(Array.isArray(body.snapshot.timeline), '观战投影缺少 timeline');
+    return `${seats.length} 座 · 狼 ${wolf.alive}/${wolf.total} · 观战 ${body.spectators} · 时间轴 ${body.snapshot.timeline.length} 轮`;
   });
 
   await check('观战者拿不到凭证也无法操作', async () => {

@@ -81,6 +81,8 @@ export interface Snapshot {
   seerChecks: SeerCheck[] | null;
   witchPotions: { antidote: boolean; poison: boolean } | null;
   lastNightText: string;
+  /** 玩家可见的复盘时间轴（不含死因与用药） */
+  review: PublicRoundReview[];
   pendingAction: PendingAction | null;
   players: SeatView[];
 }
@@ -107,6 +109,33 @@ export interface SpeechPayload {
   /** 本轮第几位发言（从 1 开始） */
   order?: number;
   total?: number;
+}
+
+/* ---------- 复盘时间轴 ---------- */
+
+/** 上帝视角的一夜 + 一天：狼刀/解药/毒药/放逐全量 */
+export interface NightRecord {
+  round: number;
+  /** 狼刀目标（可能被救，等于没有人出局） */
+  wolfTarget: { playerId: number; name: string } | null;
+  /** 是否被女巫救下 */
+  saved: boolean;
+  /** 毒药目标 */
+  poisonTarget: { playerId: number; name: string } | null;
+  /** 当晚实际出局及其死因 */
+  deaths: { playerId: number; name: string; seat: number; cause: 'wolf' | 'poison' }[];
+  /** 当天放逐结果；平票为 null */
+  exiled: { playerId: number; name: string; role: RoleKey; votes: number } | null;
+  /** 当天是否平票 */
+  tie: boolean;
+}
+
+/** 玩家可见的复盘：只知道谁出局、谁被放逐，不知道死因与用药 */
+export interface PublicRoundReview {
+  round: number;
+  deadNames: string[];
+  exiled: { name: string; role: RoleKey } | null;
+  tie: boolean;
 }
 
 export interface VoteResultPayload {
@@ -250,6 +279,8 @@ export interface SpectateSnapshot {
   winner: Team | null;
   aborted: { reason: string } | null;
   players: SpectateSeat[];
+  /** 上帝视角复盘时间轴：狼刀/解药/毒药/放逐 */
+  timeline: NightRecord[];
   /** 阵营存活统计，观战页用来画双方进度条 */
   factions: {
     wolf: { alive: number; total: number };

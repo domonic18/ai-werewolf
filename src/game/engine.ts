@@ -22,6 +22,7 @@ import type {
   Snapshot,
   SpectateSeat,
   SpectateSnapshot,
+  NightRecord,
   Team,
   Thought,
 } from '../shared/types.js';
@@ -75,6 +76,8 @@ export class GameEngine implements GameView {
   round = 0;
   publicLog: string[] = [];
   lastNightText = '';
+  /** 复盘时间轴：每夜/每天一条，上帝视角全量；玩家视角只取其中公开部分 */
+  timeline: NightRecord[] = [];
   winner: Team | null = null;
   aborted: { reason: string } | null = null;
   phase: Phase = 'lobby';
@@ -214,6 +217,13 @@ export class GameEngine implements GameView {
           ? { antidote: this.human.antidote, poison: this.human.poison }
           : null,
       lastNightText: this.lastNightText,
+      /* 复盘：玩家只该知道「谁出局、谁被放逐」，死因与用药属于女巫私有信息 */
+      review: this.timeline.map((r) => ({
+        round: r.round,
+        deadNames: r.deaths.map((d) => d.name),
+        exiled: r.exiled ? { name: r.exiled.name, role: r.exiled.role } : null,
+        tie: r.tie,
+      })),
       pendingAction: this.pendingAction,
       players: seats,
     };
@@ -249,6 +259,7 @@ export class GameEngine implements GameView {
       winner: this.winner,
       aborted: this.aborted,
       players: seats,
+      timeline: this.timeline,
       factions: { wolf: tally('wolf'), good: tally('good') },
     };
   }
@@ -514,11 +525,44 @@ export class GameEngine implements GameView {
       if (poisoned && !dead.includes(poisoned)) dead.push(poisoned);
     }
     for (const p of dead) this.kill(p);
+
+    /* 复盘记录：狼刀/解药/毒药/死因全部留档（只在观战投影里对外，玩家视角会被裁剪） */
+    const record = this.recordOf(this.round);
+    const wolfVictim = this.nightKill != null ? this.byId(this.nightKill) : undefined;
+    const poisonVictim = this.poisonId != null ? this.byId(this.poisonId) : undefined;
+    record.wolfTarget = wolfVictim ? { playerId: wolfVictim.id, name: wolfVictim.name } : null;
+    record.saved = this.saved;
+    record.poisonTarget = poisonVictim ? { playerId: poisonVictim.id, name: poisonVictim.name } : null;
+    record.deaths = dead.map((p) => ({
+      playerId: p.id,
+      name: p.name,
+      seat: p.seat,
+      cause: p.id === this.poisonId && p.id !== this.nightKill ? 'poison' : 'wolf',
+    }));
+
     this.lastNightText = dead.length ? `${dead.map((p) => p.name).join('、')} 出局` : '平安夜';
     this.pushEvent('night-settle', { dead: dead.map((p) => p.id), text: this.lastNightText });
   }
 
   /** 演出节奏：只影响等待时长，不影响任何规则判定 */
+  /** 取（或创建）本轮的复盘记录；夜晚先写，白天投票后补 exiled */
+  private recordOf(round: number): NightRecord {
+    let record = this.timeline.find((r) => r.round === round);
+    if (!record) {
+      record = {
+        round,
+        wolfTarget: null,
+        saved: false,
+        poisonTarget: null,
+        deaths: [],
+        exiled: null,
+        tie: false,
+      };
+      this.timeline.push(record);
+    }
+    return record;
+  }
+
   private pause(ms: number): Promise<void> {
     return this.pace === 1 ? sleep(ms) : sleep(Math.round(ms * this.pace));
   }
@@ -685,6 +729,7 @@ export class GameEngine implements GameView {
 
     if (top.length > 1) {
       this.log('平票，本轮无人出局', 'sys');
+      this.recordOf(this.round).tie = true;
       this.pushEvent('vote-result', { tie: true, names: top.map((id) => this.byId(id)?.name ?? '?') });
       return;
     }
@@ -695,6 +740,7 @@ export class GameEngine implements GameView {
     out.revealRole = true;
     out.deadRound = this.round;
     const name = ROLES[out.role].name;
+    this.recordOf(this.round).exiled = { playerId: out.id, name: out.name, role: out.role, votes: max };
     this.log(`${out.name} 被放逐，身份是${name}`, 'death');
     this.publicLog.push(`第${this.round}天 ${out.name} 被放逐，身份：${name}`);
     this.pushEvent('vote-result', {

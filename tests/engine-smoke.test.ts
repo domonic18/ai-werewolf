@@ -88,3 +88,40 @@ describe('对局引擎冒烟（Mock LLM，10 局）', () => {
     }
   }, 120_000);
 });
+
+describe('复盘时间轴', () => {
+  it('每局都留下与轮次一致的记录，且玩家视角不含死因与用药', async () => {
+    const { engine } = await runOnce(42);
+    const records = engine.timeline;
+
+    expect(records.length).toBeGreaterThan(0);
+    /* 结束时的轮次应等于最后一条记录（中途不跳号） */
+    expect(records.at(-1)?.round).toBe(engine.round);
+    expect(records.map((r) => r.round)).toEqual([...records.map((r) => r.round)].sort((a, b) => a - b));
+
+    /* 上帝视角：字段齐全 */
+    for (const rec of records) {
+      expect(Array.isArray(rec.deaths)).toBe(true);
+      expect(typeof rec.saved).toBe('boolean');
+      expect(typeof rec.tie).toBe('boolean');
+    }
+
+    /* 玩家视角：只有公开信息 */
+    const review = engine.snapshot(engine.human.id).review;
+    expect(review).toHaveLength(records.length);
+    for (const item of review) {
+      expect(Object.keys(item).sort()).toEqual(['deadNames', 'exiled', 'round', 'tie']);
+      expect(JSON.stringify(item)).not.toContain('saved');
+      expect(JSON.stringify(item)).not.toContain('cause');
+    }
+  }, 120_000);
+
+  it('观战投影带全量时间轴与阵营统计', async () => {
+    const { engine } = await runOnce(43);
+    const view = engine.spectateSnapshot();
+    expect(view.timeline).toHaveLength(engine.timeline.length);
+    expect(view.timeline[0]?.round).toBe(1);
+    expect(view.factions.wolf.total + view.factions.good.total).toBe(engine.players.length);
+    expect(view).not.toHaveProperty('pendingAction');
+  }, 120_000);
+});

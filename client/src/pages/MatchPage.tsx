@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { api } from '../api/client';
 import { EventLog } from '../components/EventLog';
 import { PromptPanel } from '../components/PromptPanel';
+import { FactionBar } from '../components/FactionBar';
 import { SeatGrid } from '../components/SeatGrid';
 import type { SeatLike } from '../components/SeatGrid';
 import { SpeechLog } from '../components/SpeechLog';
@@ -124,6 +125,8 @@ export function MatchPage({ lost, lostReason }: MatchPageProps): JSX.Element {
           </button>
         </div>
       ) : null}
+
+      {watching && spectate ? <FactionBar factions={spectate.factions} /> : null}
 
       <SeatGrid
         players={players}

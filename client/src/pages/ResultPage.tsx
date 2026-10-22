@@ -1,12 +1,22 @@
 import { useMemo } from 'react';
 import { ROLES } from '@shared/roles';
 import type { GameEvent } from '@shared/types';
+import { RoundTimeline } from '../components/RoundTimeline';
+import { timelineFromRecords, timelineFromReview } from '../lib/timeline';
 import { useGameStore } from '../store/gameStore';
 
 export function ResultPage(): JSX.Element {
   const events = useGameStore((s) => s.events);
   const snapshot = useGameStore((s) => s.snapshot);
+  const spectate = useGameStore((s) => s.spectate);
+  const watching = useGameStore((s) => s.watching);
   const close = useGameStore((s) => s.close);
+
+  /* 观战者只有上帝视角投影；玩家只有公开复盘 —— 两种来源整成同一套渲染结构 */
+  const timeline = useMemo(
+    () => (watching ? timelineFromRecords(spectate?.timeline ?? []) : timelineFromReview(snapshot?.review ?? [])),
+    [watching, spectate?.timeline, snapshot?.review],
+  );
 
   const over = useMemo(
     () => [...events].reverse().find((e): e is Extract<GameEvent, { type: 'game-over' }> => e.type === 'game-over'),
@@ -36,7 +46,7 @@ export function ResultPage(): JSX.Element {
             否则你玩到的就不是智能体了。
           </p>
           <button className="btn primary big" onClick={close}>
-            再来一局
+            {watching ? '离开观战' : '再来一局'}
           </button>
         </div>
       </section>
@@ -44,7 +54,7 @@ export function ResultPage(): JSX.Element {
   }
 
   const { winner, reveal, thoughts, log } = over.payload;
-  const myRole = snapshot?.myRole ?? null;
+  const myRole = watching ? null : snapshot?.myRole ?? null;
   const humanWin = myRole ? (winner === 'good') === (myRole !== 'wolf') : false;
 
   return (
@@ -57,7 +67,9 @@ export function ResultPage(): JSX.Element {
         <p>
           {myRole
             ? `你扮演 ${ROLES[myRole].name}，${humanWin ? '这一局站对了边' : '这局输了 —— 复盘里能看到 AI 怎么骗你的'}。`
-            : ''}
+            : watching
+              ? '你是这一局的观众 —— 下面是上帝视角复盘。'
+              : ''}
         </p>
       </div>
 
@@ -78,6 +90,11 @@ export function ResultPage(): JSX.Element {
             </div>
           ))}
         </div>
+      </div>
+
+      <div className="panel">
+        <div className="panel-title">回合时间轴</div>
+        <RoundTimeline entries={timeline} detailed={watching} />
       </div>
 
       <div className="panel">
