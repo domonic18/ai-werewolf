@@ -23,6 +23,11 @@ WorkBuddy「1024 造物挑战」参赛作品。6 人局狼人杀：1 名真人�
 |---|---|---|
 | ![登录](docs/screenshots/login.png) | ![游戏大厅](docs/screenshots/lobby.png) | ![观战](docs/screenshots/spectate.png) |
 
+**夜晚过场**：全屏压暗、月盘升起，法官口令一句一句落下，配一层程序化合成的低频环境音
+（可一键静音、可跳过；有玩家要决策时立刻让位，绝不挡回合）。
+
+![夜幕](docs/screenshots/night.png)
+
 > 视觉规范见 [docs/standard/DESIGN-V2.md](docs/standard/DESIGN-V2.md)：暖黑纸面 + 发丝线 + 旧黄铜单一强调色，
 > 全部 emoji 已换成自绘 1.5px SVG 图标与矢量人物头像。
 

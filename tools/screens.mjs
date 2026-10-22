@@ -90,6 +90,48 @@ await page.waitForTimeout(1500);
 await page.screenshot({ path: join(outDir, 'match.png'), fullPage: true });
 console.log('✓ match');
 
+/*
+ * 夜幕：这是唯一「按时间才有」的画面 —— 天亮后过场就收了。
+ * 一边用接口推进对局，一边看页面上有没有 .nc（过场）或 .ig-night（夜幕条），
+ * 抓到就截图；抓不到不算失败（对局随机，真人可能是夜里要决策的那个角色）。
+ */
+async function captureNight(page, gameId, token, maxTries = 90) {
+  for (let i = 0; i < maxTries; i++) {
+    const snap = await api(`/api/games/${gameId}`, { headers: { 'x-player-token': token } });
+    if (snap.phase === 'over') return false;
+    if (snap.phase === 'night') {
+      if (await page.locator('.nc').count()) {
+        await page.waitForTimeout(1500);
+        await page.screenshot({ path: join(outDir, 'night.png') });
+        return 'curtain';
+      }
+      if (await page.locator('.ig-night').count()) {
+        await page.waitForTimeout(500);
+        await page.screenshot({ path: join(outDir, 'night.png'), fullPage: true });
+        return 'strip';
+      }
+    }
+    const pending = snap.pendingAction;
+    if (pending) {
+      const value = pending.kind === 'input' ? '我先听一圈，暂时不站边。' : (pending.options[0]?.value ?? 1);
+      await api(`/api/games/${gameId}/action`, {
+        method: 'POST',
+        headers: { 'x-player-token': token },
+        body: JSON.stringify({ value }),
+      });
+    }
+    await new Promise((r) => setTimeout(r, 700));
+  }
+  return false;
+}
+
+try {
+  const kind = await captureNight(page, game.gameId, game.playerToken);
+  console.log(kind ? `✓ night (${kind})` : '- night 未捕获（对局没走到夜里）');
+} catch (e) {
+  console.log(`- night 跳过：${e.message}`);
+}
+
 /* 观战：同一个对局，用一个干净的无凭证上下文打开 #watch 深链 */
 const viewer = await browser.newContext({
   viewport: { width: 390, height: 844 },
