@@ -10,6 +10,10 @@ const record = (patch: Partial<NightRecord> = {}): NightRecord => ({
   deaths: [],
   exiled: null,
   tie: false,
+  guardTarget: null,
+  guarded: false,
+  pierced: false,
+  hunterShot: null,
   ...patch,
 });
 
@@ -47,6 +51,24 @@ describe('上帝视角时间轴（timelineFromRecords）', () => {
     ]);
     expect(exiled?.lines.at(-1)).toEqual({ tone: 'vote', text: '放逐 七喜（狼人，4 票）' });
     expect(tie?.lines.at(-1)).toEqual({ tone: 'calm', text: '投票平票，无人出局' });
+  });
+
+  it('守卫：挡刀成功与奶穿分别标注', () => {
+    const [blocked, pierced] = timelineFromRecords([
+      record({ guardTarget: { playerId: 3, name: '小满' }, guarded: true, wolfTarget: { playerId: 3, name: '小满' } }),
+      record({ round: 2, guardTarget: { playerId: 3, name: '小满' }, saved: true, pierced: true, wolfTarget: { playerId: 3, name: '小满' } }),
+    ]);
+    expect(blocked?.lines.some((l) => l.text.includes('挡住狼刀'))).toBe(true);
+    expect(pierced?.lines.some((l) => l.text.includes('同守同救'))).toBe(true);
+  });
+
+  it('猎人开枪与压枪都有明确文案', () => {
+    const [shot, hold] = timelineFromRecords([
+      record({ hunterShot: { hunterId: 4, name: '老K', targetId: 5, targetName: '七喜' } }),
+      record({ round: 2, hunterShot: { hunterId: 4, name: '老K', targetId: null, targetName: null } }),
+    ]);
+    expect(shot?.lines.some((l) => l.text === '猎人 老K 开枪带走 七喜')).toBe(true);
+    expect(hold?.lines.some((l) => l.text === '猎人 老K 压枪未开')).toBe(true);
   });
 
   it('狼人没出刀时明确写出来，而不是显示平安夜了事', () => {

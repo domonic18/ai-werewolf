@@ -56,6 +56,11 @@ export function timelineFromRecords(records: NightRecord[]): TimelineEntry[] {
       lines.push({ tone: 'calm', text: '狼人没有出刀' });
     }
 
+    if (rec.guardTarget) {
+      const suffix = rec.pierced ? '（与解药冲突，同守同救仍死亡）' : rec.guarded ? '（挡住狼刀）' : '';
+      lines.push({ tone: rec.pierced ? 'wolf' : 'save', text: `守卫守护 ${rec.guardTarget.name}${suffix}` });
+    }
+
     if (rec.poisonTarget) {
       lines.push({ tone: 'poison', text: `女巫下毒 ${rec.poisonTarget.name}` });
     }
@@ -65,6 +70,15 @@ export function timelineFromRecords(records: NightRecord[]): TimelineEntry[] {
       lines.push({ tone: 'wolf', text: `出局：${detail}` });
     } else {
       lines.push({ tone: 'calm', text: '平安夜，无人出局' });
+    }
+
+    if (rec.hunterShot) {
+      lines.push({
+        tone: 'vote',
+        text: rec.hunterShot.targetName
+          ? `猎人 ${rec.hunterShot.name} 开枪带走 ${rec.hunterShot.targetName}`
+          : `猎人 ${rec.hunterShot.name} 压枪未开`,
+      });
     }
 
     if (rec.exiled) {
