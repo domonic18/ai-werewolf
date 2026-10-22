@@ -96,12 +96,113 @@
         this.version = 0;
         $('speechList').innerHTML = '';
         $('logList').innerHTML = '';
+        $('speechOrder').style.display = 'none';
+        this._spoken = new Set();
+        try { localStorage.setItem('ww_game', r.gameId); } catch (_) {}
         this.show('screen-game');
         this.pollLoop();
       } catch (e) {
         alert('开局失败：' + e.message);
         $('btnStart').disabled = false;
       }
+    },
+
+    /* 断线恢复：首页检查是否有进行中的对局 */
+    async checkResume() {
+      let gid = null;
+      try { gid = localStorage.getItem('ww_game'); } catch (_) {}
+      if (!gid) return;
+      try {
+        const d = await this.api(`/games/${gid}`);
+        if (d && !d.winner && !d.aborted) {
+          $('resumePanel').style.display = 'block';
+          $('btnResume').onclick = () => {
+            this.gameId = gid;
+            this.version = 0;
+            $('speechList').innerHTML = '';
+            $('logList').innerHTML = '';
+            $('resumePanel').style.display = 'none';
+            this.show('screen-game');
+            this.pollLoop();
+          };
+          $('btnDropGame').onclick = async () => {
+            try { await this.api(`/games/${gid}/quit`, {}); } catch (_) {}
+            try { localStorage.removeItem('ww_game'); } catch (_) {}
+            $('resumePanel').style.display = 'none';
+          };
+        } else {
+          try { localStorage.removeItem('ww_game'); } catch (_) {}
+        }
+      } catch (_) {
+        try { localStorage.removeItem('ww_game'); } catch (_) {}
+      }
+    },
+
+    /* 进行中对局列表（大厅） */
+    async loadLive() {
+      try {
+        const d = await this.api('/live');
+        const box = $('liveList');
+        const games = d.games || [];
+        $('liveCount').textContent = games.length ? `${games.length} 局` : '';
+        if (!games.length) {
+          box.innerHTML = '<div class="empty">现在没有进行中的对局，开一局让大家围观</div>';
+          return;
+        }
+        box.innerHTML = games.map(g => {
+          const phaseText = g.phase === 'night' ? `第${g.round}夜` : g.phase === 'vote' ? `第${g.round}天·投票` : `第${g.round}天`;
+          return `<div class="recent-item">
+            <span class="who">👤 ${esc(g.host)} 的对局</span>
+            <span class="tag win">${phaseText}</span>
+            <span class="when">存活${g.alive}/${g.players} · <a href="#" onclick="return false" data-watch="${g.gameId}" style="color:var(--gold)">观战</a></span>
+          </div>`;
+        }).join('');
+        box.querySelectorAll('[data-watch]').forEach(a => {
+          a.onclick = () => this.watch(a.dataset.watch);
+        });
+      } catch (_) {
+        $('liveList').innerHTML = '<div class="empty">大厅暂时不可用</div>';
+      }
+    },
+
+    /* 观战：只读事件流 */
+    async watch(gameId) {
+      this.gameId = null;
+      clearTimeout(this.pollTimer);
+      this.watchId = gameId;
+      this.watchSince = 0;
+      $('speechList').innerHTML = '';
+      $('logList').innerHTML = '';
+      this.show('screen-game');
+      $('myRoleChip').innerHTML = '<b>👁 观战模式</b>';
+      const loop = async () => {
+        if (!this.watchId) return;
+        try {
+          const r = await fetch(`/api/games/${gameId}/spectate?since=${this.watchSince}`);
+          const d = await r.json();
+          this.watchSince = d.version;
+          (d.events || []).forEach(ev => this.renderEvent(ev, { players: [], round: (d.events || []).length ? undefined : undefined, myRole: null }));
+          const r2 = await fetch(`/api/games/${gameId}`);
+          const snap = await r2.json();
+          if (this._lastSnapVersion !== snap.version || (d.events || []).length) {
+            this._lastSnapVersion = snap.version;
+            if (snap.players && snap.players.length) this.renderSeatsOnly(snap);
+          }
+          if (snap.winner || snap.aborted) { this.watchId = null; return; }
+        } catch (_) {}
+        setTimeout(loop, 1600);
+      };
+      loop();
+    },
+
+    renderSeatsOnly(snap) {
+      $('roundBadge').textContent = snap.phase === 'night' ? `第 ${snap.round} 夜` : `第 ${snap.round} 天`;
+      $('seats').innerHTML = snap.players.map(p =>
+        `<div class="seat${p.alive ? '' : ' dead'}">` +
+        `<div class="ava">${p.alive ? p.emoji : '💀'}</div>` +
+        `<div class="nm">${esc(p.name)}</div>` +
+        `<div class="st">${p.alive ? '在线' : '已出局'}</div></div>`
+      ).join('');
     },
 
     async pollLoop() {
@@ -139,6 +240,31 @@
       this.renderPending(snap);
     },
 
+    /* 发言顺序条：高亮当前发言者 */
+    markSpeaking(playerId) {
+      const bar = $('speechOrder');
+      if (!bar) return;
+      bar.querySelectorAll('.so-item').forEach(x => {
+        x.classList.toggle('speaking', Number(x.dataset.pid) === playerId);
+        x.classList.toggle('done', Number(x.dataset.pid) !== playerId && x.classList.contains('speaking') === false && this._spoken && this._spoken.has(Number(x.dataset.pid)));
+      });
+      if (!this._spoken) this._spoken = new Set();
+      this._spoken.add(playerId);
+    },
+
+    /* 发言文本中的玩家名高亮（金色） */
+    highlightNames(text, snap) {
+      const raw = String(text || '');
+      let html = esc(raw);
+      const names = (snap && snap.players ? snap.players : []).map(p => p.name).filter(n => n && n.length >= 1);
+      names.sort((a, b) => b.length - a.length);
+      for (const n of names) {
+        const safe = esc(n);
+        html = html.split(safe).join(`<b class="name-hl">${safe}</b>`);
+      }
+      return html;
+    },
+
     renderEvent(ev, snap) {
       const p = ev.payload || {};
       if (ev.type === 'speech') {
@@ -153,15 +279,24 @@
           box.appendChild(mk);
         }
         const el = document.createElement('div');
-        el.className = 'speech-item' + (p.isHuman ? ' me-msg' : '');
-        el.innerHTML = `<div class="who"><span class="e">${p.emoji}</span><span class="n">${esc(p.name)}</span></div>` +
-          `<div class="txt">${esc(p.text)}</div>`;
+        el.className = 'speech-item' + (p.isHuman ? ' me-msg' : '') + (p.isLastWord ? ' last-word' : '');
+        const orderTag = p.order ? `<span style="font-size:10px;color:#6b7290;align-self:center;margin-right:2px">#${p.order}/${p.total}</span>` : '';
+        el.innerHTML = orderTag + `<div class="who"><span class="e">${p.emoji}</span><span class="n">${esc(p.name)}</span></div>` +
+          `<div class="txt">${this.highlightNames(p.text, snap)}</div>`;
         box.appendChild(el);
         box.scrollTop = box.scrollHeight;
+        this.markSpeaking(p.playerId);
         /* 舞台同步展示最新发言 */
         $('stageTitle').textContent = `${p.emoji} ${p.name}`;
-        $('stageBody').innerHTML = esc(p.text);
+        $('stageBody').innerHTML = this.highlightNames(p.text, snap);
         $('stageActions').innerHTML = '';
+      } else if (ev.type === 'speech-order') {
+        /* 发言顺序条 */
+        const bar = $('speechOrder');
+        if (!bar) return;
+        bar.style.display = 'flex';
+        bar.innerHTML = `<span style="font-size:11px;color:#8b93ab;white-space:nowrap;margin-right:6px">🗣 发言顺序</span>` +
+          p.order.map(x => `<span class="so-item" data-pid="${x.id}">${x.emoji} ${esc(x.name)}</span>`).join('');
       } else if (ev.type === 'log') {
         const el = document.createElement('div');
         el.className = 'log-item ' + (p.tone || '');
@@ -184,6 +319,7 @@
         const pl = snap.players.find(x => x.id === p.playerId);
         $('stageTitle').textContent = pl ? `${pl.emoji} ${pl.name}` : 'AI';
         $('stageBody').innerHTML = `<div class="think">${esc(p.label)}<i></i><i></i><i></i></div>`;
+        this.markSpeaking(p.playerId);
       } else if (ev.type === 'night-settle') {
         /* 死讯已由 dawn 事件统一公布；此处仅保留兼容，不重复展示 */
       } else if (ev.type === 'vote-result') {
@@ -284,7 +420,12 @@
       if (callQuit && this.gameId) {
         try { await this.api(`/games/${this.gameId}/quit`, {}); } catch (_) {}
       }
+      /* 正常结束/放弃时清本地对局记录；仅刷新不清（refresh 不经过这里） */
+      if (!callQuit || true) {
+        try { if (!this.gameId || callQuit) localStorage.removeItem('ww_game'); } catch (_) {}
+      }
       clearTimeout(this.pollTimer);
+      this.watchId = null;
       this.gameId = null;
     },
 
@@ -311,9 +452,11 @@
   window.App = App;
   document.addEventListener('DOMContentLoaded', () => {
     App.boot();
+    App.checkResume();
+    App.loadLive();
     $('btnStart').onclick = () => App.startGame();
-    $('btnQuit').onclick = async () => { await App.stopGame(true); App.show('screen-home'); App.loadMatches(); };
-    $('btnAgain').onclick = async () => { await App.stopGame(false); App.show('screen-home'); App.boot(); };
+    $('btnQuit').onclick = async () => { await App.stopGame(true); App.show('screen-home'); App.loadMatches(); App.loadLive(); };
+    $('btnAgain').onclick = async () => { await App.stopGame(false); App.show('screen-home'); App.boot(); App.loadLive(); };
     $('recTabs').addEventListener('click', e => {
       const btn = e.target.closest('.tab');
       if (!btn) return;

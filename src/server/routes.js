@@ -105,6 +105,25 @@ async function handleApi(req, res, ctx) {
       }
     }
 
+    /* ---------- 进行中对局（大厅用） ---------- */
+    if (path === '/api/live' && method === 'GET') {
+      const list = [];
+      for (const [id, room] of ctx.rooms.rooms) {
+        const e = room.engine;
+        if (e.phase === 'over' || e.aborted) continue;
+        list.push({
+          gameId: id,
+          host: e.playerName,
+          round: e.round,
+          phase: e.phase,
+          players: e.players.length,
+          alive: e.alivePlayers().length,
+          startedAt: room.createdAt
+        });
+      }
+      return json(res, 200, { games: list.slice(0, 20) });
+    }
+
     if (path === '/api/games' && method === 'POST') {
       const body = await readBody(req);
       const room = ctx.rooms.create(String(body.playerName || '').slice(0, 8) || '你');

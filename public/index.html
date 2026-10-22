@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
 <meta name="theme-color" content="#0b0d17">
 <title>AI 狼人杀 · Agent 补位局</title>
-<link rel="stylesheet" href="assets/style.css?v=1.2.1">
+<link rel="stylesheet" href="assets/style.css?v=1.3.0">
 <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🐺</text></svg>">
 </head>
 <body>
@@ -21,6 +21,17 @@
       <p class="sub">5 个 AI 玩家各有性格和记忆，会撒谎、会结盟、会翻车 · 游戏逻辑运行在服务端</p>
     </div>
 
+    <div class="panel" id="resumePanel" style="display:none;border-color:rgba(246,199,106,.5);background:rgba(246,199,106,.08)">
+      <div class="panel-head">
+        <span class="panel-title">⏸ 你有一局进行中</span>
+      </div>
+      <div class="row">
+        <button id="btnResume" class="btn primary" style="flex:1">回到对局</button>
+        <button id="btnDropGame" class="btn ghost">放弃这局</button>
+      </div>
+      <p class="hint">刷新不会丢进度——你的对局保存在服务端。</p>
+    </div>
+
     <div class="panel">
       <label class="field-label" for="playerName">你的代号</label>
       <div class="row">
@@ -34,6 +45,15 @@
       <div class="ai-status" id="aiStatus">
         <span class="dot"></span><span id="aiStatusText">AI 引擎连接中…</span>
       </div>
+      <p class="hint">🚀 多人真人房（好友同局）已预留入口，敬请期待。</p>
+    </div>
+
+    <div class="panel">
+      <div class="panel-head">
+        <span class="panel-title">🔥 正在进行（可观战）</span>
+        <span class="panel-sub" id="liveCount"></span>
+      </div>
+      <div id="liveList" class="recent-list"><div class="empty">读取进行中对局…</div></div>
     </div>
 
     <div class="panel">
@@ -55,7 +75,10 @@
       <p class="hint">狼人全部出局 → 好人胜；狼人数 ≥ 好人数 → 狼人胜。共 6 人，你随机拿一个身份。</p>
     </div>
 
-    <footer class="foot">WorkBuddy 1024 造物挑战 · 云服务驱动<br><span id="ver" style="opacity:.7">v1.2.1</span></footer>
+    <footer class="foot">
+      <a href="http://17aitech.com" target="_blank" rel="noopener" style="color:inherit">by 诸葛东明 · 17aitech.com</a>
+      <br>WorkBuddy 1024 造物挑战 · 云服务驱动 · <span id="ver" style="opacity:.7">v1.3.0</span>
+    </footer>
   </section>
 
   <!-- ============ 对局 ============ -->
@@ -69,6 +92,7 @@
     <div class="seats" id="seats"></div>
 
     <div class="stage" id="stage">
+      <div class="speech-order" id="speechOrder" style="display:none"></div>
       <div class="stage-title" id="stageTitle"></div>
       <div class="stage-body" id="stageBody"></div>
       <div class="stage-actions" id="stageActions"></div>
@@ -111,6 +135,6 @@
 
 </div>
 
-<script src="assets/app.js?v=1.2.1"></script>
+<script src="assets/app.js?v=1.3.0"></script>
 </body>
 </html>

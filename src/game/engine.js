@@ -370,28 +370,33 @@ class GameEngine {
       }
     }
 
-    // 发言：死者下一位开始
-    const order = this._speechOrder();
-    for (const p of order) {
+    // 发言：死者下一位开始；先广播发言顺序
+    const order = this._speechOrder().filter(p => p.alive);
+    this.pushEvent('speech-order', {
+      round: this.round,
+      order: order.map(p => ({ id: p.id, name: p.name, emoji: p.emoji }))
+    });
+    for (let si = 0; si < order.length; si++) {
+      const p = order[si];
       if (!p.alive || this._stopped) continue;
       if (p.isHuman) {
         const text = await this.waitHuman('input', {
           title: '轮到你发言',
-          html: '说点什么？可以踩人、可以跳身份、也可以先过。',
+          html: `你是本轮第 <b>${si + 1}/${order.length}</b> 位发言者。说点什么？可以踩人、可以跳身份、也可以先过。`,
           confirm: '发言'
         }, []);
         const say = String(text || '').trim() || '我这轮先过，听你们的。';
         this.publicLog.push(`第${this.round}天 ${p.name}：${say}`);
-        this.pushEvent('speech', { playerId: p.id, name: p.name, emoji: p.emoji, text: say, isHuman: true });
+        this.pushEvent('speech', { playerId: p.id, name: p.name, emoji: p.emoji, text: say, isHuman: true, order: si + 1, total: order.length });
       } else {
         /* 白天发言的思考提示不含身份信息，安全 */
-        this.pushEvent('ai-thinking', { playerId: p.id, label: '思考中…' });
+        this.pushEvent('ai-thinking', { playerId: p.id, label: `思考中（${si + 1}/${order.length}）…` });
         const ai = new AIPlayer(p, this.llm);
         const r = await ai.speak(this);
         this.publicLog.push(`第${this.round}天 ${p.name}：${r.speech}`);
         p.voteIntent = r.vote;
         p.thoughts.push({ round: this.round, phase: '昼', text: r.reason });
-        this.pushEvent('speech', { playerId: p.id, name: p.name, emoji: p.emoji, text: r.speech, isHuman: false });
+        this.pushEvent('speech', { playerId: p.id, name: p.name, emoji: p.emoji, text: r.speech, isHuman: false, order: si + 1, total: order.length });
       }
     }
 
