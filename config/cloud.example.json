@@ -1,0 +1,6 @@
+{
+  "_comment": "模板：复制为 config/cloud.json 并填入你的 WorkBuddy 云服务 publicConfig。config/cloud.json 已被 .gitignore 忽略，不会进入仓库。endpoint/publishableKey 来源：WorkBuddy 桌面端开通云服务后返回的 publicConfig。",
+  "endpoint": "https://<your-app>.app.workbuddy.host",
+  "publishableKey": "wbpk_xxx",
+  "oauthRelayBaseUrl": "https://www.workbuddy.cn/v2/as/genie-baas/oauth"
+}

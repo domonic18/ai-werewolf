@@ -32,16 +32,25 @@ function serveStatic(req, res) {
 }
 
 async function main() {
-  /* 配置优先级：环境变量 > config/cloud.json（publicConfig 均为可公开的安全值） */
+  /* 配置查找顺序（开源仓库零密钥）：
+     1) 环境变量 WB_ENDPOINT / WB_PUBLISHABLE_KEY
+     2) config/cloud.json（本地开发用，已被 .gitignore 忽略；模板见 config/cloud.example.json）
+     3) .workbuddy/deploy-config.json —— sites 沙箱内由发布配置写入的部署期配置 */
   let fileCfg = {};
-  try { fileCfg = require('../../config/cloud.json'); } catch (_) { /* 可选 */ }
+  const cfgPaths = [path.join(__dirname, '..', '..', 'config', 'cloud.json'), '/workspace/.workbuddy/deploy-config.json'];
+  for (const p of cfgPaths) {
+    try {
+      const c = JSON.parse(fs.readFileSync(p, 'utf8'));
+      fileCfg = Object.assign(fileCfg, c);
+    } catch (_) { /* 缺失即跳过 */ }
+  }
   const publicConfig = {
     endpoint: process.env.WB_ENDPOINT || fileCfg.endpoint,
     publishableKey: process.env.WB_PUBLISHABLE_KEY || fileCfg.publishableKey,
     oauthRelayBaseUrl: process.env.WB_OAUTH_RELAY || fileCfg.oauthRelayBaseUrl || undefined
   };
   if (!publicConfig.endpoint || !publicConfig.publishableKey) {
-    throw new Error('缺少云服务配置：请设置 WB_ENDPOINT/WB_PUBLISHABLE_KEY 或提供 config/cloud.json');
+    throw new Error('缺少云服务配置：请设置 WB_* 环境变量，或复制 config/cloud.example.json 为 config/cloud.json 填入 publicConfig');
   }
 
   const llm = await createLLMGateway(publicConfig);
