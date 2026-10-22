@@ -26,7 +26,11 @@ function serveStatic(req, res) {
   if (!file.startsWith(PUB)) { res.writeHead(403); return res.end(); }
   fs.readFile(file, (err, buf) => {
     if (err) { res.writeHead(404); return res.end('not found'); }
-    res.writeHead(200, { 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream' });
+    /* 迭代频繁：静态资源一律不缓存，保证刷新即最新 */
+    res.writeHead(200, {
+      'Content-Type': MIME[path.extname(file)] || 'application/octet-stream',
+      'Cache-Control': 'no-cache, must-revalidate'
+    });
     res.end(buf);
   });
 }
