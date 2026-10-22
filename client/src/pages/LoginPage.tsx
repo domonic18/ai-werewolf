@@ -14,6 +14,8 @@ export function LoginPage({ onBack, onSignedIn }: LoginPageProps): JSX.Element {
   const [phone, setPhone] = useState('');
   const [code, setCode] = useState('');
   const [countdown, setCountdown] = useState(0);
+  const [verificationId, setVerificationId] = useState('');
+  const [isExistingUser, setIsExistingUser] = useState(true);
   const [sending, setSending] = useState(false);
   const [verifying, setVerifying] = useState(false);
   const [hint, setHint] = useState<string | null>(null);
@@ -33,6 +35,8 @@ export function LoginPage({ onBack, onSignedIn }: LoginPageProps): JSX.Element {
     const result = await sendOtp(phone);
     setSending(false);
     if (result.ok) {
+      setVerificationId(result.data.verificationId);
+      setIsExistingUser(result.data.isExistingUser);
       setCountdown(60);
       setHint('验证码已发送，请查收短信');
     } else {
@@ -44,7 +48,7 @@ export function LoginPage({ onBack, onSignedIn }: LoginPageProps): JSX.Element {
     if (!validPhone || code.trim().length < 4) return;
     setVerifying(true);
     setHint(null);
-    const result = await verifyOtp(phone, code.trim());
+    const result = await verifyOtp({ phone, code: code.trim(), verificationId, isExistingUser });
     setVerifying(false);
     if (result.ok) {
       setSession({ accessToken: result.data.accessToken, userId: result.data.userId, expiresAt: 0 });
@@ -99,7 +103,7 @@ export function LoginPage({ onBack, onSignedIn }: LoginPageProps): JSX.Element {
         <button
           className="btn primary big"
           style={{ marginTop: 12 }}
-          disabled={!validPhone || code.trim().length < 4 || verifying}
+          disabled={!verificationId || code.trim().length < 4 || verifying}
           onClick={() => void submit()}
         >
           {verifying ? '登录中…' : '登录 / 注册'}
