@@ -17,7 +17,16 @@ import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { RoomManager } from './rooms.js';
 import type { MatchStore } from '../cloud/match-store.js';
 import type { LLMService } from './llm-service.js';
-import { MAX_PLAYERS, MIN_PLAYERS, availableRoles, lockedRoles, recommendDeck } from '../game/catalog.js';
+import {
+  MAX_PLAYERS,
+  MIN_PLAYERS,
+  availableRoles,
+  expandDeck,
+  lockedRoles,
+  recommendDeck,
+  validateDeck,
+} from '../game/catalog.js';
+import type { DeckSlot } from '../game/catalog.js';
 import { listRooms, parseLobbyQuery } from './lobby.js';
 import type {
   CreateGameResponse,
@@ -156,9 +165,27 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, ctx: 
           state: ctx.llm.state,
         });
       }
-      const body = await readBody<{ playerName: string }>(req);
+      const body = await readBody<{
+        playerName: string;
+        players?: number;
+        deck?: { key: string; count: number }[];
+      }>(req);
       const name = String(body.playerName ?? '').slice(0, 8) || '你';
-      const room = ctx.rooms.create(name);
+
+      /* 牌组：显式传入则校验，否则按人数给推荐（不传人数 = 6 人基础局） */
+      let deckSlots: DeckSlot[] = recommendDeck(body.players ?? MIN_PLAYERS);
+      if (Array.isArray(body.deck) && body.deck.length) {
+        deckSlots = body.deck
+          .filter((slot) => slot && typeof slot.key === 'string')
+          .map((slot) => ({ key: slot.key as DeckSlot['key'], count: Math.max(0, Math.floor(Number(slot.count) || 0)) }));
+      }
+      const total = deckSlots.reduce((acc, slot) => acc + slot.count, 0);
+      const check = validateDeck(deckSlots, total);
+      if (!check.ok) {
+        return sendJson(res, 400, { error: check.errors.join('；'), errors: check.errors });
+      }
+
+      const room = ctx.rooms.create(name, expandDeck(deckSlots));
       if (!room) {
         return sendJson(res, 503, { error: '同时进行的对局已满，请稍后再试（不会踢掉别人正在进行的对局）' });
       }

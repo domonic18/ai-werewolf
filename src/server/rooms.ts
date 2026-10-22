@@ -4,6 +4,7 @@
  */
 import crypto from 'node:crypto';
 import { GameEngine } from '../game/engine.js';
+import type { RoleKey } from '../shared/types.js';
 import type { LLMClient } from '../ai/types.js';
 import type { MatchStore } from '../cloud/match-store.js';
 
@@ -76,12 +77,13 @@ export class RoomManager {
    * 开新局：返回 room（引擎由调用方 `run()` 启动）。
    * 房间满时返回 null —— 只清理已结束且超时的房间，绝不为了腾位置踢掉进行中的对局。
    */
-  create(playerName: string): Room | null {
+  create(playerName: string, deck?: RoleKey[]): Room | null {
     this.prune();
     if (this.rooms.size >= this.maxRooms) return null;
 
     const engine = new GameEngine({
       playerName,
+      deck,
       llm: this.llm,
       pace: this.pace,
       /* 事件已缓存在 engine.events，客户端轮询拉取，这里不额外广播 */

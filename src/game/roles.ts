@@ -22,6 +22,14 @@ export const AI_CAST: CastMember[] = [
   { name: '阿岚', emoji: '🧊', persona: '冷静理性，爱讲概率和可能性，句子像简报' },
   { name: '豆豆', emoji: '🍬', persona: '新手感，语气软，凭直觉说话但经常意外地准' },
   { name: '七喜', emoji: '🎭', persona: '阴阳怪气，爱反讽拱火，喜欢逼人表态' },
+  /* 8~12 人局需要更多 AI 补位 */
+  { name: '大熊', emoji: '🐻', persona: '直来直去的大嗓门，喜欢带头冲锋，容易被带节奏' },
+  { name: '阿桃', emoji: '🍑', persona: '温和谨慎，习惯先复述别人观点再下结论，讨厌互踩' },
+  { name: '老白', emoji: '🧓', persona: '老派玩家，讲经验讲套路，爱说"按规矩应该"' },
+  { name: '小北', emoji: '🌬️', persona: '话少但每句都戳重点，讨厌废话，常冷不丁反问' },
+  { name: '星野', emoji: '🌌', persona: '爱编故事做假设，喜欢用"如果我是狼我会怎么打"推演' },
+  { name: '米粒', emoji: '🍚', persona: '紧张型新手，容易被质疑就打退堂鼓，但观察细节很准' },
+  { name: '阿七', emoji: '🃏', persona: '赌徒性格，喜欢搏一把，投票常常出人意料' },
 ];
 
 export const GAME_RULES = {

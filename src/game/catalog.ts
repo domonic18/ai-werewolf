@@ -96,6 +96,15 @@ export function recommendDeck(total: number): DeckSlot[] {
   return slots;
 }
 
+/** 把 {角色, 数量} 展开成发牌用的角色数组 */
+export function expandDeck(deck: DeckSlot[]): RoleKey[] {
+  const roles: RoleKey[] = [];
+  for (const slot of deck) {
+    for (let i = 0; i < slot.count; i++) roles.push(slot.key);
+  }
+  return roles;
+}
+
 /** 牌组校验：数量合计、狼人下限、神职不超过半数（PRD 4.1） */
 export function validateDeck(deck: DeckSlot[], total: number): DeckCheck {
   const errors: string[] = [];

@@ -287,3 +287,48 @@ describe('角色库接口', () => {
     expect(junk.players).toBe(6);
   });
 });
+
+describe('按人数/牌组开局', () => {
+  const create = async (payload: unknown): Promise<{ status: number; body: { gameId?: string; error?: string } }> => {
+    const res = await fetch(base + '/api/games', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload),
+    });
+    return { status: res.status, body: (await res.json()) as { gameId?: string; error?: string } };
+  };
+
+  it('不传人数时按 6 人基础局开局（向后兼容）', async () => {
+    const { status } = await create({ playerName: '默认局' });
+    expect(status).toBe(200);
+  });
+
+  it('传人数时按推荐牌组开局', async () => {
+    const { status, body } = await create({ playerName: '八人局', players: 8 });
+    expect(status).toBe(200);
+    expect(body.gameId).toBeTruthy();
+  });
+
+  it('非法牌组返回 400 并说明原因（不静默改成默认牌组）', async () => {
+    const tooFewWolves = await create({
+      playerName: '非法',
+      deck: [
+        { key: 'wolf', count: 1 },
+        { key: 'villager', count: 5 },
+      ],
+    });
+    expect(tooFewWolves.status).toBe(400);
+    expect(tooFewWolves.body.error).toContain('狼人');
+
+    const notImplemented = await create({
+      playerName: '非法2',
+      deck: [
+        { key: 'wolf', count: 2 },
+        { key: 'hunter', count: 1 },
+        { key: 'villager', count: 3 },
+      ],
+    });
+    expect(notImplemented.status).toBe(400);
+    expect(notImplemented.body.error).toContain('尚未开放');
+  });
+});

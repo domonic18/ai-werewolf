@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { GameEngine } from '../src/game/engine.js';
 import type { GameEvent } from '../src/shared/types.js';
 import { createMockLLM } from './helpers/mock-llm.js';
+import { expandDeck, recommendDeck } from '../src/game/catalog.js';
 import type { MockOptions } from './helpers/mock-llm.js';
 
 /** 自动应答真人输入：一律选第一个选项 / 固定发言 */
@@ -193,4 +194,47 @@ describe('复盘记录与实际行动一致（用药 / 死因）', () => {
     expect(savedSeen).toBeGreaterThan(0);
     expect(poisonSeen).toBeGreaterThan(0);
   }, 120_000);
+});
+
+describe('多人局（按牌组发牌）', () => {
+  const runWithDeck = async (players: number) => {
+    const deck = expandDeck(recommendDeck(players));
+    const engine = new GameEngine({ playerName: '多人局', deck, llm: createMockLLM(), pace: 0.02 });
+    const stop = autoAnswer(engine);
+    try {
+      await engine.run();
+    } finally {
+      stop();
+    }
+    return engine;
+  };
+
+  it('8 人局：人数、狼人数、神职数符合推荐牌组，并能打到结束', async () => {
+    const engine = await runWithDeck(8);
+    expect(engine.players).toHaveLength(8);
+    expect(engine.players.filter((p) => p.role === 'wolf')).toHaveLength(2);
+    expect(engine.players.filter((p) => p.role === 'seer')).toHaveLength(1);
+    expect(engine.players.filter((p) => p.role === 'witch')).toHaveLength(1);
+    expect(engine.players.filter((p) => p.isHuman)).toHaveLength(1);
+    expect(['good', 'wolf']).toContain(engine.winner);
+  }, 180_000);
+
+  it('9 人局：狼人升到 3 名，且 AI 补位人数够用（不再是固定 5 个）', async () => {
+    const engine = await runWithDeck(9);
+    expect(engine.players).toHaveLength(9);
+    expect(engine.players.filter((p) => p.role === 'wolf')).toHaveLength(3);
+    expect(engine.players.filter((p) => !p.isHuman)).toHaveLength(8);
+    /* AI 名字不能重复 */
+    const names = engine.players.map((p) => p.name);
+    expect(new Set(names).size).toBe(names.length);
+    expect(['good', 'wolf']).toContain(engine.winner);
+  }, 180_000);
+
+  it('12 人局也能发牌，且阵营统计覆盖全部座位', async () => {
+    const engine = await runWithDeck(12);
+    expect(engine.players).toHaveLength(12);
+    const view = engine.spectateSnapshot();
+    expect(view.factions.wolf.total + view.factions.good.total).toBe(12);
+    expect(view.factions.wolf.total).toBe(4);
+  }, 180_000);
 });

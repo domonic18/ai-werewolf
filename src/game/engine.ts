@@ -55,6 +55,8 @@ export interface ArchiveRow {
 
 export interface EngineOptions {
   playerName: string;
+  /** 本局牌组（展开后的角色数组）；不传则用 6 人基础配置 */
+  deck?: RoleKey[];
   llm: LLMClient;
   emit?: (event: GameEvent, game: GameEngine) => void;
   /** 节奏系数：1 = 正常演出节奏；测试传小值把 900ms 的等待压缩掉 */
@@ -92,6 +94,7 @@ export class GameEngine implements GameView {
   private llm: LLMClient;
   private emit: (event: GameEvent, game: GameEngine) => void;
   private readonly pace: number;
+  private readonly deck: RoleKey[];
   private stopped = false;
   private resolveHuman: ((value: string | number | null) => void) | null = null;
 
@@ -99,11 +102,12 @@ export class GameEngine implements GameView {
   private saved = false;
   private poisonId: number | null = null;
 
-  constructor({ playerName, llm, emit, pace = 1 }: EngineOptions) {
+  constructor({ playerName, deck, llm, emit, pace = 1 }: EngineOptions) {
     this.id = 'g' + Date.now().toString(36) + crypto.randomBytes(3).toString('hex');
     this.llm = llm;
     this.emit = emit ?? (() => {});
     this.pace = Math.max(0, pace);
+    this.deck = deck && deck.length ? deck.slice() : ROLE_DECK.slice();
     this.playerName = playerName || GAME_RULES.humanPlayerName;
   }
 
@@ -119,9 +123,10 @@ export class GameEngine implements GameView {
       return arr;
     };
 
-    const roles = shuffle(ROLE_DECK);
-    const seats = shuffle([0, 1, 2, 3, 4, 5]);
-    const cast = shuffle(AI_CAST).slice(0, 5);
+    const roles = shuffle(this.deck);
+    const total = roles.length;
+    const seats = shuffle(Array.from({ length: total }, (_, i) => i));
+    const cast = shuffle(AI_CAST).slice(0, Math.max(0, total - 1));
 
     const mk = (partial: Pick<Player, 'name' | 'emoji' | 'persona' | 'role' | 'seat' | 'isHuman'>): Player => ({
       id: nextId(),
@@ -145,7 +150,7 @@ export class GameEngine implements GameView {
         seat: (seats[0] as number) + 1,
       }),
     ];
-    for (let i = 0; i < 5; i++) {
+    for (let i = 0; i < total - 1; i++) {
       const member = cast[i] as (typeof AI_CAST)[number];
       this.players.push(
         mk({
