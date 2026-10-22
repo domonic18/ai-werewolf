@@ -70,8 +70,18 @@ export async function verifyOtp(phone: string, code: string): Promise<AuthResult
       }
       return undefined;
     };
-    const session = (raw.session ?? raw.data) as unknown;
-    const user = (raw.user ?? (session as Record<string, unknown> | undefined)?.user) as unknown;
+    /* 这个 SDK 返回 { data, error } 结构：先看 error，再看 data.session / data.user */
+    const errObj = raw.error as Record<string, unknown> | undefined | null;
+    if (errObj) {
+      const message =
+        (typeof errObj.message === 'string' && errObj.message) ||
+        (typeof errObj.msg === 'string' && errObj.msg) ||
+        JSON.stringify(errObj);
+      return { ok: false, error: `验证码校验失败：${message}` };
+    }
+    const data = raw.data as Record<string, unknown> | undefined;
+    const session = (data?.session ?? raw.session ?? data) as unknown;
+    const user = (data?.user ?? raw.user ?? (session as Record<string, unknown> | undefined)?.user) as unknown;
     const accessToken =
       pick(raw, ['accessToken', 'access_token', 'token']) ?? pick(session, ['accessToken', 'access_token']);
     const userId = pick(user, ['id', 'userId', 'user_id']) ?? pick(raw, ['userId', 'user_id']);
