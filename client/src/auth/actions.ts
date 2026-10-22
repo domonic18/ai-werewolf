@@ -59,10 +59,27 @@ export async function verifyOtp(phone: string, code: string): Promise<AuthResult
   const auth = await getAuth();
   if (!auth) return { ok: false, error: NOT_READY };
   try {
-    const result = await auth.verifyOtp({ phone, token: code });
-    const accessToken = result?.accessToken;
-    const userId = result?.user?.id;
-    if (!accessToken || !userId) return { ok: false, error: '登录返回缺少会话信息' };
+    const raw = (await auth.verifyOtp({ phone, token: code })) as unknown as Record<string, unknown>;
+    /* SDK 不同版本的返回结构不一致：session/access_token 等写法都要兼容 */
+    const pick = (obj: unknown, keys: string[]): string | undefined => {
+      if (!obj || typeof obj !== 'object') return undefined;
+      const record = obj as Record<string, unknown>;
+      for (const key of keys) {
+        const value = record[key];
+        if (typeof value === 'string' && value) return value;
+      }
+      return undefined;
+    };
+    const session = (raw.session ?? raw.data) as unknown;
+    const user = (raw.user ?? (session as Record<string, unknown> | undefined)?.user) as unknown;
+    const accessToken =
+      pick(raw, ['accessToken', 'access_token', 'token']) ?? pick(session, ['accessToken', 'access_token']);
+    const userId = pick(user, ['id', 'userId', 'user_id']) ?? pick(raw, ['userId', 'user_id']);
+    if (!accessToken || !userId) {
+      /* 把返回结构的字段名带出来，便于定位是哪一种版本 */
+      const keys = Object.keys(raw).join(',');
+      return { ok: false, error: `登录返回缺少会话信息（返回字段：${keys || '空'}）` };
+    }
     return { ok: true, data: { accessToken, userId } };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : '验证码校验失败' };
