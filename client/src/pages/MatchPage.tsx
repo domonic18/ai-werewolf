@@ -315,11 +315,8 @@ function PlayView(): JSX.Element {
         </div>
       ) : null}
 
-      {phase === 'night' && !active ? (
-        <NightStrip round={round} cue={night.lastCue} />
-      ) : (
-        <ChatBubbles events={events} names={names} />
-      )}
+      {/* 夜里始终用夜幕条：即使轮到自己行动，上面的旧发言也不该顶在行动面板前 */}
+      {phase === 'night' ? <NightStrip round={round} cue={night.lastCue} /> : <ChatBubbles events={events} names={names} />}
 
       {ranked.length ? (
         <div className="ig-vote">
