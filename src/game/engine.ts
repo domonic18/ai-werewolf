@@ -26,7 +26,7 @@ import type {
   Team,
   Thought,
 } from '../shared/types.js';
-import { ROLES } from '../shared/roles.js';
+import { ROLES, isWolf } from '../shared/roles.js';
 import type { LLMClient } from '../ai/types.js';
 import { AIPlayer } from '../ai/ai-player.js';
 import { GAME_RULES, ROLE_DECK, AI_CAST, judgeWinner } from './roles.js';
@@ -35,6 +35,9 @@ import type { NightHost } from './behaviors.js';
 import type { GameView, Player } from './types.js';
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
+
+/** 会被「长老之死」封印的好人技能角色 */
+const GOOD_SKILL_ROLES = new Set(['seer', 'witch', 'guard']);
 
 let seatSeq = 0;
 const nextId = (): number => ++seatSeq;
@@ -79,6 +82,8 @@ export class GameEngine implements GameView {
   players: Player[] = [];
   round = 0;
   publicLog: string[] = [];
+  /** 长老被好人误伤后，全体好人神职技能失效（预言家/女巫/守卫/猎人） */
+  skillsDisabled = false;
   lastNightText = '';
   /** 复盘时间轴：每夜/每天一条，上帝视角全量；玩家视角只取其中公开部分 */
   timeline: NightRecord[] = [];
@@ -187,7 +192,9 @@ export class GameEngine implements GameView {
       }
     }
     for (const p of this.players) {
-      if (p.role === 'wolf') p.gameMates = this.players.filter((q) => q.role === 'wolf' && q.id !== p.id);
+      if (isWolf(p.role)) p.gameMates = this.players.filter((q) => isWolf(q.role) && q.id !== p.id);
+      if (p.role === 'elder') p.elderImmune = true;
+      if (p.canVote === undefined) p.canVote = true;
     }
     this.human = this.players.find((p) => p.isHuman) as Player;
   }
@@ -375,15 +382,23 @@ export class GameEngine implements GameView {
     /* 只给已实装角色写提示；未实装角色不会进牌组，留空兜底即可 */
     const tips: Partial<Record<RoleKey, string>> = {
       wolf: '队友会在夜里现身。白天记得藏好，别急着咬人。',
+      wolfking: '你是黑狼王：出局时（被毒除外）可以开枪带走一人，别把这条命白给。',
       seer: '每晚可以验一个人，白天想办法把信息传出去又不被狼盯上。',
       witch: '一瓶解药、一瓶毒药，全局各一次。用错比不用更伤。',
+      hunter: '出局时可以开枪带走一人，被毒杀则不能。',
+      guard: '每晚守一人，不能连续两晚守同一个；同守同救会奶穿。',
+      idiot: '第一次被投出会翻牌免死，但从此失去投票权。',
+      elder: '第一次被狼刀不会死；但被毒、被枪、被放逐会让全体好人技能失效。',
       villager: '没有技能，靠听、靠问、靠票。',
+      dreamweaver: '夜里标记一人，被标者免于被刀。',
     };
     await this.waitHuman(
       'ack',
       {
         title: '天黑了',
-        html: `这一局你拿到的是 <b style="color:var(--gold)">${meta.name}</b>。<br>${tips[this.human.role]}`,
+        html:
+          `这一局你拿到的是 <b style="color:var(--gold)">${meta.name}</b>。` +
+          `<br>${tips[this.human.role] ?? ''}`,
         confirm: '开始',
       },
       [],
@@ -408,6 +423,10 @@ export class GameEngine implements GameView {
 
     /* 按角色注册表依次睁眼：新增角色只改 behaviors.ts，night() 不用动 */
     for (const behavior of NIGHT_BEHAVIORS) {
+      /* 长老被误伤后好人的神职技能失效：预言家/女巫/守卫不再睁眼 */
+      if (this.skillsDisabled && GOOD_SKILL_ROLES.has(behavior.role)) {
+        continue;
+      }
       const actors = this.alivePlayers().filter((p) => p.role === behavior.role);
       if (!actors.length) continue;
 
@@ -420,20 +439,11 @@ export class GameEngine implements GameView {
     }
 
     /* 5. 天亮，结算（死讯统一公布，不披露死因与用药） */
-    const guarded = this.guardedId != null && this.guardedId === this.nightKill;
-    const savedKill = this.saved && this.nightKill != null;
-    /**
-     * 同守同救（奶穿）：守卫守护与女巫解药同时作用于同一人时，该玩家依然死亡。
-     * 依据官方赛事规则与百科口径——「守卫和女巫同时对其守护和使用解药，该名玩家依然会死亡」。
-     */
-    const pierced = guarded && savedKill;
-    const wolfKillLands = this.nightKill != null && (pierced || (!savedKill && !guarded));
+    const outcome = this.wolfKillOutcome();
+    const { guarded, pierced, elderSaved: elderShrug } = outcome;
 
     const dead: Player[] = [];
-    if (wolfKillLands && this.nightKill != null) {
-      const victim = this.byId(this.nightKill);
-      if (victim) dead.push(victim);
-    }
+    if (outcome.victim) dead.push(outcome.victim);
     if (this.poisonId != null) {
       const poisoned = this.byId(this.poisonId);
       if (poisoned && !dead.includes(poisoned)) dead.push(poisoned);
@@ -451,21 +461,57 @@ export class GameEngine implements GameView {
     record.guardTarget = guardVictim ? { playerId: guardVictim.id, name: guardVictim.name } : null;
     record.guarded = guarded && !pierced;
     record.pierced = pierced;
+    if (elderShrug) record.elderImmuneUsed = true;
 
-    /* 猎人：被毒杀不能开枪；被刀可以开枪（当场结算） */
-    const shotDeaths = await this.resolveHunterDeaths(dead);
+    /* 出局开枪：猎人 / 黑狼王（被毒杀一律不能开枪） */
+    const shotDeaths = await this.resolveDeathShots(dead);
     const allDead = [...dead, ...shotDeaths];
+
+    /* 长老被毒/被枪带走 → 全体好人技能失效（被狼刀不触发，这时他本来也不会死） */
+    if (allDead.some((p) => p.role === 'elder')) this.disableGoodSkills('长老被好人误伤');
 
     record.deaths = allDead.map((p) => ({
       playerId: p.id,
       name: p.name,
       seat: p.seat,
-      cause: this.deathCauseOf(p, { wolfKillLands, shotByHunter: shotDeaths.includes(p) }),
+      cause: this.deathCauseOf(p, {
+        wolfKillLands: outcome.victim != null,
+        shotByHunter: shotDeaths.includes(p),
+      }),
     }));
 
     this.lastGuardedId = this.guardedId;
+    /* 长老挡刀后夜里没有人出局，公告仍是「平安夜」，不暴露长老身份 */
     this.lastNightText = allDead.length ? `${allDead.map((p) => p.name).join('、')} 出局` : '平安夜';
     this.pushEvent('night-settle', { dead: allDead.map((p) => p.id), text: this.lastNightText });
+  }
+
+  /**
+   * 狼刀是否真的落地：守卫 / 解药 / 同守同救（奶穿）/ 长老首次免疫。
+   * 单独抽出来是为了让规则可以被直接断言，而不是只能靠整局模拟去碰。
+   *
+   * 同守同救：守卫守护与女巫解药同时作用于同一人时，该玩家依然死亡（官方赛事规则）。
+   */
+  private wolfKillOutcome(): {
+    victim: Player | null;
+    elderSaved: boolean;
+    guarded: boolean;
+    savedKill: boolean;
+    pierced: boolean;
+  } {
+    const guarded = this.guardedId != null && this.guardedId === this.nightKill;
+    const savedKill = this.saved && this.nightKill != null;
+    const pierced = guarded && savedKill;
+    const lands = this.nightKill != null && (pierced || (!savedKill && !guarded));
+    const target = lands && this.nightKill != null ? this.byId(this.nightKill) ?? null : null;
+
+    if (target && target.role === 'elder' && target.elderImmune !== false) {
+      target.elderImmune = false;
+      target.thoughts.push({ round: this.round, phase: '夜', text: '这刀我扛下来了，但只有一次。' });
+      return { victim: null, elderSaved: true, guarded, savedKill, pierced };
+    }
+
+    return { victim: target, elderSaved: false, guarded, savedKill, pierced };
   }
 
   /** 死因标注：毒 > 猎人 > 刀（后两者同时成立时按猎人算，因为枪是直接原因） */
@@ -484,19 +530,30 @@ export class GameEngine implements GameView {
    * 规则：除被毒杀外，以任何方式出局都可开枪，也可以压枪不开。
    * 返回被枪带走的人（可能为空）。
    */
-  private async resolveHunterDeaths(dead: Player[]): Promise<Player[]> {
+  private async resolveDeathShots(dead: Player[]): Promise<Player[]> {
     const shot: Player[] = [];
 
     for (const player of dead) {
-      if (player.role !== 'hunter') continue;
+      const isHunter = player.role === 'hunter';
+      const isWolfKing = player.role === 'wolfking';
+      if (!isHunter && !isWolfKing) continue;
+      const label = isWolfKing ? '黑狼王' : '猎人';
+
+      /* 长老被误伤后，好人技能失效：猎人开不了枪（黑狼王是狼，不在此列） */
+      if (isHunter && this.skillsDisabled) {
+        this.log(`${player.name} 是猎人，但神职技能已失效，无法开枪`, 'sys');
+        continue;
+      }
+
       /* 被毒杀一律不能开枪（官方规则：被毒杀者不能发动技能） */
       if (player.id === this.poisonId) {
-        this.log(`${player.name} 是猎人，但被毒杀无法开枪`, 'sys');
+        this.log(`${player.name} 是${label}，但被毒杀无法开枪`, 'sys');
         this.recordOf(this.round).hunterShot = {
           hunterId: player.id,
           name: player.name,
           targetId: null,
           targetName: null,
+          shooterRole: player.role,
         };
         continue;
       }
@@ -507,7 +564,7 @@ export class GameEngine implements GameView {
         const value = await this.waitHuman(
           'pick',
           {
-            title: '猎人开枪（只有你能决定）',
+            title: `${label}开枪（只有你能决定）`,
             html: `你出局了，可以开枪带走一名存活玩家，也可以压枪不开。<br><span style="color:var(--muted)">带错人会直接改变局势</span>`,
             confirm: null,
           },
@@ -515,15 +572,21 @@ export class GameEngine implements GameView {
         );
         target = typeof value === 'number' ? this.byId(value) ?? null : null;
       } else {
-        const result = await new AIPlayer(player, this.llm).hunterShot(this);
+        const result = await new AIPlayer(player, this.llm).deathShot(this, label);
         target = result ? this.byId(result.target) ?? null : null;
         if (result) player.thoughts.push({ round: this.round, phase: '昼', text: result.reason });
       }
 
       const record = this.recordOf(this.round);
       if (!target || !target.alive) {
-        this.log(`${player.name}（猎人）选择压枪不开`, 'sys');
-        record.hunterShot = { hunterId: player.id, name: player.name, targetId: null, targetName: null };
+        this.log(`${player.name}（${label}）选择压枪不开`, 'sys');
+        record.hunterShot = {
+          hunterId: player.id,
+          name: player.name,
+          targetId: null,
+          targetName: null,
+          shooterRole: player.role,
+        };
         continue;
       }
 
@@ -534,17 +597,34 @@ export class GameEngine implements GameView {
         name: player.name,
         targetId: target.id,
         targetName: target.name,
+        shooterRole: player.role,
       };
-      this.log(`${player.name}（猎人）开枪带走了 ${target.name}`, 'death');
+      this.log(`${player.name}（${label}）开枪带走了 ${target.name}`, 'death');
       this.pushEvent('hunter-shot', {
         hunterId: player.id,
         hunterName: player.name,
         targetId: target.id,
         targetName: target.name,
+        shooterRole: player.role,
       });
     }
 
     return shot;
+  }
+
+  /**
+   * 长老被好人误伤后的惩罚：预言家、女巫、守卫、猎人从此失去技能。
+   * 这条规则必须公开宣告——否则玩家只会看到「神职突然不动作」而不知道原因。
+   */
+  private disableGoodSkills(reason: string): void {
+    if (this.skillsDisabled) return;
+    this.skillsDisabled = true;
+    const elder = this.players.find((p) => p.role === 'elder');
+    if (elder) elder.revealRole = true;
+    this.recordOf(this.round).skillsDisabled = true;
+    this.log(`${reason}，长老出局：好人神职技能全部失效`, 'death');
+    this.publicLog.push(`第${this.round}天 长老出局，好人神职技能失效`);
+    this.pushEvent('log', { text: '长老出局，好人神职技能失效', tone: 'death' });
   }
 
   /** 法官口令（夜晚唯一允许的事件类型，不含玩家名与行动者） */
@@ -730,6 +810,11 @@ export class GameEngine implements GameView {
 
     for (const p of alive) {
       if (this.stopped) return;
+      /* 白痴翻牌后失去投票权：跳过，但要让场上知道这一票不会出现 */
+      if (p.canVote === false) {
+        this.log(`${p.name} 已翻牌，本轮没有投票权`, 'sys');
+        continue;
+      }
       let target = p.voteIntent ?? null;
 
       if (p.isHuman) {
@@ -781,14 +866,43 @@ export class GameEngine implements GameView {
 
     const out = this.byId(top[0] as number);
     if (!out) return;
+
+    /* 白痴：第一次被投出翻牌免死，此后失去投票权；第二次被投出照常出局 */
+    if (out.role === 'idiot' && !out.idiotRevealed) {
+      out.idiotRevealed = true;
+      out.revealRole = true;
+      out.canVote = false;
+      this.recordOf(this.round).exiled = {
+        playerId: out.id,
+        name: out.name,
+        role: out.role,
+        votes: max,
+        survived: true,
+      };
+      this.log(`${out.name} 被投出，翻牌是白痴，免于放逐（此后没有投票权）`, 'death');
+      this.publicLog.push(`第${this.round}天 ${out.name} 被投出，翻牌为白痴，免于放逐`);
+      this.pushEvent('vote-result', {
+        tie: false,
+        playerId: out.id,
+        name: out.name,
+        role: out.role,
+        votes: max,
+        survived: true,
+      });
+      return;
+    }
+
     out.alive = false;
     out.revealRole = true;
     out.deadRound = this.round;
     const name = ROLES[out.role].name;
     this.recordOf(this.round).exiled = { playerId: out.id, name: out.name, role: out.role, votes: max };
 
-    /* Q7：被放逐时当场开枪（猎人不在此列的话这里是空操作） */
-    const shot = await this.resolveHunterDeaths([out]);
+    /* 长老被好人误伤（放逐）：全体好人神职技能失效 */
+    if (out.role === 'elder') this.disableGoodSkills('长老被放逐');
+
+    /* Q7：被放逐时当场开枪（猎人 / 黑狼王；其他人是空操作） */
+    const shot = await this.resolveDeathShots([out]);
     for (const p of shot) {
       this.recordOf(this.round).deaths.push({
         playerId: p.id,
@@ -826,7 +940,7 @@ export class GameEngine implements GameView {
 
   private checkEnd(): boolean {
     const alive = this.alivePlayers();
-    const wolves = alive.filter((p) => p.role === 'wolf').length;
+    const wolves = alive.filter((p) => isWolf(p.role)).length;
     const goods = alive.length - wolves;
     if (wolves === 0) {
       this.winner = 'good';

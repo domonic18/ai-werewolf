@@ -28,9 +28,9 @@ export const ROLE_CATALOG: readonly RoleCard[] = [
   { ...ROLES.villager, minPlayers: 6, ability: '没有技能，靠推理与投票', implemented: true },
   { ...ROLES.hunter, minPlayers: 8, ability: '出局时可开枪带走一人（被毒杀除外）', implemented: true },
   { ...ROLES.guard, minPlayers: 8, ability: '每晚守护一人，不能连续两晚守同一人；同守同救仍会死亡', implemented: true },
-  { ...ROLES.idiot, minPlayers: 9, ability: '被放逐可翻牌免死，但失去投票权', implemented: false },
-  { ...ROLES.elder, minPlayers: 10, ability: '首次被狼刀不死，被好人误伤则全体好人失去技能', implemented: false },
-  { ...ROLES.wolfking, minPlayers: 10, ability: '出局时可开枪带走一人', implemented: false },
+  { ...ROLES.idiot, minPlayers: 9, ability: '被放逐可翻牌免死一次，但从此失去投票权', implemented: true },
+  { ...ROLES.elder, minPlayers: 10, ability: '首次被狼刀不死；被毒、被枪或被放逐会让全体好人失去技能', implemented: true },
+  { ...ROLES.wolfking, minPlayers: 10, ability: '出局时可开枪带走一人（被毒杀不能开枪）', implemented: true },
   { ...ROLES.dreamweaver, minPlayers: 12, ability: '每晚摄梦一人，被摄者死亡时连带死亡', implemented: false },
 ];
 
@@ -74,29 +74,92 @@ export function wolfCount(total: number): number {
 }
 
 /**
- * 推荐牌组：先按标准配置排出神职，再把未实装/人数不够的神职替换成平民。
- * 这样 8 人局在今天（猎人没实装）依然是可玩的 2 狼 + 预女 + 3 民。
+ * 推荐牌组：按人数给一套「有角色纵深」的标准局。
+ *
+ * 早期版本是「先排神职，不够的用平民补」，结果 10/12 人局只是多了几个平民 ——
+ * 人数越多，信息密度反而越稀。现在按总人数显式给配方，新角色随人数登场：
+ *   9 人 起有白痴（翻牌免死，制造一次「投了但没死」的转折）
+ *   10 人 起有黑狼王（狼队多一个出局反打的手段）
+ *   12 人 起有长老（教会好人「别乱毒」）
  */
 export function recommendDeck(total: number): DeckSlot[] {
   if (total < MIN_PLAYERS || total > MAX_PLAYERS) {
     throw new Error(`人数需在 ${MIN_PLAYERS}~${MAX_PLAYERS} 之间，收到 ${total}`);
   }
 
-  const gods: RoleKey[] = ['seer', 'witch'];
-  if (total >= 8) gods.push('hunter');
-  if (total >= 9) gods.push('guard');
-  if (total >= 12) gods.push('idiot');
+  const recipe: Record<number, DeckSlot[]> = {
+    6: [
+      { key: 'wolf', count: 2 },
+      { key: 'seer', count: 1 },
+      { key: 'witch', count: 1 },
+      { key: 'villager', count: 2 },
+    ],
+    7: [
+      { key: 'wolf', count: 2 },
+      { key: 'seer', count: 1 },
+      { key: 'witch', count: 1 },
+      { key: 'villager', count: 3 },
+    ],
+    8: [
+      { key: 'wolf', count: 2 },
+      { key: 'seer', count: 1 },
+      { key: 'witch', count: 1 },
+      { key: 'hunter', count: 1 },
+      { key: 'villager', count: 3 },
+    ],
+    9: [
+      { key: 'wolf', count: 3 },
+      { key: 'seer', count: 1 },
+      { key: 'witch', count: 1 },
+      { key: 'hunter', count: 1 },
+      { key: 'idiot', count: 1 },
+      { key: 'villager', count: 2 },
+    ],
+    10: [
+      { key: 'wolfking', count: 1 },
+      { key: 'wolf', count: 2 },
+      { key: 'seer', count: 1 },
+      { key: 'witch', count: 1 },
+      { key: 'hunter', count: 1 },
+      { key: 'guard', count: 1 },
+      { key: 'villager', count: 3 },
+    ],
+    11: [
+      { key: 'wolfking', count: 1 },
+      { key: 'wolf', count: 2 },
+      { key: 'seer', count: 1 },
+      { key: 'witch', count: 1 },
+      { key: 'hunter', count: 1 },
+      { key: 'guard', count: 1 },
+      { key: 'idiot', count: 1 },
+      { key: 'villager', count: 3 },
+    ],
+    12: [
+      { key: 'wolfking', count: 1 },
+      { key: 'wolf', count: 3 },
+      { key: 'seer', count: 1 },
+      { key: 'witch', count: 1 },
+      { key: 'hunter', count: 1 },
+      { key: 'guard', count: 1 },
+      { key: 'elder', count: 1 },
+      { key: 'villager', count: 3 },
+    ],
+  };
 
+  const exact = recipe[total];
+  if (exact) return exact.map((slot) => ({ ...slot }));
+
+  /* 兜底：不在配方表里的总人数，按「狼数 + 存活神职 + 其余平民」拼一套合法牌组 */
   const wolves = wolfCount(total);
-  const playableGods = gods.filter((key) => cardOf(key).implemented && total >= cardOf(key).minPlayers);
-  const villagers = total - wolves - playableGods.length;
-
-  const slots: DeckSlot[] = [
-    ...playableGods.map((key) => ({ key, count: 1 })),
-    { key: 'wolf', count: wolves },
+  const gods = ['seer', 'witch', 'hunter', 'guard', 'idiot']
+    .filter((key) => cardOf(key as RoleKey).implemented && total >= cardOf(key as RoleKey).minPlayers)
+    .slice(0, Math.max(0, total - wolves - 2));
+  const villagers = total - wolves - gods.length;
+  return [
+    ...gods.map((key) => ({ key: key as RoleKey, count: 1 })),
+    { key: 'wolf' as RoleKey, count: wolves },
+    ...(villagers > 0 ? [{ key: 'villager' as RoleKey, count: villagers }] : []),
   ];
-  if (villagers > 0) slots.push({ key: 'villager', count: villagers });
-  return slots;
 }
 
 /** 把 {角色, 数量} 展开成发牌用的角色数组 */

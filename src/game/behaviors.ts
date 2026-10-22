@@ -12,6 +12,7 @@
  */
 import type { ChoiceOption, PendingKind, Prompt, RoleKey } from '../shared/types.js';
 import type { Player, GameView } from './types.js';
+import { isWolf } from '../shared/roles.js';
 import type { LLMClient } from '../ai/types.js';
 import { AIPlayer } from '../ai/ai-player.js';
 
@@ -54,11 +55,11 @@ const wolfBehavior: RoleBehavior = {
   openCue: '狼人请睁眼，选择今晚的目标…',
   closeCue: '狼人请闭眼',
   async act(host, actor) {
-    const wolves = host.alivePlayers().filter((p) => p.role === 'wolf');
+    const wolves = host.alivePlayers().filter((p) => isWolf(p.role));
     if (!wolves.length) return;
 
     if (actor.isHuman) {
-      const candidates = host.alivePlayers().filter((p) => p.role !== 'wolf');
+      const candidates = host.alivePlayers().filter((p) => !isWolf(p.role));
       if (!candidates.length) return;
       const teammates = wolves.filter((p) => !p.isHuman).map((p) => p.name).join('、');
       const value = await host.waitHuman(
@@ -104,13 +105,13 @@ const seerBehavior: RoleBehavior = {
       );
       const target = host.byId(typeof value === 'number' ? value : -1);
       if (!target) return;
-      const isWolf = target.role === 'wolf';
-      actor.checks.push({ id: target.id, name: target.name, isWolf, round: host.round });
+      const targetIsWolf = isWolf(target.role);
+      actor.checks.push({ id: target.id, name: target.name, isWolf: targetIsWolf, round: host.round });
       await host.waitHuman(
         'ack',
         {
           title: '查验结果（只有你知道）',
-          html: `<b>${target.name}</b> 的身份是：<b style="color:${isWolf ? 'var(--wolf)' : 'var(--good)'}">${isWolf ? '狼人' : '好人'}</b>`,
+          html: `<b>${target.name}</b> 的身份是：<b style="color:${targetIsWolf ? 'var(--wolf)' : 'var(--good)'}">${targetIsWolf ? '狼人' : '好人'}</b>`,
           confirm: '记下了',
         },
         [],
@@ -121,7 +122,7 @@ const seerBehavior: RoleBehavior = {
     const result = await new AIPlayer(actor, host.llm).seerCheck(host.game);
     const target = result ? host.byId(result.target) : undefined;
     if (result && target) {
-      actor.checks.push({ id: target.id, name: target.name, isWolf: target.role === 'wolf', round: host.round });
+      actor.checks.push({ id: target.id, name: target.name, isWolf: isWolf(target.role), round: host.round });
       actor.thoughts.push({ round: host.round, phase: '夜', text: result.reason });
     }
   },

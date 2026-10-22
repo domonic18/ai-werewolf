@@ -4,7 +4,7 @@
  * 输出 JSON（发言/投票/目标/内心戏），无任何写死话术。
  */
 import type { RoleKey } from '../shared/types.js';
-import { ROLES } from '../shared/roles.js';
+import { ROLES, isWolf } from '../shared/roles.js';
 import type { CastTraits, ReasoningStyle } from '../game/roles.js';
 import type { LLMClient } from './types.js';
 import { matchPlayerByName } from './json.js';
@@ -184,7 +184,7 @@ export class AIPlayer {
     const roleName: string = ROLES[p.role as RoleKey].name;
     const parts = [this.personaCard(), `你的身份：${roleName}（只有你自己知道；不要直接说出来，除非你在悍跳或已经暴露）。`];
 
-    if (p.role === 'wolf') {
+    if (isWolf(p.role)) {
       const mates = p.gameMates ?? [];
       parts.push(
         `你的狼队友：${mates.map((m) => `${m.name}${m.alive ? '' : '（已出局）'}`).join('、')}。你要隐藏身份，可以悍跳预言家或带节奏，但绝不要暴露队友。`,
@@ -228,7 +228,7 @@ export class AIPlayer {
 
   /** 夜晚：狼人刀人 */
   async wolfKill(game: GameView): Promise<TargetResult | null> {
-    const candidates = game.alivePlayers().filter((p) => p.role !== 'wolf');
+    const candidates = game.alivePlayers().filter((p) => !isWolf(p.role));
     if (!candidates.length) return null;
 
     const sys = SYS_BASE + '\n现在是夜晚，你（狼人）要和队友商定今晚杀谁。';
@@ -319,17 +319,22 @@ export class AIPlayer {
 
   /** 出局时：猎人开枪（返回 null 表示压枪不开） */
   async hunterShot(game: GameView): Promise<TargetResult | null> {
+    return this.deathShot(game, '猎人');
+  }
+
+  /** 出局开枪：猎人 / 黑狼王共用（label 只影响提示语，规则判定在引擎里） */
+  async deathShot(game: GameView, label = '猎人'): Promise<TargetResult | null> {
     const candidates = game.alivePlayers().filter((p) => p.id !== this.p.id);
     if (!candidates.length) return null;
 
-    const sys = SYS_BASE + '\n你是猎人，刚刚出局。你要决定是否开枪、带走谁。';
+    const sys = SYS_BASE + `\n你是${label}，刚刚出局。你要决定是否开枪、带走谁。`;
     const user = [
       this.publicBrief(game),
       '',
       this.privateBrief(),
       '',
       `还活着的玩家：${candidates.map((p) => p.name).join('、')}。`,
-      '猎人的枪只有一次，而且带错人会直接改变局势；不确定时可以压枪不开。',
+      `${label}的枪只有一次，而且带错人会直接改变局势；不确定时可以压枪不开。`,
       '请输出 JSON：{"target":"要带走的玩家名字，选择压枪则填空字符串","reason":"一句话理由"}',
     ].join('\n');
 

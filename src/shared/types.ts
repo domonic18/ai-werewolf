@@ -139,8 +139,8 @@ export interface NightRecord {
   poisonTarget: { playerId: number; name: string } | null;
   /** 当晚实际出局及其死因（hunter = 被猎人带走；vote = 被放逐） */
   deaths: { playerId: number; name: string; seat: number; cause: 'wolf' | 'poison' | 'hunter' | 'vote' }[];
-  /** 当天放逐结果；平票为 null */
-  exiled: { playerId: number; name: string; role: RoleKey; votes: number } | null;
+  /** 当天放逐结果；平票为 null。survived=true 表示白痴翻牌免于放逐 */
+  exiled: { playerId: number; name: string; role: RoleKey; votes: number; survived?: boolean } | null;
   /** 当天是否平票 */
   tie: boolean;
   /** 守卫守了谁（上帝视角） */
@@ -149,8 +149,18 @@ export interface NightRecord {
   guarded: boolean;
   /** 同守同救（奶穿）：守卫 + 解药同时生效，目标仍然死亡 */
   pierced: boolean;
-  /** 猎人开枪记录；压枪（不开枪）时 target 为 null */
-  hunterShot: { hunterId: number; name: string; targetId: number | null; targetName: string | null } | null;
+  /** 出局开枪记录（猎人或黑狼王）；压枪时 target 为 null */
+  hunterShot: {
+    hunterId: number;
+    name: string;
+    targetId: number | null;
+    targetName: string | null;
+    shooterRole?: RoleKey;
+  } | null;
+  /** 长老用掉了「首次被刀不死」 */
+  elderImmuneUsed?: boolean;
+  /** 长老被好人误伤，神职技能已失效 */
+  skillsDisabled?: boolean;
 }
 
 /** 玩家可见的复盘：只知道谁出局、谁被放逐，不知道死因与用药 */
@@ -169,6 +179,8 @@ export interface VoteResultPayload {
   name?: string;
   role?: RoleKey;
   votes?: number;
+  /** 白痴翻牌免于放逐时为 true（此时 role 一定是 idiot） */
+  survived?: boolean;
 }
 
 /** 事件类型 → 负载。新增事件必须同时在此登记，否则 tsc 报错。 */
@@ -182,7 +194,14 @@ export interface EventPayloads {
   'speech-order': { round: number; order: { id: number; name: string; emoji: string }[] };
   'ai-thinking': { playerId: number; label: string };
   vote: { voter: number; target: number };
-  'hunter-shot': { hunterId: number; hunterName: string; targetId: number | null; targetName: string | null };
+  'hunter-shot': {
+    hunterId: number;
+    hunterName: string;
+    targetId: number | null;
+    targetName: string | null;
+    /** 开枪者身份：猎人或黑狼王（两者共用同一个事件） */
+    shooterRole?: RoleKey;
+  };
   'vote-result': VoteResultPayload;
   log: { text: string; tone?: string };
   'game-over': {

@@ -323,13 +323,15 @@ describe('按人数/牌组开局', () => {
     expect(tooFewWolves.status).toBe(400);
     expect(tooFewWolves.body.error).toContain('狼人');
 
+    /* 摄梦人尚未实装 */
     const notImplemented = await create({
       playerName: '非法2',
       deck: [
-        { key: 'wolf', count: 2 },
-        { key: 'elder', count: 1 },
-        { key: 'villager', count: 3 },
+        { key: 'wolf', count: 3 },
+        { key: 'dreamweaver', count: 1 },
+        { key: 'villager', count: 8 },
       ],
+      players: 12,
     });
     expect(notImplemented.status).toBe(400);
     expect(notImplemented.body.error).toContain('尚未开放');

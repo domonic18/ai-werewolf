@@ -76,6 +76,18 @@ export function buildStage(events: GameEvent[], context: StageContext): StageVie
         };
       }
       case 'vote-result':
+        /* 白痴翻牌：被投出但没死，是本局少见的转折 */
+        if (!event.payload.tie && event.payload.survived) {
+          return {
+            title: '白痴翻牌',
+            body: (
+              <>
+                <b>{event.payload.name}</b> 被投出，翻牌是<b>白痴</b>，免于放逐；此后失去投票权。
+              </>
+            ),
+            tone: 'vote',
+          };
+        }
         return event.payload.tie ? {
           title: '投票结果',
           body: <>平票（{(event.payload.names ?? []).join('、')}），本轮无人被放逐。</>,
@@ -92,7 +104,7 @@ export function buildStage(events: GameEvent[], context: StageContext): StageVie
         };
       case 'hunter-shot':
         return {
-          title: '猎人开枪',
+          title: event.payload.shooterRole === 'wolfking' ? '黑狼王开枪' : '猎人开枪',
           body: event.payload.targetName ? (
             <>
               <b>{event.payload.hunterName}</b>（猎人）出局后开枪，带走了{' '}

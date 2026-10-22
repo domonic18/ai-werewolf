@@ -125,7 +125,7 @@ export const GAME_RULES = {
 
 /** 胜负判定：狼人全灭 → 好人胜；狼人数 ≥ 好人数 → 狼人胜 */
 export function judgeWinner(roles: RoleKey[]): Team | null {
-  const wolves = roles.filter((r) => r === 'wolf').length;
+  const wolves = roles.filter((r) => r === 'wolf' || r === 'wolfking').length;
   const goods = roles.length - wolves;
   if (wolves === 0) return 'good';
   if (wolves >= goods) return 'wolf';

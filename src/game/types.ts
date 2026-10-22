@@ -25,6 +25,12 @@ export interface Player {
   poison: boolean;
   /** 被放逐时翻开身份 */
   revealRole: boolean;
+  /** 白痴已翻牌：免死一次，此后失去投票权 */
+  idiotRevealed?: boolean;
+  /** 长老还剩一次「被狼刀不死」（false 表示已用掉） */
+  elderImmune?: boolean;
+  /** 是否还能投票（白痴翻牌后为 false） */
+  canVote?: boolean;
   /** 狼队友（仅狼人） */
   gameMates?: Player[];
   /** 本轮发言时给出的投票意图，投票阶段复用，省一次调用 */

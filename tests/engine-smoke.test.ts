@@ -252,8 +252,11 @@ describe('多人局（按牌组发牌）', () => {
   it('10 人局能打到结束，3 狼 4 神 3 民', async () => {
     const engine = await runWithDeck(10);
     expect(engine.players).toHaveLength(10);
-    expect(engine.players.filter((p) => p.role === 'wolf')).toHaveLength(3);
-    const gods = engine.players.filter((p) => p.role !== 'wolf' && p.role !== 'villager');
+    /* 10 人局狼人共 3 个，其中一个是黑狼王 */
+    const wolves = engine.players.filter((p) => p.role === 'wolf' || p.role === 'wolfking');
+    expect(wolves).toHaveLength(3);
+    expect(engine.players.filter((p) => p.role === 'wolfking')).toHaveLength(1);
+    const gods = engine.players.filter((p) => p.role !== 'wolf' && p.role !== 'wolfking' && p.role !== 'villager');
     expect(gods).toHaveLength(4);
     expect(engine.players.filter((p) => p.role === 'villager')).toHaveLength(3);
     expect(['good', 'wolf']).toContain(engine.winner);
