@@ -1,17 +1,24 @@
 /**
- * 部署兜底：sites 沙箱可能只执行 `npm start`（不一定跑 build），
- * 这里在启动前检查产物，缺失就补一次构建，避免线上出现 404 空页。
- * 已有产物时是零成本 no-op。
+ * 部署兜底：sites 沙箱复用上一轮的持久目录，`dist/` 会原样留下来。
+ * 早期版本只在产物缺失时才构建，结果线上一直发上一轮的旧包 ——
+ * 「改了代码、重新发布、页面却还是老样子」就是这么来的（2026-10）。
+ *
+ * 所以这里改为每次启动都重建：构建失败但旧产物还在时，降级用旧产物继续起服务
+ * （可用性优先，宁可页面旧也不能 504），两者都没有才让进程挂掉。
  */
 import { existsSync } from 'node:fs';
 import { execSync } from 'node:child_process';
 
 const artifacts = ['dist/client/index.html', 'dist-server/server/index.js'];
-const missing = artifacts.filter((file) => !existsSync(file));
+const hasArtifacts = artifacts.every((file) => existsSync(file));
 
-if (missing.length) {
-  console.log(`[prestart] 构建产物缺失（${missing.join(', ')}），执行 npm run build…`);
+try {
   execSync('npm run build', { stdio: 'inherit' });
-} else {
-  console.log('[prestart] 构建产物已存在，跳过构建');
+  console.log('[prestart] 构建完成');
+} catch (error) {
+  if (hasArtifacts) {
+    console.error('[prestart] 构建失败，沿用已有产物起服务（页面可能不是最新代码）', error);
+  } else {
+    throw error;
+  }
 }
