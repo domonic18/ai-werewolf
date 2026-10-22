@@ -119,9 +119,18 @@ body{
 @keyframes blink{0%,60%,100%{opacity:.25}30%{opacity:1}}
 
 .logbox{background:rgba(255,255,255,.025);border:1px solid var(--line);border-radius:14px;padding:10px 12px}
-.log-head{font-size:11px;color:var(--muted);margin-bottom:6px;letter-spacing:.5px}
-.log-list{max-height:132px;overflow:auto;display:flex;flex-direction:column;gap:5px}
-.log-item{font-size:12px;line-height:1.6;color:#b9c1d6}
+.tabs{display:flex;gap:6px;margin-bottom:8px}
+.tab{flex:1;border:1px solid var(--line);background:rgba(255,255,255,.03);color:var(--muted);font-size:12px;font-weight:600;padding:8px 0;border-radius:10px;cursor:pointer;font-family:inherit;transition:.15s}
+.tab.active{background:rgba(246,199,106,.14);color:var(--gold);border-color:rgba(246,199,106,.35)}
+.log-list{max-height:230px;overflow:auto;display:flex;flex-direction:column;gap:6px}
+.speech-item{display:flex;gap:8px;padding:8px 10px;background:rgba(255,255,255,.03);border-radius:12px;border:1px solid rgba(255,255,255,.05)}
+.speech-item .who{display:flex;flex-direction:column;align-items:center;gap:2px;min-width:44px}
+.speech-item .who .e{font-size:17px}
+.speech-item .who .n{font-size:10.5px;color:var(--muted);white-space:nowrap}
+.speech-item .txt{flex:1;font-size:12.5px;line-height:1.65;color:#dfe4f2;word-break:break-word}
+.speech-item.me-msg{border-color:rgba(246,199,106,.3);background:rgba(246,199,106,.06)}
+.speech-item .daymark{font-size:10.5px;color:#9fb2ff;margin-bottom:2px}
+.log-item{font-size:12px;line-height:1.6;color:#b9c1d6;padding:2px 0}
 .log-item.night{color:#9fb2ff}
 .log-item.death{color:#ffb4b4}
 .log-item.vote{color:#f6c76a}

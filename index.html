@@ -75,8 +75,12 @@
     </div>
 
     <div class="logbox">
-      <div class="log-head">事件记录</div>
-      <div class="log-list" id="logList"></div>
+      <div class="tabs" id="recTabs">
+        <button class="tab active" data-tab="speech">🗣 发言记录</button>
+        <button class="tab" data-tab="events">📋 事件记录</button>
+      </div>
+      <div class="log-list" id="speechList"></div>
+      <div class="log-list" id="logList" style="display:none"></div>
     </div>
   </section>
 

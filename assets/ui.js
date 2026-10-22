@@ -118,6 +118,7 @@
     enter(game) {
       this.game = game;
       $('logList').innerHTML = '';
+      $('speechList').innerHTML = '';
       this.show('screen-game');
       this.sync(game);
       const r = ROLE_DEF[game.me.role];
@@ -171,6 +172,40 @@
       el.textContent = text;
       $('logList').appendChild(el);
       $('logList').scrollTop = $('logList').scrollHeight;
+    },
+
+    /* 发言存档：逐人逐条沉淀，永不覆盖，可随时回看 */
+    speech(round, player, text, isMe) {
+      const box = $('speechList');
+      if (!box) return;
+      const lastMark = box.querySelector('.daymark:last-of-type');
+      const wantMark = `第 ${round} 天`;
+      if (!lastMark || lastMark.textContent !== wantMark) {
+        const mk = document.createElement('div');
+        mk.className = 'log-item night';
+        mk.style.cssText = 'font-size:11px;color:#9fb2ff;margin-top:4px';
+        mk.textContent = `— ${wantMark} —`;
+        box.appendChild(mk);
+      }
+      const el = document.createElement('div');
+      el.className = 'speech-item' + (isMe ? ' me-msg' : '');
+      el.innerHTML = `<div class="who"><span class="e">${player.emoji}</span><span class="n">${esc(player.name)}</span></div>` +
+        `<div class="txt">${esc(text)}</div>`;
+      box.appendChild(el);
+      box.scrollTop = box.scrollHeight;
+    },
+
+    /* 标签页切换 */
+    bindTabs() {
+      const tabs = $('recTabs');
+      if (!tabs) return;
+      tabs.addEventListener('click', e => {
+        const btn = e.target.closest('.tab');
+        if (!btn) return;
+        tabs.querySelectorAll('.tab').forEach(t => t.classList.toggle('active', t === btn));
+        $('speechList').style.display = btn.dataset.tab === 'speech' ? 'flex' : 'none';
+        $('logList').style.display = btn.dataset.tab === 'events' ? 'flex' : 'none';
+      });
     },
 
     /* AI 调用失败：亮明原因并终止对局（绝不拿假话术继续） */
@@ -254,7 +289,7 @@
       this.sync(this.game);
     },
 
-    /* 把发言打在舞台上（打字机效果） */
+    /* 把发言打在舞台上（打字机效果），同时存档到发言记录 */
     bubble(playerId, text) {
       const p = this.game.byId(playerId);
       $('stageTitle').textContent = `${p.emoji} ${p.name}`;
@@ -266,6 +301,11 @@
       tail.className = 'speaker';
       body.appendChild(span);
       body.appendChild(tail);
+
+      /* 完整发言先入档，不怕舞台闪过 */
+      if (this.game && this.game.round) {
+        this.speech(this.game.round, p, String(text || ''), p.isHuman);
+      }
 
       const full = String(text || '');
       if (!this.typing) { span.textContent = full; return Promise.resolve(); }
@@ -357,6 +397,7 @@
   /* ---------- 启动 ---------- */
   document.addEventListener('DOMContentLoaded', () => {
     UI.boot();
+    UI.bindTabs();
 
     $('btnStart').onclick = () => {
       const name = ($('playerName').value || '').trim() || '你';
