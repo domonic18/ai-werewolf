@@ -388,6 +388,8 @@ export class GameEngine implements GameView {
     this.nightKill = null;
     this.saved = false;
     this.poisonId = null;
+    /* 必须清零：否则守卫死亡或空守时，上一夜的守护目标会残留并「挡下」这一刀 */
+    this.guardedId = null;
 
     /* 法官口令制：只有口令，不含任何"谁在行动" */
     this.nightCue('天黑请闭眼 🌙');
