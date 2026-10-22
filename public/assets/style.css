@@ -107,6 +107,13 @@ body{
 .stage-actions .btn{padding:10px 14px;font-size:13.5px;border-radius:11px}
 .stage-actions .btn.choice{background:rgba(255,255,255,.08);color:var(--text);border:1px solid var(--line);font-weight:600}
 .stage-actions .btn.choice:hover{background:rgba(255,255,255,.14)}
+/* 发言面板 */
+.say-box{width:100%;min-height:86px;background:rgba(246,199,106,.07);border:1.5px solid rgba(246,199,106,.45);border-radius:14px;padding:13px 14px;color:var(--text);font-size:15px;line-height:1.65;outline:none;resize:none;font-family:inherit;transition:.2s}
+.say-box:focus{border-color:var(--gold);background:rgba(246,199,106,.11);box-shadow:0 0 0 3px rgba(246,199,106,.12)}
+.say-box::placeholder{color:#6b7290}
+.say-chips{display:flex;flex-wrap:wrap;gap:7px;margin-top:10px}
+.say-chips .chip{font-size:12px;padding:8px 12px;border-radius:999px;background:rgba(255,255,255,.06);border:1px solid var(--line);color:#cfd6e8;cursor:pointer;transition:.15s}
+.say-chips .chip:hover{background:rgba(246,199,106,.15);border-color:rgba(246,199,106,.4);color:var(--gold)}
 .stage-actions .btn.danger{background:rgba(255,107,107,.16);color:#ffb4b4;border:1px solid rgba(255,107,107,.3)}
 .stage-actions .btn.safe{background:rgba(106,214,168,.16);color:#b6f0d8;border:1px solid rgba(106,214,168,.3)}
 .chips{display:flex;flex-wrap:wrap;gap:6px;margin-top:10px}

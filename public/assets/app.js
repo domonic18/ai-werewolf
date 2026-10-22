@@ -213,15 +213,40 @@
         b.onclick = () => this.submit(1);
         act.appendChild(b);
       } else if (p.kind === 'input') {
-        const ta = document.createElement('textarea');
-        ta.rows = 2; ta.className = 'input'; ta.style.cssText = 'width:100%;resize:none;margin-bottom:10px';
-        ta.placeholder = '例如：我是好人，我怀疑老K在带节奏…';
-        act.appendChild(ta);
-        const b = document.createElement('button');
-        b.className = 'btn primary';
-        b.textContent = '发言';
-        b.onclick = () => this.submit(ta.value);
-        act.appendChild(b);
+        /* 醒目的发言面板：大输入框 + 快捷话术 + 发送键 */
+        $('stageBody').innerHTML =
+          `<div style="font-size:13px;color:#c9d0e3;margin-bottom:10px">${p.prompt.html}</div>` +
+          `<textarea id="sayBox" rows="3" class="say-box" maxlength="200"
+            placeholder="输入你的发言（回车发送，Shift+回车换行）…"></textarea>` +
+          `<div class="say-chips" id="sayChips"></div>`;
+        const chips = [
+          '我是好人，先听后面的发言',
+          '昨晚的信息太少了，谁都别急着带票',
+          '我怀疑发言最顺的那个人，太刻意了',
+          '我是预言家，昨晚验了人，票跟我走',
+          '这轮先过，把发言权留给后面的人'
+        ];
+        const chipBox = $('sayChips');
+        chips.forEach(c => {
+          const s = document.createElement('span');
+          s.className = 'chip';
+          s.textContent = c;
+          s.onclick = () => { $('sayBox').value = c; $('sayBox').focus(); };
+          chipBox.appendChild(s);
+        });
+        const ta = $('sayBox');
+        ta.focus();
+        ta.onkeydown = e => {
+          if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); this.submit(ta.value); }
+        };
+        const act = $('stageActions');
+        act.innerHTML = '';
+        const send = document.createElement('button');
+        send.className = 'btn primary';
+        send.style.cssText = 'width:100%;padding:14px;font-size:15px';
+        send.textContent = '🗣 发言';
+        send.onclick = () => this.submit(ta.value.trim() || '我这轮先过，听你们的。');
+        act.appendChild(send);
       } else if (p.options && p.options.length) {
         p.options.forEach(o => {
           const b = document.createElement('button');
