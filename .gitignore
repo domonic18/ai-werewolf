@@ -4,6 +4,12 @@ node_modules/
 .env
 config/cloud.json
 
+# 构建产物（Vite 前端 + tsc 服务端）
+dist/
+dist-server/
+coverage/
+*.tsbuildinfo
+
 # 项目文档需要入库（覆盖全局 *.md 忽略规则）
 !README.md
 !AGENTS.md

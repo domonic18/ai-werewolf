@@ -1,0 +1,125 @@
+import type { ReactNode } from 'react';
+import type { GameEvent, Snapshot } from '@shared/types';
+import { highlightNames } from './highlight';
+
+export interface StageView {
+  title: string;
+  body: ReactNode;
+  tone: 'idle' | 'night' | 'dawn' | 'vote' | 'abort';
+}
+
+const IDLE: StageView = { title: '', body: '准备开始…', tone: 'idle' };
+
+/**
+ * 舞台内容 = 事件流里最后一个"需要上屏"的事件。
+ * 纯函数派生，没有隐藏状态，也不依赖渲染时机 —— 这是 v1.2.1 那类
+ * "旧提示把新面板顶掉"问题的结构性解法。
+ */
+export function buildStage(events: GameEvent[], snapshot: Snapshot | null): StageView {
+  const names = snapshot?.players.map((p) => p.name) ?? [];
+
+  for (let i = events.length - 1; i >= 0; i--) {
+    const event = events[i] as GameEvent;
+    switch (event.type) {
+      case 'night-cue':
+        return {
+          title: snapshot ? `第 ${snapshot.round} 夜` : '夜晚',
+          body: <div style={{ textAlign: 'center', padding: '8px 0', fontSize: 15, letterSpacing: 1 }}>{event.payload.text}</div>,
+          tone: 'night',
+        };
+      case 'dawn':
+        return {
+          title: '天亮了',
+          body: event.payload.dead.length ? (
+            <>
+              天亮了，昨夜 <b style={{ color: 'var(--wolf)' }}>{event.payload.dead.length} 人</b> 出局。
+              {event.payload.firstNight ? '（首夜出局有遗言）' : ''}
+            </>
+          ) : (
+            <>
+              天亮了，昨夜是<b style={{ color: 'var(--good)' }}>平安夜</b>。
+            </>
+          ),
+          tone: 'dawn',
+        };
+      case 'speech':
+        return {
+          title: `${event.payload.emoji} ${event.payload.name}`,
+          body: highlightNames(event.payload.text, names),
+          tone: 'idle',
+        };
+      case 'ai-thinking': {
+        const player = snapshot?.players.find((p) => p.id === event.payload.playerId);
+        return {
+          title: player ? `${player.emoji} ${player.name}` : 'AI',
+          body: (
+            <div className="think">
+              {event.payload.label}
+              <i />
+              <i />
+              <i />
+            </div>
+          ),
+          tone: 'idle',
+        };
+      }
+      case 'vote-result':
+        return event.payload.tie ? {
+          title: '投票结果',
+          body: <>平票（{(event.payload.names ?? []).join('、')}），本轮无人被放逐。</>,
+          tone: 'vote',
+        } : {
+          title: '投票结果',
+          body: (
+            <>
+              <b>{event.payload.name}</b> 被放逐，身份是{' '}
+              <b>{roleLabel(event.payload.role)}</b>。
+            </>
+          ),
+          tone: 'vote',
+        };
+      case 'aborted':
+        return {
+          title: 'AI 掉线了',
+          body: (
+            <>
+              本局 AI 发言完全依赖云服务大模型，调用失败后不用假话术顶替。
+              <br />
+              <br />
+              失败原因：<b style={{ color: 'var(--wolf)' }}>{event.payload.reason}</b>
+            </>
+          ),
+          tone: 'abort',
+        };
+      default:
+        continue;
+    }
+  }
+
+  return IDLE;
+}
+
+function roleLabel(role: string | undefined): string {
+  switch (role) {
+    case 'wolf':
+      return '🐺 狼人';
+    case 'seer':
+      return '🔮 预言家';
+    case 'witch':
+      return '🧪 女巫';
+    case 'villager':
+      return '🧑‍🌾 平民';
+    default:
+      return '未知身份';
+  }
+}
+
+/** 当前正在发言/思考的玩家 id（用于座位高亮与顺序条） */
+export function speakingPlayerId(events: GameEvent[]): number | null {
+  for (let i = events.length - 1; i >= 0; i--) {
+    const event = events[i] as GameEvent;
+    if (event.type === 'speech' || event.type === 'ai-thinking') return event.payload.playerId;
+    if (event.type === 'dawn' || event.type === 'night-cue' || event.type === 'vote-result') return null;
+  }
+  return null;
+}

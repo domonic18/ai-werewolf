@@ -1,6 +1,6 @@
 # 技术选型决策记录（ADR）：v1.4 起迁移到 React + TypeScript
 
-- 状态：**建议采纳，待确认后执行**
+- 状态：**已采纳并执行**（2026-10-22：P0 工具链 + P1 前端等价重建已完成，分支 `refactor/react-ts`）
 - 日期：2026-10-22
 - 决策人：domonic
 - 影响版本：v1.4（大厅/观战）起
@@ -124,3 +124,22 @@ P0/P1 在 `refactor/react-ts` 分支进行，合并后一次性替换；期间�
 1. 是否采纳本 ADR（React+TS 前端 / TS 后端、不上 Next.js）？
 2. 迁移在 `refactor/react-ts` 分支进行，合并前线上版本冻结在 v1.3.1 —— 是否接受约 3 天不发新功能？
 3. P0 完成后是否先发一版 `v1.4.0-rc`（功能等价、仅换栈）供你验证，再进 P2？
+
+## 8. 执行记录（2026-10-22 落地）
+
+| 项 | 计划 | 实际 |
+|---|---|---|
+| 前端 | React 18 + TS + Vite + Tailwind | React 18 + TS + Vite 已落地；**Tailwind 暂缓**——现有 175 行手写 CSS 已是成品视觉，直接换实用类会引入无收益的样式回归，待 v1.4 新增页面时再逐步引入 |
+| 状态管理 | zustand 单 store | 已落地（`client/src/store/gameStore.ts`） |
+| 后端 | TS + ESM，保留零框架 http | 已落地（`tsc` 输出 `dist-server`，Node 直接跑） |
+| 类型共享 | `src/shared/types.ts` | 已落地；事件为可辨识联合（`{[K in EventKind]: {type:K; payload: EventPayloads[K]}}`），前端 switch 漏分支直接编译报错 |
+| 测试 | vitest 统一 | 已落地；**测试不再依赖网络**：注入 Mock LLM，API 测试在进程内起服务 |
+| 开发体验 | — | 新增 `npm run dev`（Vite HMR，`/api` 代理到 8787）与 `npm run dev:server`（tsx watch） |
+
+**执行中顺带修掉的三个隐患**（都属于重构必要性的一部分）：
+
+1. `game-start` 事件原先把真人完整快照（含 `myRole`）写进事件流，任何拿到 gameId 的人都能读到真人身份 → 改为只带 `gameId`；
+2. 原 `await-human` 事件与快照里的 `pendingAction` 是两份状态，前端渲染靠"事件来了才出面板" → 事件移除，前端只从 `snapshot.pendingAction` 派生，消除"旧提示顶掉新面板"这一类 bug；
+3. 前端发言名高亮原先走 `innerHTML` 拼接 → 改为 React 节点分段渲染，天然免疫注入。
+
+**性能与体积**：前端产物 166KB / gzip 55.5KB；测试从 63s 降到 6.9s（引擎新增 `pace` 节奏系数，只压缩演出等待，不影响任何规则判定）。

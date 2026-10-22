@@ -28,26 +28,35 @@
 
 ### 技术栈
 
-- **运行时**：Node.js ≥ 18，原生 `http`，零 Web 框架（8 个端点，够用）
-- **前端**：当前为原生 HTML/CSS/JS（`public/`），v1.4 起按 ADR 迁移 React 18 + TypeScript + Vite + Tailwind
+- **运行时**：Node.js ≥ 18，ESM，原生 `http`，零 Web 框架
+- **前端**：React 18 + TypeScript + Vite 5 + zustand（单 store）；样式为原生 CSS（Tailwind 暂缓，见 ADR 备注）
+- **类型**：`src/shared/types.ts` 是事件/快照的唯一事实来源，前后端共用；`tsc` 是契约的守门人
 - **AI**：WorkBuddy Cloud LLM（`@tencent-ai/workbuddy-cloud-sdk`，免密钥，服务端调用）
 - **存储**：WorkBuddy Cloud Database（PostgREST 风格，`ww_matches` 表存档战绩）
-- **部署**：sites 单端口服务，绑 `0.0.0.0:$PORT`；沙箱不注入自定义环境变量
+- **测试**：vitest（单元 / 引擎冒烟 / 进程内 API 全链路），Mock LLM 不依赖网络
+- **部署**：sites 单端口服务，`npm run build` 产出 `dist-server` + `dist/client`，由 Node 同时托管；绑 `0.0.0.0:$PORT`；沙箱不注入自定义环境变量
 
 ### 目录结构与职责
 
 ```
+client/            前端（Vite + React + TS）
+  src/pages/       HomePage / MatchPage / ResultPage（三屏）
+  src/components/  纯展示组件（座位、顺序条、输入面板、发言记录…）
+  src/hooks/       数据获取与轮询（useMatchPolling / useHomeData）
+  src/store/       zustand 单 store（快照 + 事件 + 游标）
+  src/lib/         纯函数（名字高亮、阶段文案、舞台派生）
 src/
-  server/       HTTP 层：index.js（静态文件 + 配置加载）、routes.js（REST 路由）、rooms.js（内存房间管理，TTL 2h）
-  game/         engine.js（权威对局状态机：夜晚口令/发言轮次/投票结算/胜负判定）
-                roles.js（角色定义、6 人角色组、AI 人设阵容）
-  ai/           llm-gateway.js（模型选择、双流收集、JSON 约束、超时）
-                ai-player.js（5 个决策点：发言/狼刀/查验/女巫用药/投票/首夜遗言）
-                json.js（括号深度扫描提取 JSON、玩家名匹配）
-  cloud/        match-store.js（战绩表读写）
-public/         前端（薄客户端：只渲染状态，零游戏逻辑）
-tests/          json.test.js（解析器单测）、engine-smoke.test.js（Mock LLM 10 局）、api-selftest.test.js（进程内全链路）
-docs/           PRD.md、TECH-STACK.md、designs/（原型）
+  shared/          types.ts / roles.ts —— 前后端共用，只放类型与常量
+  server/          index.ts（启动/配置）、app.ts（装配/静态托管）、routes.ts、rooms.ts
+  game/            engine.ts（权威状态机：夜晚口令/发言轮次/投票结算/胜负）
+                   roles.ts（角色牌组、AI 人设）、types.ts（引擎内部类型）
+  ai/              llm-gateway.ts（模型选择、双流收集、JSON 约束、超时）
+                   ai-player.ts（6 个决策点）、json.ts（JSON 提取、名字匹配）
+  cloud/           match-store.ts（战绩表读写）
+tests/             json.test.ts / engine-smoke.test.ts / api-selftest.test.ts
+tools/             构建辅助（.js → .ts 解析插件）
+docs/              PRD.md、TECH-STACK.md、designs/（原型）
+specs/             spec-kit 需求合同
 ```
 
 ### 各目录 Agent 上下文
@@ -55,8 +64,9 @@ docs/           PRD.md、TECH-STACK.md、designs/（原型）
 | 目录 | 说明 |
 |------|------|
 | `src/game/` | 规则唯一实现处。改动必须跑 10 局 Mock 冒烟，且通过夜晚隐私审计（事件流无身份泄露） |
-| `src/ai/` | 提示词与决策契约。改 prompt 需保持 JSON 输出 schema 不变，或同步改 `json.js` 与单测 |
-| `public/` | 不许出现任何游戏规则判断；只允许「渲染 snapshot + 上报用户 action」 |
+| `src/ai/` | 提示词与决策契约。改 prompt 需保持 JSON 输出 schema 不变，或同步改 `json.ts` 与单测 |
+| `client/` | 不许出现任何游戏规则判断；只允许「渲染 snapshot + 上报用户 action」。输入面板只从 `snapshot.pendingAction` 派生 |
+| `src/shared/` | 只放类型与展示常量。改这里等于改前后端契约，必须两端同时通过 `npm run typecheck` |
 
 ## 4. 通用编码规范与 AI 指令
 
@@ -85,22 +95,22 @@ docs/           PRD.md、TECH-STACK.md、designs/（原型）
 - 面向用户的中止必须给出可读原因（模型不可用 / 输出不合法），不要静默降级。
 
 ### API 设计
-- 薄路由、重服务：路由只做参数校验、状态码、异常转换；规则在 `engine.js`。
+- 薄路由、重服务：路由只做参数校验、状态码、异常转换；规则在 `engine.ts`。
 - 一致的 JSON 响应格式；列表端点支持分页。
 - 事件流用 `seq` 递增，客户端凭 `?since=` 增量拉取，天然支持断线恢复。
 
 ## 5. 任务完成协议
 
-1. **测试**：`npm test` 必须全绿（解析器单测 + 10 局引擎冒烟 + API 全链路自测）。
+1. **测试**：`npm test` 必须全绿（解析器单测 + 10 局引擎冒烟 + API 全链路自测），另跑 `npm run typecheck` 与 `npm run build`。
 2. **规则改动**：额外跑一遍「夜晚事件流隐私审计」，确认无玩家名 + 行为词共现。
 3. **前端改动**：核对 390px 下的三屏流程（大厅 → 对局 → 结算），并手动确认无缓存残留（`no-cache` + 版本号）。
-4. **版本号**：每次迭代 `package.json` 与页面 `#ver` 同步 +1（v1.3.1 → v1.4.0），便于线上验证。
+4. **版本号**：每次迭代 `package.json` +1（页面版本号由构建期从 `package.json` 注入，只改一处）。
 5. **文档**：改了行为就更新 `specs/` 与 `docs/PRD.md` 中受影响的条目；不要新开重复文档。
 6. 完成后向用户报告：改了什么、怎么验证的、还有什么风险。
 
 ## 6. 硬性禁止
 
-- 禁止在 `public/` 里实现或复制任何游戏规则逻辑。
+- 禁止在 `client/` 里实现或复制任何游戏规则逻辑。
 - 禁止为「体验兜底」加入规则化 AI 话术。
 - 禁止把 `config/cloud.json`、`.env`、token 提交进仓库。
 - 禁止擅自合并分支或改动线上部署配置。
