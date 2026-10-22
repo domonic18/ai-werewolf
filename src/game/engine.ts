@@ -634,6 +634,8 @@ export class GameEngine implements GameView {
 
   private async vote(): Promise<void> {
     this.phase = 'vote';
+    /* 广播投票阶段：事件流要能自解释，前端票型与大厅阶段标签都靠它复位/展示 */
+    this.pushEvent('phase', { label: `第 ${this.round} 天 · 投票`, phase: 'vote' });
     const alive = this.alivePlayers();
     const votes: { voter: number; target: number }[] = [];
 

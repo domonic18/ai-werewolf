@@ -132,6 +132,18 @@ await check('构建产物 JS 可加载', async () => {
   return `${asset} · ${size} bytes`;
 });
 
+await check('前端产物里带分享码逻辑（否则网关会拦下 POST）', async () => {
+  const page = await request('/');
+  const html = await page.text();
+  const asset = html.match(/\/assets\/[^"']+\.js/)?.[0];
+  assert(asset, 'HTML 中没有 assets 引用');
+  const js = await (await request(asset)).text();
+  /* 平台网关对 POST 要求带 sharecode；前端漏带时浏览器只报 Failed to fetch，
+     所以这里对产物做一次静态断言，避免「curl 全绿、真人点不动」的回归 */
+  assert(js.includes('sharecode='), '构建产物里没有 sharecode 处理逻辑');
+  return 'ok';
+});
+
 await check('缺失的静态资源返回 404（不再伪装成 index.html）', async () => {
   const res = await request('/assets/definitely-missing-deadbeef.js');
   assert(res.status === 404, `期望 404，实际 ${res.status}`);

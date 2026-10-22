@@ -38,7 +38,7 @@ function GameRow({ game, onWatch }: { game: LobbyGame; onWatch: (id: string) => 
           {!game.hasHuman ? <em className="lobby-flag ghost">全 AI</em> : null}
         </span>
         <span className="lobby-meta">
-          <span className="tag stage">{game.phaseLabel}</span>
+          <span className="tag phase">{game.phaseLabel}</span>
           <span className="lobby-alive">
             存活 {game.alive}/{game.players}
             <span className="lobby-alive-track">
@@ -61,7 +61,7 @@ function GameCard({ game, onWatch }: { game: LobbyGame; onWatch: (id: string) =>
     <button className={`lobby-card ${game.isFinal ? 'hot' : ''}`} onClick={() => onWatch(game.gameId)}>
       <span className="lobby-card-top">
         <span className="lobby-host">👤 {game.host}</span>
-        <span className="tag stage">{game.phaseLabel}</span>
+        <span className="tag phase">{game.phaseLabel}</span>
       </span>
       <span className="lobby-alive">
         存活 {game.alive}/{game.players}

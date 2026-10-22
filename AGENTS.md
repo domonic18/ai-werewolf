@@ -111,6 +111,7 @@ specs/             spec-kit 需求合同
 ## 6. 硬性禁止
 
 - 禁止把「端口监听」放在任何外部依赖初始化之后。站点可用性不得依赖 AI 通道（2026-10-22 线上 504 事故：先 await LLM 初始化再 listen，冷启动自举死锁 → 整站 30s 超时）。LLM 一律后台引导，未就绪时 `/api/games` 返回 503。
+- 禁止在 `client/` 里直接调用 `fetch('/api/...')`。必须走 `client/src/api/client.ts`——它负责带上平台要求的 `sharecode`（2026-10-22 事故：POST 不带分享码被网关 403，浏览器只报 `Failed to fetch`，而 curl 全绿）。
 - 禁止在 `client/` 里实现或复制任何游戏规则逻辑。
 - 禁止为「体验兜底」加入规则化 AI 话术。
 - 禁止把 `config/cloud.json`、`.env`、token 提交进仓库。

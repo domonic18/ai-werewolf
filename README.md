@@ -25,6 +25,7 @@ React 前端 (client/)            Node 服务端 (src/)                 云服�
 - **真人输入挂起**：引擎在需要真人决策处挂起，HTTP `action` 唤醒；前端只从 `snapshot.pendingAction` 派生输入面板，不依赖事件里的旧提示
 - **无构建兜底**：生产由同一个 Node 进程托管 `/api` 与 `dist/client`，不用 `vite preview` 当线上服务
 - **启动顺序**：先 `listen` 再后台初始化 LLM。AI 通道不可用时站点照常打开、`/api/games` 返回 503 —— 可用性不外包给外部依赖
+- **分享码必须随请求带走**：平台的发布网关对非导航请求要求 `sharecode`（GET 放行、POST 不放行），漏带时浏览器只报 `Failed to fetch`。前端统一在 `client/src/api/client.ts` 里补，禁止各页面自己 `fetch('/api/...')`
 - **玩家凭证**：开局下发一次性 `playerToken`，玩家私有接口（快照 / 事件 / 动作 / 退出）必须带 `X-Player-Token`；观战走 `/spectate` 不需要凭证。这样即便 `gameId` 在大厅公开，旁人也无法读真人身份或替你操作
 
 ## 目录结构

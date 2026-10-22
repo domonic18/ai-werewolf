@@ -13,5 +13,6 @@ export function roundBadge(phase: Phase, round: number): string {
   if (phase === 'over') return '对局结束';
   if (round === 0) return '准备中';
   if (phase === 'night') return `第 ${round} 夜`;
+  if (phase === 'vote') return `第 ${round} 天 · 投票`;
   return `第 ${round} 天`;
 }
