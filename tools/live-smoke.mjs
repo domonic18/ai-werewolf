@@ -342,7 +342,33 @@ if (gameId) {
   skip('对局链路与观战投影', '没有可用的对局');
 }
 
-/* ---------- 7. 汇总 ---------- */
+/* ---------- 7. 账号边界 ---------- */
+console.log('\n[7/7] 账号边界（未登录/坏凭证都不能冒充身份）');
+
+await check('匿名「我的对局」返回空，不退化成全部对局', async () => {
+  const all = await json('/api/live?filter=all');
+  const mine = await json('/api/live?filter=mine');
+  assert(all.status === 200 && mine.status === 200, `HTTP ${all.status}/${mine.status}`);
+  assert(mine.body.total === 0, `期望 0 局，实际 ${mine.body.total}`);
+  assert(all.body.total >= mine.body.total, '「全部」反而不比「我的」多');
+  return `全部 ${all.body.total} 局 · 我的 ${mine.body.total} 局`;
+});
+
+await check('伪造 Bearer 不会换来别人的对局（降级匿名）', async () => {
+  const res = await json('/api/live?filter=mine', { headers: { Authorization: 'Bearer forged.token.value' } });
+  assert(res.status === 200, `期望 200（降级匿名），实际 ${res.status}`);
+  assert(res.body.total === 0, `伪造凭证竟然查到 ${res.body.total} 局`);
+  return 'HTTP 200 · 0 局';
+});
+
+await check('战绩 mine=1 未登录回落全网，scope=all', async () => {
+  const { status, body } = await json('/api/matches?mine=1');
+  assert(status === 200, `HTTP ${status}`);
+  assert(body.scope === 'all', `期望 scope=all，实际 ${body.scope}`);
+  return `scope=${body.scope} · ${body.recent?.length ?? 0} 行`;
+});
+
+/* ---------- 8. 汇总 ---------- */
 const passed = results.filter((r) => r.ok).length;
 const skipped = results.filter((r) => r.skipped).length;
 console.log(`\n${'─'.repeat(52)}`);
