@@ -30,6 +30,8 @@ import { ROLES } from '../shared/roles.js';
 import type { LLMClient } from '../ai/types.js';
 import { AIPlayer } from '../ai/ai-player.js';
 import { GAME_RULES, ROLE_DECK, AI_CAST, judgeWinner } from './roles.js';
+import { NIGHT_BEHAVIORS } from './behaviors.js';
+import type { NightHost } from './behaviors.js';
 import type { GameView, Player } from './types.js';
 
 const sleep = (ms: number): Promise<void> => new Promise((r) => setTimeout(r, ms));
@@ -377,142 +379,22 @@ export class GameEngine implements GameView {
     this.saved = false;
     this.poisonId = null;
 
-    const cue = (text: string): GameEvent => this.pushEvent('night-cue', { text });
-
-    /* 1. 天黑请闭眼 */
-    cue('天黑请闭眼 🌙');
+    /* 法官口令制：只有口令，不含任何"谁在行动" */
+    this.nightCue('天黑请闭眼 🌙');
     await this.pause(900);
 
-    /* 2. 狼人行动 */
-    cue('狼人请睁眼，选择今晚的目标…');
-    const wolves = this.alivePlayers().filter((p) => p.role === 'wolf');
-    const humanWolf = wolves.find((p) => p.isHuman);
-    if (wolves.length) {
-      if (humanWolf) {
-        const candidates = this.alivePlayers().filter((p) => p.role !== 'wolf');
-        if (candidates.length) {
-          const value = await this.waitHuman(
-            'pick',
-            {
-              title: '狼人行动（只有你们知道）',
-              html: `你的队友：<b>${wolves.filter((p) => !p.isHuman).map((p) => p.name).join('、') || '（没有其他狼）'}</b><br>今晚要杀谁？（可以自刀伪装）`,
-              confirm: null,
-            },
-            candidates.map((p) => ({ label: `${p.emoji} ${p.name}`, value: p.id })),
-          );
-          this.nightKill = typeof value === 'number' ? value : null;
-        }
-      } else {
-        /* AI 狼人：静默决策，不推送任何"谁在行动"的事件 */
-        const leader = wolves[0] as Player;
-        const result = await new AIPlayer(leader, this.llm).wolfKill(this);
-        this.nightKill = result ? result.target : null;
-        if (result) leader.thoughts.push({ round: this.round, phase: '夜', text: result.reason });
-      }
-    }
-    cue('狼人请闭眼');
-    await this.pause(600);
+    /* 按角色注册表依次睁眼：新增角色只改 behaviors.ts，night() 不用动 */
+    for (const behavior of NIGHT_BEHAVIORS) {
+      const actors = this.alivePlayers().filter((p) => p.role === behavior.role);
+      if (!actors.length) continue;
 
-    /* 3. 预言家行动 */
-    cue('预言家请睁眼，查验一名玩家…');
-    const seer = this.alivePlayers().find((p) => p.role === 'seer');
-    if (seer) {
-      const checked = new Set(seer.checks.map((c) => c.id));
-      const candidates = this.alivePlayers().filter((p) => p.id !== seer.id && !checked.has(p.id));
-      if (seer.isHuman) {
-        if (candidates.length) {
-          const value = await this.waitHuman(
-            'pick',
-            {
-              title: '预言家查验（只有你知道）',
-              html: '今晚要验谁？验过的人不会重复出现。',
-              confirm: null,
-            },
-            candidates.map((p) => ({ label: `${p.emoji} ${p.name}`, value: p.id })),
-          );
-          const target = this.byId(typeof value === 'number' ? value : -1);
-          if (target) {
-            const wolf = target.role === 'wolf';
-            seer.checks.push({ id: target.id, name: target.name, isWolf: wolf, round: this.round });
-            await this.waitHuman(
-              'ack',
-              {
-                title: '查验结果（只有你知道）',
-                html: `<b>${target.name}</b> 的身份是：<b style="color:${wolf ? 'var(--wolf)' : 'var(--good)'}">${wolf ? '狼人' : '好人'}</b>`,
-                confirm: '记下了',
-              },
-              [],
-            );
-          }
-        }
-      } else if (candidates.length) {
-        const result = await new AIPlayer(seer, this.llm).seerCheck(this);
-        const target = result ? this.byId(result.target) : undefined;
-        if (result && target) {
-          seer.checks.push({ id: target.id, name: target.name, isWolf: target.role === 'wolf', round: this.round });
-          seer.thoughts.push({ round: this.round, phase: '夜', text: result.reason });
-        }
-      }
+      this.nightCue(behavior.openCue);
+      /* 有真人时由真人决定，否则交给 AI 领队 */
+      const actor = actors.find((p) => p.isHuman) ?? (actors[0] as Player);
+      await behavior.act(this.nightHost(), actor);
+      this.nightCue(behavior.closeCue);
+      await this.pause(600);
     }
-    cue('预言家请闭眼');
-    await this.pause(600);
-
-    /* 4. 女巫行动 */
-    cue('女巫请睁眼，决定是否用药…');
-    const witch = this.alivePlayers().find((p) => p.role === 'witch');
-    if (witch) {
-      const victim = this.nightKill != null ? this.byId(this.nightKill) : undefined;
-      if (witch.isHuman) {
-        /* 首夜可自救（规则允许），同一晚只能用一种药 */
-        if (witch.antidote && victim) {
-          const value = await this.waitHuman(
-            'pick',
-            {
-              title: '女巫的夜晚（只有你知道）',
-              html: `今晚被刀的是 <b>${victim.name}</b>。要用解药救他吗？（被刀的是你自己时，救不救由你）`,
-              confirm: null,
-            },
-            [
-              { label: '用解药救他', value: 'save' },
-              { label: '不救', value: 'no' },
-            ],
-          );
-          if (value === 'save') {
-            this.saved = true;
-            witch.antidote = false;
-          }
-        }
-        if (!this.saved && witch.poison) {
-          const candidates = this.alivePlayers().filter((p) => p.id !== witch.id);
-          const value = await this.waitHuman(
-            'pick',
-            {
-              title: '要下毒吗（只有你知道）',
-              html: '毒药只有一瓶，用错会害死好人。同一晚只能用一种药。',
-              confirm: null,
-            },
-            [{ label: '今晚不毒', value: '' }, ...candidates.map((p) => ({ label: `毒 ${p.name}`, value: p.id }))],
-          );
-          if (typeof value === 'number') {
-            this.poisonId = value;
-            witch.poison = false;
-          }
-        }
-      } else {
-        const result = await new AIPlayer(witch, this.llm).witchAction(this, victim ?? null);
-        if (result.save && witch.antidote && victim) {
-          this.saved = true;
-          witch.antidote = false;
-        }
-        if (result.poison && witch.poison) {
-          this.poisonId = result.poison;
-          witch.poison = false;
-        }
-        witch.thoughts.push({ round: this.round, phase: '夜', text: result.reason });
-      }
-    }
-    cue('女巫请闭眼');
-    await this.pause(600);
 
     /* 5. 天亮，结算（死讯统一公布，不披露死因与用药） */
     const dead: Player[] = [];
@@ -542,6 +424,39 @@ export class GameEngine implements GameView {
 
     this.lastNightText = dead.length ? `${dead.map((p) => p.name).join('、')} 出局` : '平安夜';
     this.pushEvent('night-settle', { dead: dead.map((p) => p.id), text: this.lastNightText });
+  }
+
+  /** 法官口令（夜晚唯一允许的事件类型，不含玩家名与行动者） */
+  private nightCue(text: string): void {
+    this.pushEvent('night-cue', { text });
+  }
+
+  /**
+   * 角色行为的窄接口：行为只能通过它读写夜间状态，
+   * 这样后续角色（猎人/守卫/摄梦人…）不需要碰引擎内部结构。
+   */
+  private nightHost(): NightHost {
+    return {
+      game: this,
+      llm: this.llm,
+      round: this.round,
+      alivePlayers: () => this.alivePlayers(),
+      byId: (id) => this.byId(id),
+      waitHuman: (kind, prompt, options) => this.waitHuman(kind, prompt, options),
+      cue: (text) => this.nightCue(text),
+      pause: (ms) => this.pause(ms),
+      getWolfKill: () => this.nightKill,
+      setWolfKill: (id) => {
+        this.nightKill = id;
+      },
+      getSaved: () => this.saved,
+      setSaved: (v) => {
+        this.saved = v;
+      },
+      setPoison: (id) => {
+        this.poisonId = id;
+      },
+    };
   }
 
   /** 演出节奏：只影响等待时长，不影响任何规则判定 */
