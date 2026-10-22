@@ -3,6 +3,7 @@ import { api } from '../api/client';
 import { EventLog } from '../components/EventLog';
 import { PromptPanel } from '../components/PromptPanel';
 import { SeatGrid } from '../components/SeatGrid';
+import type { SeatLike } from '../components/SeatGrid';
 import { SpeechLog } from '../components/SpeechLog';
 import { SpeechOrderBar } from '../components/SpeechOrderBar';
 import { roundBadge } from '../lib/format';
@@ -17,15 +18,18 @@ export function MatchPage({ lost }: { lost: boolean }): JSX.Element {
   const gameId = useGameStore((s) => s.gameId);
   const watching = useGameStore((s) => s.watching);
   const snapshot = useGameStore((s) => s.snapshot);
+  const spectate = useGameStore((s) => s.spectate);
   const events = useGameStore((s) => s.events);
   const close = useGameStore((s) => s.close);
 
   const [tab, setTab] = useState<Tab>('speech');
   const [answeredKey, setAnsweredKey] = useState<string | null>(null);
 
-  const players = snapshot?.players ?? [];
+  /* 观战用上帝视角投影，玩家用私有视角快照 —— 两者互斥，绝不互相兜底 */
+  const view = watching ? spectate : snapshot;
+  const players: SeatLike[] = watching ? spectate?.players ?? [] : snapshot?.players ?? [];
   const names = useMemo(() => players.map((p) => p.name), [players]);
-  const myId = players.find((p) => p.isHuman)?.id ?? null;
+  const myId = watching ? null : players.find((p) => p.isHuman)?.id ?? null;
   const speakingId = speakingPlayerId(events);
 
   const orderEvent = [...events]
@@ -33,15 +37,19 @@ export function MatchPage({ lost }: { lost: boolean }): JSX.Element {
     .find((e): e is Extract<GameEvent, { type: 'speech-order' }> => e.type === 'speech-order');
   const order = orderEvent?.payload.order ?? [];
 
+  const currentRound = view?.round ?? 0;
   const spokenIds = useMemo(() => {
     const set = new Set<number>();
     for (const event of events) {
-      if (event.type === 'speech' && event.payload.round === snapshot?.round) set.add(event.payload.playerId);
+      if (event.type === 'speech' && event.payload.round === currentRound) set.add(event.payload.playerId);
     }
     return set;
-  }, [events, snapshot?.round]);
+  }, [events, currentRound]);
 
-  const stage = buildStage(events, snapshot);
+  const stage = buildStage(events, {
+    round: currentRound,
+    players: players.map((p) => ({ id: p.id, name: p.name, emoji: p.emoji })),
+  });
   const pending = watching ? null : snapshot?.pendingAction ?? null;
   const promptKey = pending ? `${snapshot?.round}-${pending.kind}-${pending.prompt.title}-${pending.options.length}` : null;
   /* 有未回答的挂起动作时，舞台让位给 prompt：标题/说明都来自服务端，避免两份文案走偏 */
@@ -78,7 +86,7 @@ export function MatchPage({ lost }: { lost: boolean }): JSX.Element {
   return (
     <section className="screen">
       <div className="topbar">
-        <div className="round-badge">{snapshot ? roundBadge(snapshot.phase, snapshot.round) : '准备中'}</div>
+        <div className="round-badge">{view ? roundBadge(view.phase, view.round) : '准备中'}</div>
         <div className="role-chip">
           <b>{roleChip}</b>
         </div>
@@ -97,7 +105,7 @@ export function MatchPage({ lost }: { lost: boolean }): JSX.Element {
         </div>
       ) : null}
 
-      <SeatGrid players={players} myId={myId} speakingId={speakingId} />
+      <SeatGrid players={players} myId={myId} speakingId={speakingId} revealRoles={watching} />
 
       <div className="stage">
         <SpeechOrderBar order={order} speakingId={speakingId} spokenIds={spokenIds} />

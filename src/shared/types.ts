@@ -226,9 +226,40 @@ export interface EventsResponse {
   snapshot: Snapshot;
 }
 
+/** 观战座位：与玩家视角不同，观战是上帝视角，身份全量可见 */
+export interface SpectateSeat {
+  id: number;
+  seat: number;
+  name: string;
+  emoji: string;
+  alive: boolean;
+  isHuman: boolean;
+  role: RoleKey;
+  camp: Team;
+}
+
+export interface SpectateSnapshot {
+  gameId: string;
+  round: number;
+  phase: Phase;
+  version: number;
+  winner: Team | null;
+  aborted: { reason: string } | null;
+  players: SpectateSeat[];
+  /** 阵营存活统计，观战页用来画双方进度条 */
+  factions: {
+    wolf: { alive: number; total: number };
+    good: { alive: number; total: number };
+  };
+}
+
 export interface SpectateResponse {
   version: number;
   events: GameEvent[];
+  /** 观战投影：全量身份，与玩家快照物理分离 */
+  snapshot: SpectateSnapshot;
+  /** 当前观战人数（服务端心跳统计） */
+  spectators: number;
 }
 
 export interface CreateGameResponse {

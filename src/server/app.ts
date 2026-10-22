@@ -31,7 +31,12 @@ export interface AppOptions extends ApiContext {
   staticDir?: string;
 }
 
-async function serveStatic(res: http.ServerResponse, staticDir: string, urlPath: string): Promise<void> {
+async function serveStatic(
+  req: http.IncomingMessage,
+  res: http.ServerResponse,
+  staticDir: string,
+  urlPath: string,
+): Promise<void> {
   const decoded = decodeURIComponent(urlPath.split('?')[0] ?? '/');
   const relative = decoded === '/' ? '/index.html' : decoded;
   const file = path.normalize(path.join(staticDir, relative));
@@ -52,7 +57,17 @@ async function serveStatic(res: http.ServerResponse, staticDir: string, urlPath:
     });
     res.end(body);
   } catch {
-    /* 单页应用兜底：非静态资源路径一律回 index.html */
+    /**
+     * 单页应用兜底只对「导航请求」生效：无扩展名 + Accept 含 text/html。
+     * 绝不能把缺失的 /assets/*.js 也回成 index.html —— 那会让浏览器拿 HTML 当 JS 解析，
+     * 报一个看不懂的 MIME 错误，而服务端日志里连 404 都没有。
+     */
+    const isNavigation = !path.extname(relative) && (req.headers.accept ?? '').includes('text/html');
+    if (!isNavigation) {
+      res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' });
+      res.end('not found');
+      return;
+    }
     try {
       const html = await fs.readFile(path.join(staticDir, 'index.html'));
       res.writeHead(200, { 'Content-Type': MIME['.html'] as string, 'Cache-Control': 'no-cache, must-revalidate' });
@@ -74,6 +89,6 @@ export function createApp(options: AppOptions): http.Server {
       void handleApi(req, res, ctx);
       return;
     }
-    void serveStatic(res, staticDir, url);
+    void serveStatic(req, res, staticDir, url);
   });
 }

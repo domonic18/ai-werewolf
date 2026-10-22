@@ -56,8 +56,8 @@ description: "Task list for 001 游戏大厅与对局观战"
 
 **目标**：观战拿到全量身份投影；玩家拿不到他人身份；观战写操作被拒。
 
-- [ ] T014 [US2] `src/game/engine.js` 新增 `spectateSnapshot()`：全量 `role/camp`、`factions`、`tally`、`timeline`、`visibleAt`，**不含** `pendingAction` 内部结构与"谁正在行动"（1d）
-- [ ] T015 [US2] `src/server/routes.js` `/spectate`：登记 `client`、返回 `snapshot`+`spectators`、保留旧 `events`（0.5d）
+- [x] T014 [US2] `src/game/engine.js` 新增 `spectateSnapshot()`：全量 `role/camp`、`factions`、`tally`、`timeline`、`visibleAt`，**不含** `pendingAction` 内部结构与"谁正在行动"（1d）
+- [x] T015 [US2] `src/server/routes.js` `/spectate`：登记 `client`、返回 `snapshot`+`spectators`、保留旧 `events`（0.5d）
 - [ ] T016 [US2] `src/server/routes.js` 写操作守卫：请求带观战标识或房间内无该玩家会话时 `/action`、`/quit` 返回 403（0.5d）
 - [ ] T017 [P] [US2] `tests/api-selftest.test.js` 新增隐私断言：观战快照能读到他人 `role`；玩家快照 `players[].role` 不存在；夜晚事件流无「玩家名+行为词」共现（1d）
 - [ ] T018 [P] [US2] `tests/api-selftest.test.js` 新增观战写断言：观战者 `POST /action` → 403，且 `version` 不变（0.3d）

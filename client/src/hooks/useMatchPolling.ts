@@ -29,12 +29,10 @@ export function useMatchPolling(): { lost: boolean } {
       const since = useGameStore.getState().version;
       try {
         if (watching) {
-          const [stream, snapshot] = await Promise.all([
-            api.spectate(gameId, since, getClientId()),
-            api.snapshot(gameId),
-          ]);
+          /* 观战只认 /spectate：它返回上帝视角投影，不再借用真人快照接口（那会泄露身份） */
+          const stream = await api.spectate(gameId, since, getClientId());
           if (cancelled) return;
-          apply({ events: stream.events, version: stream.version, snapshot });
+          apply({ events: stream.events, version: stream.version, spectate: stream.snapshot });
         } else {
           const data = await api.events(gameId, since);
           if (cancelled) return;

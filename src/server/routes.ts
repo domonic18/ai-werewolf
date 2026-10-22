@@ -125,6 +125,9 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, ctx: 
       const body = await readBody<{ playerName: string }>(req);
       const name = String(body.playerName ?? '').slice(0, 8) || '你';
       const room = ctx.rooms.create(name);
+      if (!room) {
+        return sendJson(res, 503, { error: '同时进行的对局已满，请稍后再试（不会踢掉别人正在进行的对局）' });
+      }
 
       /* 异步开跑：对局循环挂起在 waitHuman 上，等待前端 action */
       void room.engine
@@ -188,6 +191,9 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, ctx: 
         const body: SpectateResponse = {
           version: engine.version,
           events: engine.events.filter((e) => e.seq > since),
+          /* 上帝视角投影：全量身份，与玩家快照是两个函数 */
+          snapshot: engine.spectateSnapshot(),
+          spectators: room.spectatorCount,
         };
         return sendJson(res, 200, body);
       }

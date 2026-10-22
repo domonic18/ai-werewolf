@@ -1,6 +1,18 @@
 import type { ReactNode } from 'react';
-import type { GameEvent, Snapshot } from '@shared/types';
+import type { GameEvent, RoleKey } from '@shared/types';
+import { ROLES } from '@shared/roles';
 import { highlightNames } from './highlight';
+
+export interface StageSeat {
+  id: number;
+  name: string;
+  emoji: string;
+}
+
+export interface StageContext {
+  round: number;
+  players: StageSeat[];
+}
 
 export interface StageView {
   title: string;
@@ -15,15 +27,15 @@ const IDLE: StageView = { title: '', body: '准备开始…', tone: 'idle' };
  * 纯函数派生，没有隐藏状态，也不依赖渲染时机 —— 这是 v1.2.1 那类
  * "旧提示把新面板顶掉"问题的结构性解法。
  */
-export function buildStage(events: GameEvent[], snapshot: Snapshot | null): StageView {
-  const names = snapshot?.players.map((p) => p.name) ?? [];
+export function buildStage(events: GameEvent[], context: StageContext): StageView {
+  const names = context.players.map((p) => p.name);
 
   for (let i = events.length - 1; i >= 0; i--) {
     const event = events[i] as GameEvent;
     switch (event.type) {
       case 'night-cue':
         return {
-          title: snapshot ? `第 ${snapshot.round} 夜` : '夜晚',
+          title: `第 ${context.round} 夜`,
           body: <div style={{ textAlign: 'center', padding: '8px 0', fontSize: 15, letterSpacing: 1 }}>{event.payload.text}</div>,
           tone: 'night',
         };
@@ -49,7 +61,7 @@ export function buildStage(events: GameEvent[], snapshot: Snapshot | null): Stag
           tone: 'idle',
         };
       case 'ai-thinking': {
-        const player = snapshot?.players.find((p) => p.id === event.payload.playerId);
+        const player = context.players.find((p) => p.id === event.payload.playerId);
         return {
           title: player ? `${player.emoji} ${player.name}` : 'AI',
           body: (
@@ -99,19 +111,10 @@ export function buildStage(events: GameEvent[], snapshot: Snapshot | null): Stag
   return IDLE;
 }
 
-function roleLabel(role: string | undefined): string {
-  switch (role) {
-    case 'wolf':
-      return '🐺 狼人';
-    case 'seer':
-      return '🔮 预言家';
-    case 'witch':
-      return '🧪 女巫';
-    case 'villager':
-      return '🧑‍🌾 平民';
-    default:
-      return '未知身份';
-  }
+function roleLabel(role: RoleKey | undefined): string {
+  if (!role) return '未知身份';
+  const meta = ROLES[role];
+  return `${meta.emoji} ${meta.name}`;
 }
 
 /** 当前正在发言/思考的玩家 id（用于座位高亮与顺序条） */

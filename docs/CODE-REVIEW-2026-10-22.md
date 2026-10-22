@@ -11,7 +11,8 @@
 
 | 级别 | 数量 | 含义 |
 |---|---|---|
-| P0 阻断 | 3 | 会造成信息泄露、对局丢失或线上故障，建议本轮修 |
+| P0 阻断 | 3 | 会造成信息泄露、对局丢失或线上故障 —— **已全部修复（见第八节）** |
+| P0-a 新增 | 1 | 观战者可替真人提交动作（无身份绑定），待定 |
 | P1 规范性 | 6 | 违反自定规范或埋下维护成本，下轮修 |
 | P2 可扩展性 | 11 | 不修也能跑，但每加一个功能/角色成本上升 |
 
@@ -128,3 +129,33 @@ private gc(): void {
 - `npm run build`：通过，前端 167KB / gzip 55.9KB
 - `git ls-files | grep -i cloud`：仅 `cloud.example.json` 与 `match-store.ts`，无密钥
 - 前端测试文件：0 个（P2-8）
+
+
+## 八、P0 修复记录（2026-10-22 16:36）
+
+三项阻断问题已修复并补回归用例，`npm test` 从 36 → 44 个用例全绿。
+
+### 修复 1：观战改用独立投影（P0-1）
+
+- `src/game/engine.ts` 新增 `spectateSnapshot()`：全量 `role` / `camp`、阵营存活统计；刻意不含 `pendingAction`，与 `snapshot()` 物理分离
+- `src/server/routes.ts` 的 `/spectate` 返回 `snapshot`（上帝视角）+ `spectators`
+- 前端观战不再调用 `/api/games/:id`：`useMatchPolling` 只打一个 `/spectate` 请求（顺带解决了 P2-11 的双请求）
+- 前端 `gameStore` 增加 `spectate` 分支；`MatchPage` 按 `watching` 选择数据源，`SeatGrid` 增加 `revealRoles`
+- 回归用例：`tests/server-hardening.test.ts` —— 玩家快照不含 `role`/`camp`/`factions`；观战快照每个座位都有身份且阵营总数正确（2 狼 4 好）
+
+### 修复 2：房间满时拒绝新建，不再删活局（P0-2）
+
+- `RoomManager.create()` 改为返回 `Room | null`，只 `prune()` 已结束且超 TTL 的房间；`maxRooms` 可注入
+- `/api/games` 拿到 `null` 时返回 503「同时进行的对局已满…」，不踢人
+- 回归用例：`maxRooms=2` 时第三局被拒且前两局仍在；已结束 + 超 TTL 的房间会被清理腾位
+
+### 修复 3：静态 404 不再伪装成 200（P0-3）
+
+- `serveStatic` 的回退条件收紧为「无扩展名 + `Accept: text/html`」；`/assets/*` 与带扩展名路径一律 404
+- 回归用例：`/assets/index-deadbeef.js` → 404 `text/plain`；`/missing.png` → 404；`/some/deep/link`（导航）→ 200 回 index.html
+
+### 待定：P0-a 观战者可替真人提交动作
+
+`POST /api/games/:id/action` 目前只判断「有没有挂起点」，没有身份校验。大厅把 `gameId` 公开之后，任何拿到 id 的人都能替真人确认、投票、发言——这在单人局里已经是公平性问题，真人房会变成作弊入口。
+
+建议方案（未实施，需改契约）：开局返回一次性 `playerToken`（随机 32 字节，服务端存在 `Room` 上），`/action`、`/quit` 校验 token，不匹配返回 403；前端把 token 存进 `sessionStorage`（刷新可恢复，不跨设备）。工作量约 0.5 天，含前端的错误态与断线恢复路径。

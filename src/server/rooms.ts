@@ -50,6 +50,8 @@ export interface RoomManagerDeps {
   matchStore?: MatchStore;
   /** 演出节奏系数（生产用默认 1；测试可压缩等待） */
   pace?: number;
+  /** 同时进行的对局上限（测试可调小） */
+  maxRooms?: number;
 }
 
 export class RoomManager {
@@ -57,16 +59,23 @@ export class RoomManager {
   private readonly llm: LLMClient;
   private readonly matchStore?: MatchStore;
   private readonly pace: number;
+  private readonly maxRooms: number;
 
-  constructor({ llm, matchStore, pace = 1 }: RoomManagerDeps) {
+  constructor({ llm, matchStore, pace = 1, maxRooms = MAX_ROOMS }: RoomManagerDeps) {
     this.llm = llm;
     this.matchStore = matchStore;
     this.pace = pace;
+    this.maxRooms = maxRooms;
   }
 
-  /** 开新局：返回 room（引擎由调用方 `run()` 启动） */
-  create(playerName: string): Room {
-    this.gc();
+  /**
+   * 开新局：返回 room（引擎由调用方 `run()` 启动）。
+   * 房间满时返回 null —— 只清理已结束且超时的房间，绝不为了腾位置踢掉进行中的对局。
+   */
+  create(playerName: string): Room | null {
+    this.prune();
+    if (this.rooms.size >= this.maxRooms) return null;
+
     const engine = new GameEngine({
       playerName,
       llm: this.llm,
@@ -94,9 +103,10 @@ export class RoomManager {
     }
   }
 
-  private gc(): void {
+  /** 只清理「已结束且超过 TTL」的房间；进行中的对局一律保留 */
+  private prune(): void {
     for (const [id, room] of this.rooms) {
-      if (room.expired || this.rooms.size > MAX_ROOMS) this.rooms.delete(id);
+      if (room.expired) this.rooms.delete(id);
     }
   }
 }

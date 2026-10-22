@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { GameEvent, Snapshot } from '@shared/types';
+import type { GameEvent, Snapshot, SpectateSnapshot } from '@shared/types';
 
 const MAX_EVENTS = 500;
 export const STORAGE_KEY = 'ww_game';
@@ -8,6 +8,8 @@ interface ApplyPayload {
   events: GameEvent[];
   version: number;
   snapshot?: Snapshot;
+  /** 观战投影（上帝视角），与玩家快照互斥使用 */
+  spectate?: SpectateSnapshot;
 }
 
 interface GameStore {
@@ -15,6 +17,7 @@ interface GameStore {
   watching: boolean;
   version: number;
   snapshot: Snapshot | null;
+  spectate: SpectateSnapshot | null;
   events: GameEvent[];
   /** 起一局（或进入观战） */
   open: (gameId: string, options?: { watching?: boolean }) => void;
@@ -29,6 +32,7 @@ export const useGameStore = create<GameStore>((set) => ({
   watching: false,
   version: 0,
   snapshot: null,
+  spectate: null,
   events: [],
 
   open: (gameId, options) => {
@@ -37,10 +41,10 @@ export const useGameStore = create<GameStore>((set) => ({
     } catch {
       /* 隐私模式下可能不可用，忽略 */
     }
-    set({ gameId, watching: options?.watching ?? false, version: 0, snapshot: null, events: [] });
+    set({ gameId, watching: options?.watching ?? false, version: 0, snapshot: null, spectate: null, events: [] });
   },
 
-  apply: ({ events, version, snapshot }) =>
+  apply: ({ events, version, snapshot, spectate }) =>
     set((state) => {
       const seen = new Set(state.events.map((e) => e.seq));
       const fresh = events.filter((e) => !seen.has(e.seq));
@@ -49,6 +53,7 @@ export const useGameStore = create<GameStore>((set) => ({
         version: Math.max(state.version, version),
         events: merged.length > MAX_EVENTS ? merged.slice(-MAX_EVENTS) : merged,
         snapshot: snapshot ?? state.snapshot,
+        spectate: spectate ?? state.spectate,
       };
     }),
 
@@ -58,6 +63,6 @@ export const useGameStore = create<GameStore>((set) => ({
     } catch {
       /* ignore */
     }
-    set({ gameId: null, watching: false, version: 0, snapshot: null, events: [] });
+    set({ gameId: null, watching: false, version: 0, snapshot: null, spectate: null, events: [] });
   },
 }));

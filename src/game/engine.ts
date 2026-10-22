@@ -20,6 +20,8 @@ import type {
   RoleKey,
   SeatView,
   Snapshot,
+  SpectateSeat,
+  SpectateSnapshot,
   Team,
   Thought,
 } from '../shared/types.js';
@@ -214,6 +216,40 @@ export class GameEngine implements GameView {
       lastNightText: this.lastNightText,
       pendingAction: this.pendingAction,
       players: seats,
+    };
+  }
+
+  /**
+   * 观战投影：上帝视角，全量身份。
+   * 与 snapshot() 方向相反（一个"藏"、一个"亮"），两者物理分离，禁止合并成一个函数。
+   * 刻意不含 pendingAction —— 「谁正在行动」永远不进观战数据。
+   */
+  spectateSnapshot(): SpectateSnapshot {
+    const seats: SpectateSeat[] = this.players.map((p) => ({
+      id: p.id,
+      seat: p.seat,
+      name: p.name,
+      emoji: p.emoji,
+      alive: p.alive,
+      isHuman: p.isHuman,
+      role: p.role,
+      camp: ROLES[p.role].team,
+    }));
+
+    const tally = (team: Team): { alive: number; total: number } => {
+      const members = this.players.filter((p) => ROLES[p.role].team === team);
+      return { alive: members.filter((p) => p.alive).length, total: members.length };
+    };
+
+    return {
+      gameId: this.id,
+      round: this.round,
+      phase: this.phase,
+      version: this.version,
+      winner: this.winner,
+      aborted: this.aborted,
+      players: seats,
+      factions: { wolf: tally('wolf'), good: tally('good') },
     };
   }
 
