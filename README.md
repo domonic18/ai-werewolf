@@ -35,7 +35,7 @@ WorkBuddy「1024 造物挑战」参赛作品。6 人局狼人杀：1 名真人�
 
 - **真人 + AI 混编对局**：1 名真人玩家与 5 个 AI Agent（狼人 / 预言家 / 女巫 / 猎人 / 平民等角色）同场竞技
 - **纯 LLM 驱动 AI**：发言、投票、刀人、验人、用药全部由大模型实时生成，每个 Agent 带独立性格人设与跨回合记忆
-- **观战模式**：上帝视角只读投影，实时查看发言、票型与内心戏，观战不消耗任何 LLM 调用
+- **观战模式**：上帝视角只读投影，身份全程常显（座位网格 + 发言标签），观战不消耗任何 LLM 调用
 - **移动端优先**：390px 设计稿逐屏还原（首页 / 登录 / 新建对局 / 大厅 / 对局中 / 观战）
 - **账号闭环**：手机号 / 邮箱验证码 + OAuth 登录，对局战绩按账号归属，「我的对局」与累计战绩独立筛选
 - **服务端权威**：身份与夜晚行动对前端不可见，真人凭证一次性下发，旁观者无法读隐私或代操作
@@ -141,6 +141,16 @@ WB_ENV=staging WB_WRITE_MATCHES=1 npm start
 | GET | /api/games/:id/spectate?since=N&client=X | 观战（只读，上帝视角投影，无需凭证） |
 | GET | /api/live | 进行中对局（大厅） |
 | GET | /api/matches | 战绩墙 |
+
+## 文档
+
+| 文档 | 内容 |
+|---|---|
+| [docs/PRD.md](docs/PRD.md) | 产品定位、需求 R1~R7、路线图、工程决策与风险 |
+| [docs/standard/DESIGN-V2.md](docs/standard/DESIGN-V2.md) | 视觉规范「夜席」：色板 / 字体 / 图标 / 图像 / 动效 / 夜幕 |
+| [docs/standard/SECURITY.md](docs/standard/SECURITY.md) | 安全与反作弊：信任边界、接口防线、残留风险 |
+| [docs/AI-PERSONA.md](docs/AI-PERSONA.md) | AI 信息边界、人格参数与推理深度分层 |
+| [docs/README.md](docs/README.md) | 文档索引与写作约定 |
 
 ## 设计要点
 
