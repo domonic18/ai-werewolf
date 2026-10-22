@@ -1,0 +1,6 @@
+{
+  "_comment": "云服务 publicConfig（可公开的前端安全值：服务端按 Origin 校验，publishableKey 本身无权限）",
+  "endpoint": "https://werewolf-ai-01048.app.workbuddy.host",
+  "publishableKey": "wbpk_SURA9O6OUcSeFbq1GDG40K_0O77zYi9SHc6fhZF5iVOvkcoGX6SP8kh",
+  "oauthRelayBaseUrl": "https://www.workbuddy.cn/v2/as/genie-baas/oauth"
+}

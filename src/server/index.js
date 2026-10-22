@@ -32,13 +32,16 @@ function serveStatic(req, res) {
 }
 
 async function main() {
+  /* 配置优先级：环境变量 > config/cloud.json（publicConfig 均为可公开的安全值） */
+  let fileCfg = {};
+  try { fileCfg = require('../../config/cloud.json'); } catch (_) { /* 可选 */ }
   const publicConfig = {
-    endpoint: process.env.WB_ENDPOINT,
-    publishableKey: process.env.WB_PUBLISHABLE_KEY,
-    oauthRelayBaseUrl: process.env.WB_OAUTH_RELAY || undefined
+    endpoint: process.env.WB_ENDPOINT || fileCfg.endpoint,
+    publishableKey: process.env.WB_PUBLISHABLE_KEY || fileCfg.publishableKey,
+    oauthRelayBaseUrl: process.env.WB_OAUTH_RELAY || fileCfg.oauthRelayBaseUrl || undefined
   };
   if (!publicConfig.endpoint || !publicConfig.publishableKey) {
-    throw new Error('缺少云服务配置：请设置 WB_ENDPOINT 与 WB_PUBLISHABLE_KEY 环境变量');
+    throw new Error('缺少云服务配置：请设置 WB_ENDPOINT/WB_PUBLISHABLE_KEY 或提供 config/cloud.json');
   }
 
   const llm = await createLLMGateway(publicConfig);
