@@ -1,5 +1,8 @@
 # 设计对齐清单（v1.5 改版）
 
+> **已被 v2 取代**：2026-10 起视觉以 [DESIGN-V2.md](DESIGN-V2.md) 为准（去 emoji、去多彩渐变，
+> 暖黑纸面 + 发丝 + 旧黄铜单一强调色）。本文保留为 v1.5 居中对齐记录，作历史参考。
+
 **设计源**：`docs/designs/*.html`（Ardot 导出的 390×844 移动屏，含 `data-name` 与全部尺寸）
 **实现**：`client/src/styles/app.css` 的「设计稿还原」段落 + 各页面 `page-*` 结构
 **校验方式**：`tools/design-outline.mjs` 抽设计结构 → 实现 → 无头 Chrome 按 390 宽截图逐屏比对
