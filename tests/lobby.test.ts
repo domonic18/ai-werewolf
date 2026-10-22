@@ -171,3 +171,53 @@ describe('游标编解码', () => {
     expect(decodeCursor(Buffer.from('{"s":"x"}').toString('base64url'))).toBeNull();
   });
 });
+
+describe('规模与性能', () => {
+  it('100 局时 list() 的 P95 低于 50ms（纯函数层）', () => {
+    const rooms = Array.from({ length: 100 }, (_, i) =>
+      fakeRoom({
+        id: `g-${String(i).padStart(3, '0')}`,
+        host: `房主${i}`,
+        round: 1 + (i % 5),
+        alive: 1 + (i % 6),
+        spectators: i % 7,
+        createdAt: 1_700_000_000_000 + i * 1000,
+      }),
+    );
+    const query = parseLobbyQuery({ limit: '10' });
+
+    /* 预热一次，避免把 JIT 编译算进来 */
+    listRooms(asEntries(rooms), query);
+
+    const samples: number[] = [];
+    for (let i = 0; i < 40; i++) {
+      const startedAt = performance.now();
+      const page = listRooms(asEntries(rooms), query);
+      samples.push(performance.now() - startedAt);
+      expect(page.games).toHaveLength(10);
+      expect(page.total).toBe(100);
+    }
+
+    samples.sort((a, b) => a - b);
+    const p95 = samples[Math.floor(samples.length * 0.95) - 1] ?? samples.at(-1) ?? 0;
+    expect(p95).toBeLessThan(50);
+  });
+
+  it('游标翻完 100 局不重不漏', () => {
+    const rooms = Array.from({ length: 100 }, (_, i) =>
+      fakeRoom({ id: `g-${String(i).padStart(3, '0')}`, spectators: i % 5, createdAt: 1_700_000_000_000 + i }),
+    );
+
+    const seen: string[] = [];
+    let after: string | null = null;
+    for (let guard = 0; guard < 30; guard++) {
+      const page = listRooms(asEntries(rooms), parseLobbyQuery({ limit: '10', ...(after ? { after } : {}) }));
+      seen.push(...page.games.map((g) => g.gameId));
+      after = page.nextCursor;
+      if (!after) break;
+    }
+
+    expect(seen).toHaveLength(100);
+    expect(new Set(seen).size).toBe(100);
+  });
+});
