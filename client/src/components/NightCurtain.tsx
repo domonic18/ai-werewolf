@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Icon } from './Icon';
-import { NIGHT_TIMING, nextCueDelay, shouldCloseCurtain } from '../lib/night';
+import { NIGHT_TIMING, nextCueDelay, nightLabel, shouldCloseCurtain } from '../lib/night';
 import type { Phase } from '@shared/types';
 import { playCueTick, setSoundEnabled, soundEnabled, startNightAmbience, stopAll } from '../lib/sound';
 
@@ -96,7 +96,9 @@ export function NightCurtain({
       </button>
 
       <div className="nc-body">
-        <p className="nc-label">第 {round} 夜 · NIGHT {round}</p>
+        <p className="nc-label">
+          {nightLabel(round)} · {round > 0 ? `NIGHT ${round}` : 'NIGHTFALL'}
+        </p>
         {/* 只显示当前这一句：夜里一次给一句才有仪式感，堆成列表就成了日志 */}
         <div className="nc-cues" key={latest ?? 'pending'}>
           {latest ? <p className="nc-cue">{latest}</p> : null}

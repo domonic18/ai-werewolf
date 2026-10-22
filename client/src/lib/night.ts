@@ -14,6 +14,14 @@ import type { GameEvent, Phase } from '@shared/types';
  *   3. 什么时候必须落幕（天亮 / 玩家要决策 / 超过安全上限）。
  */
 
+/**
+ * 夜的叫法。开局等「开始」那一下时 round 还是 0 —— 直接写「第 0 夜」很出戏，
+ * 这时候该说「入夜」。
+ */
+export function nightLabel(round: number): string {
+  return round > 0 ? `第 ${round} 夜` : '入夜';
+}
+
 export interface NightTiming {
   /** 第一句口令出现前的静场：让月亮先起来，别一进来就刷字 */
   leadInMs: number;

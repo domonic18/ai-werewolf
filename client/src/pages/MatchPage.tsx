@@ -3,7 +3,7 @@ import { api } from '../api/client';
 import { Avatar } from '../components/Avatar';
 import { Icon, roleIcon } from '../components/Icon';
 import { NightCurtain } from '../components/NightCurtain';
-import { nightCuesForRound, shouldRaiseCurtain } from '../lib/night';
+import { nightCuesForRound, nightLabel, shouldRaiseCurtain } from '../lib/night';
 import { playDawnChime, setSoundEnabled, soundEnabled } from '../lib/sound';
 import { highlightNames } from '../lib/highlight';
 import { roundBadge } from '../lib/format';
@@ -162,7 +162,7 @@ function NightStrip({ round, cue }: { round: number; cue: string | null }): JSX.
       <div className="ig-night-head">
         <span className="ig-night-title">
           <Icon name="cloudNight" size={14} />
-          <span>第 {round} 夜</span>
+          <span>{nightLabel(round)}</span>
         </span>
         <button
           className="ig-night-sound"

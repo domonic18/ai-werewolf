@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   NIGHT_TIMING,
+  nightLabel,
   nightCuesForRound,
   nextCueDelay,
   shouldCloseCurtain,
@@ -47,6 +48,14 @@ describe('夜晚过场：口令归属', () => {
   it('空白口令被丢掉，不会渲染成空行', () => {
     const events = [nightEvent(1), cue('  ', 1), cue('天黑请闭眼', 1)];
     expect(nightCuesForRound(events, 1)).toEqual(['天黑请闭眼']);
+  });
+});
+
+describe('夜晚过场：叫法', () => {
+  it('开局等开始时 round 还是 0，这时候说「入夜」而不是「第 0 夜」', () => {
+    expect(nightLabel(0)).toBe('入夜');
+    expect(nightLabel(1)).toBe('第 1 夜');
+    expect(nightLabel(4)).toBe('第 4 夜');
   });
 });
 
