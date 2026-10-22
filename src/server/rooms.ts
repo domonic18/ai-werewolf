@@ -17,13 +17,16 @@ export class Room {
   readonly createdAt: number;
   /** 玩家凭证：只有持有者才能推进这一局（观战者不需要） */
   readonly playerToken: string;
+  /** 开局者账号 id；匿名局为 null（登录是可选项，见 002 spec Q8） */
+  readonly ownerId: string | null;
   /** 观战心跳：clientId → 最后活跃时间。服务端统计，不信任客户端计数。 */
   private readonly spectators = new Map<string, number>();
 
-  constructor(engine: GameEngine, playerToken?: string) {
+  constructor(engine: GameEngine, playerToken?: string, ownerId: string | null = null) {
     this.engine = engine;
     this.createdAt = Date.now();
     this.playerToken = playerToken ?? crypto.randomBytes(16).toString('hex');
+    this.ownerId = ownerId;
   }
 
   get expired(): boolean {
@@ -77,7 +80,7 @@ export class RoomManager {
    * 开新局：返回 room（引擎由调用方 `run()` 启动）。
    * 房间满时返回 null —— 只清理已结束且超时的房间，绝不为了腾位置踢掉进行中的对局。
    */
-  create(playerName: string, deck?: RoleKey[]): Room | null {
+  create(playerName: string, deck?: RoleKey[], ownerId: string | null = null): Room | null {
     this.prune();
     if (this.rooms.size >= this.maxRooms) return null;
 
@@ -89,7 +92,7 @@ export class RoomManager {
       /* 事件已缓存在 engine.events，客户端轮询拉取，这里不额外广播 */
       emit: () => {},
     });
-    const room = new Room(engine);
+    const room = new Room(engine, undefined, ownerId);
     this.rooms.set(engine.id, room);
     return room;
   }

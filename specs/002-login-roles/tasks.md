@@ -35,8 +35,8 @@
 
 ## Phase 5: 登录（US1）
 
-- [ ] T017 `src/server/auth.ts`：`getOwner(req)` 解析 Bearer token → userId（不通过则 null）（0.5d）
-- [ ] T018 `POST /api/games` 写入 `Room.ownerId`；`ww_matches` 增 `owner_id` 列并写入（1d）
+- [x] T017 `src/server/auth.ts`：`getOwner(req)` 解析 Bearer token → userId（不通过则 null）（0.5d）
+- [x] T018 前半：`POST /api/games` 解析登录态并写入 `Room.ownerId`（匿名局 ownerId=null，不阻塞开局）；`ww_matches.owner_id` 待云表结构确认后补（1d）
 - [ ] T019 前端 `client/src/auth/useSession.ts`：登录态、静默刷新、降级为未登录（1d）
 - [ ] T020 前端 `LoginPage`：手机号 OTP 主推 + 微信/WorkBuddy 按钮（Provider 未开则隐藏）+ 60s 重发（1.5d）
 - [ ] T021 「我的对局」改为账号维度：登录后查 `GET /api/live?filter=mine&owner=me`，未登录回落本机存档 id（1d）

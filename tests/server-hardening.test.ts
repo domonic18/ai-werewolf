@@ -345,3 +345,36 @@ describe('按人数/牌组开局', () => {
     expect(tooFew.body.error).toContain('至少 8 人');
   });
 });
+
+describe('账号归属（匿名不阻塞）', () => {
+  it('未配置登录解析器时开局为匿名局', async () => {
+    const res = await fetch(base + '/api/games', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ playerName: '匿名' }),
+    });
+    expect(res.status).toBe(200);
+    const body = (await res.json()) as { gameId: string };
+    /* 匿名局照样能开、能拿到凭证 */
+    expect(body.gameId).toBeTruthy();
+  });
+
+  it('解析器返回账号时对局记录归属，且不影响开局', async () => {
+    const app = createApp({
+      llm,
+      rooms: new RoomManager({ llm, pace: 0.05 }),
+      matchStore: new MatchStore(null),
+      staticDir,
+      resolveOwner: async () => 'user-42',
+    });
+    await new Promise<void>((resolve) => app.listen(0, '127.0.0.1', resolve));
+    const port = (app.address() as AddressInfo).port;
+    const res = await fetch(`http://127.0.0.1:${port}/api/games`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: 'Bearer anything' },
+      body: JSON.stringify({ playerName: '登录局' }),
+    });
+    expect(res.status).toBe(200);
+    await new Promise<void>((resolve) => app.close(() => resolve()));
+  });
+});

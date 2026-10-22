@@ -48,6 +48,8 @@ export interface ApiContext {
   matchStore: MatchStore;
   /** 运行环境：前端据此显示区分标识 */
   env: AppEnv;
+  /** 解析请求归属的账号；未配置则一律匿名（登录是可选项） */
+  resolveOwner?: (req: IncomingMessage) => Promise<string | null>;
 }
 
 function sendJson(res: ServerResponse, status: number, body: unknown): void {
@@ -185,7 +187,9 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, ctx: 
         return sendJson(res, 400, { error: check.errors.join('；'), errors: check.errors });
       }
 
-      const room = ctx.rooms.create(name, expandDeck(deckSlots));
+      /* 归属：有登录态就记账号，没有就是匿名局，不影响能不能玩 */
+      const ownerId = ctx.resolveOwner ? await ctx.resolveOwner(req) : null;
+      const room = ctx.rooms.create(name, expandDeck(deckSlots), ownerId);
       if (!room) {
         return sendJson(res, 503, { error: '同时进行的对局已满，请稍后再试（不会踢掉别人正在进行的对局）' });
       }

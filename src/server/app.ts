@@ -89,6 +89,7 @@ export function createApp(options: AppOptions): http.Server {
     rooms: options.rooms,
     matchStore: options.matchStore,
     env: options.env ?? 'production',
+    resolveOwner: options.resolveOwner,
   };
 
   return http.createServer((req, res) => {
