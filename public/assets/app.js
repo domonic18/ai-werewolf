@@ -206,13 +206,8 @@
       $('stageBody').innerHTML = p.prompt.html;
       const act = $('stageActions');
       act.innerHTML = '';
-      if (p.prompt.confirm) {
-        const b = document.createElement('button');
-        b.className = 'btn primary';
-        b.textContent = p.prompt.confirm;
-        b.onclick = () => this.submit(1);
-        act.appendChild(b);
-      } else if (p.kind === 'input') {
+      /* input 类型优先级最高：必须是输入面板，绝不能退化成按钮 */
+      if (p.kind === 'input') {
         /* 醒目的发言面板：大输入框 + 快捷话术 + 发送键 */
         $('stageBody').innerHTML =
           `<div style="font-size:13px;color:#c9d0e3;margin-bottom:10px">${p.prompt.html}</div>` +
@@ -255,6 +250,13 @@
           b.onclick = () => this.submit(o.value);
           act.appendChild(b);
         });
+      } else if (p.prompt.confirm) {
+        /* 纯确认（如"记下了"） */
+        const b = document.createElement('button');
+        b.className = 'btn primary';
+        b.textContent = p.prompt.confirm;
+        b.onclick = () => this.submit(1);
+        act.appendChild(b);
       }
     },
 
