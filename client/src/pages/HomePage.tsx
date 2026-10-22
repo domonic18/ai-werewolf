@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { api } from '../api/client';
+import { AccountCard } from '../components/AccountCard';
 import { Footer } from '../components/Footer';
 import { LiveList } from '../components/LiveList';
 import { MatchWall } from '../components/MatchWall';
@@ -7,6 +8,7 @@ import { ResumeBanner } from '../components/ResumeBanner';
 import { RulesPanel } from '../components/RulesPanel';
 import { useHomeData } from '../hooks/useHomeData';
 import { clearSavedGame, readSavedGame } from '../lib/storage';
+import { useSession } from '../auth/useSession';
 import { useGameStore } from '../store/gameStore';
 
 const APP_VERSION = __APP_VERSION__;
@@ -23,6 +25,8 @@ interface HomePageProps {
 export function HomePage({ onWatch, onOpenLobby, onNewGame, onOpenLogin }: HomePageProps): JSX.Element {
   const open = useGameStore((s) => s.open);
   const data = useHomeData();
+  /* 登录态：只影响这块区域的展示，不登录照样能开局 */
+  const { signedIn } = useSession();
 
   const [name, setName] = useState('');
   const [starting, setStarting] = useState(false);
@@ -183,9 +187,13 @@ export function HomePage({ onWatch, onOpenLobby, onNewGame, onOpenLogin }: HomeP
         <button className="btn ghost big" style={{ marginTop: 10 }} onClick={onNewGame}>
           新建对局 · 选人数与角色 ›
         </button>
-        <button className="btn ghost" style={{ marginTop: 8, width: '100%' }} onClick={onOpenLogin}>
-          👤 登录（跨设备继续对局 / 战绩归档）
-        </button>
+        {signedIn ? (
+          <AccountCard />
+        ) : (
+          <button className="btn ghost" style={{ marginTop: 8, width: '100%' }} onClick={onOpenLogin}>
+            👤 登录（跨设备继续对局 / 战绩归档）
+          </button>
+        )}
         <p className="hint">🚀 多人真人房（好友同局）已预留入口，敬请期待。</p>
       </div>
 

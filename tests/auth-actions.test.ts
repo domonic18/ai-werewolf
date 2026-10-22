@@ -49,11 +49,21 @@ describe('登录适配层 · SDK 调用契约', () => {
     auth.sendOtp.mockResolvedValue({ data: { verificationId: 'v-1', isExistingUser: false }, error: null });
     const { sendOtp } = await freshActions();
 
-    const result = await sendOtp('13800000000');
+    const result = await sendOtp({ kind: 'phone', value: '13800000000' });
 
     /* 关键断言：运行时只认 phone */
     expect(auth.sendOtp).toHaveBeenCalledWith({ phone: '13800000000' });
     expect(result).toEqual({ ok: true, data: { verificationId: 'v-1', isExistingUser: false } });
+  });
+
+  it('邮箱通道发码用 email 字段，与手机号互斥', async () => {
+    auth.sendOtp.mockResolvedValue({ data: { verificationId: 'v-mail', isExistingUser: true }, error: null });
+    const { sendOtp } = await freshActions();
+
+    const result = await sendOtp({ kind: 'email', value: 'me@example.com' });
+
+    expect(auth.sendOtp).toHaveBeenCalledWith({ email: 'me@example.com' });
+    expect(result.ok).toBe(true);
   });
 
   it('验码带齐 phone + token + verificationId + isExistingUser', async () => {
@@ -64,12 +74,12 @@ describe('登录适配层 · SDK 调用契约', () => {
     });
     const { sendOtp, verifyOtp } = await freshActions();
 
-    const sent = await sendOtp('13800000000');
+    const sent = await sendOtp({ kind: 'phone', value: '13800000000' });
     expect(sent.ok).toBe(true);
     if (!sent.ok) return;
 
     const result = await verifyOtp({
-      phone: '13800000000',
+      target: { kind: 'phone', value: '13800000000' },
       code: '123456',
       verificationId: sent.data.verificationId,
       isExistingUser: sent.data.isExistingUser,
@@ -91,7 +101,7 @@ describe('登录适配层 · SDK 调用契约', () => {
     });
     const { sendOtp } = await freshActions();
 
-    const result = await sendOtp('13800000000');
+    const result = await sendOtp({ kind: 'phone', value: '13800000000' });
 
     expect(result.ok).toBe(false);
     if (result.ok) return;
@@ -105,11 +115,11 @@ describe('登录适配层 · SDK 调用契约', () => {
     );
     const { sendOtp } = await freshActions();
 
-    expect((await sendOtp('13800000000')).ok).toBe(false);
+    expect((await sendOtp({ kind: 'phone', value: '13800000000' })).ok).toBe(false);
 
     stubConfig();
     auth.sendOtp.mockResolvedValue({ data: { verificationId: 'v-3', isExistingUser: true }, error: null });
-    expect((await sendOtp('13800000000')).ok).toBe(true);
+    expect((await sendOtp({ kind: 'phone', value: '13800000000' })).ok).toBe(true);
   });
 
   it('会话缺 sub 时从 accessToken 的 JWT 里兜底取 userId', async () => {
@@ -122,7 +132,7 @@ describe('登录适配层 · SDK 调用契约', () => {
     const { verifyOtp } = await freshActions();
 
     const result = await verifyOtp({
-      phone: '13800000000',
+      target: { kind: 'phone', value: '13800000000' },
       code: '654321',
       verificationId: 'v-4',
       isExistingUser: true,
@@ -138,7 +148,7 @@ describe('登录适配层 · SDK 调用契约', () => {
     auth.sendOtp.mockResolvedValue({ data: { verificationId: 'v-5', isExistingUser: true }, error: null });
     const { sendOtp } = await freshActions();
 
-    await sendOtp('13800000000');
+    await sendOtp({ kind: 'phone', value: '13800000000' });
 
     expect(factory).toHaveBeenCalledWith({
       endpoint: CONFIG.endpoint,

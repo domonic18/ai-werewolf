@@ -20,6 +20,12 @@
  */
 export type AuthResult<T> = { ok: true; data: T } | { ok: false; error: string };
 
+/** 发码渠道：手机号或邮箱，二选一（SDK 运行时同样按这个字段区分，见文件头注释） */
+export interface OtpTarget {
+  kind: 'phone' | 'email';
+  value: string;
+}
+
 const NOT_READY = '登录通道未就绪：拿不到云服务配置（/api/auth-config 返回空）或 Auth 未开启';
 
 interface CloudSession {
@@ -44,9 +50,10 @@ interface CloudError {
 type CloudResult<T> = { data: T | null; error: CloudError | null };
 
 interface CloudAuth {
-  sendOtp(credentials: { phone: string }): Promise<CloudResult<OtpChallenge>>;
+  sendOtp(credentials: { phone: string } | { email: string }): Promise<CloudResult<OtpChallenge>>;
   verifyOtp(params: {
-    phone: string;
+    phone?: string;
+    email?: string;
     token: string;
     verificationId: string;
     isExistingUser: boolean;
@@ -118,13 +125,15 @@ function fallbackUserId(accessToken: string): string {
 
 /** 发码：返回 verificationId 与「是否老用户」（后者决定验码走登录还是注册） */
 export async function sendOtp(
-  phone: string,
+  target: OtpTarget,
 ): Promise<AuthResult<{ verificationId: string; isExistingUser: boolean }>> {
   const auth = await getAuth();
   if (!auth) return { ok: false, error: NOT_READY };
   try {
-    /* 运行时只认 `phone`；SDK 自己归一化成 `+86 xxx` 并补 `target: 'ANY'` */
-    const result = await auth.sendOtp({ phone });
+    /* 运行时只认 `phone` / `email`；手机号由 SDK 归一化成 `+86 xxx` 并补 `target: 'ANY'` */
+    const result = await auth.sendOtp(
+      target.kind === 'phone' ? { phone: target.value } : { email: target.value },
+    );
     if (result.error) return { ok: false, error: errText(result.error) };
     const data = result.data;
     if (!data?.verificationId) return { ok: false, error: '验证码已发出，但没有拿到 verificationId' };
@@ -134,9 +143,9 @@ export async function sendOtp(
   }
 }
 
-/** 验码：phone 必须与发码时一致，isExistingUser 来自发码结果 */
+/** 验码：渠道与标识必须与发码时一致，isExistingUser 来自发码结果 */
 export async function verifyOtp(params: {
-  phone: string;
+  target: OtpTarget;
   code: string;
   verificationId: string;
   isExistingUser: boolean;
@@ -145,7 +154,7 @@ export async function verifyOtp(params: {
   if (!auth) return { ok: false, error: NOT_READY };
   try {
     const result = await auth.verifyOtp({
-      phone: params.phone,
+      ...(params.target.kind === 'phone' ? { phone: params.target.value } : { email: params.target.value }),
       token: params.code,
       verificationId: params.verificationId,
       isExistingUser: params.isExistingUser,

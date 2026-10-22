@@ -83,6 +83,16 @@ body {
 .rule b { font-size: 12.5px; }
 .rule i { font-size: 11px; color: var(--muted); font-style: normal; line-height: 1.5; }
 .hint { font-size: 12px; color: var(--muted); line-height: 1.65; margin: 10px 0 0; }
+/* 登录态卡片：让「已登录」在首页一眼可见 */
+.account-card { display: flex; flex-direction: column; }
+.account-row { display: flex; align-items: center; gap: 10px; }
+.account-avatar { width: 34px; height: 34px; border-radius: 17px; display: flex; align-items: center; justify-content: center; font-size: 16px; background: linear-gradient(135deg, rgba(246, 199, 106, 0.9), rgba(240, 182, 77, 0.5)); flex: none; }
+.account-meta { flex: 1; display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.account-meta b { font-size: 13.5px; }
+.account-id { font-size: 11px; color: var(--muted); font-family: ui-monospace, SFMono-Regular, Menlo, monospace; overflow: hidden; text-overflow: ellipsis; }
+.login-tabs { display: flex; gap: 3px; padding: 3px; border-radius: 11px; background: rgba(255, 255, 255, 0.04); margin-top: 10px; }
+.login-tab { flex: 1; height: 32px; border: 0; border-radius: 9px; background: transparent; color: var(--muted); font-size: 12px; font-weight: 600; cursor: pointer; }
+.login-tab.on { background: var(--gold); color: #0b0d17; font-weight: 800; }
 /* 登录页的结果提示：紧跟按钮，失败要一眼看见，不能藏在页尾 */
 .login-msg { margin: 10px 0 0; font-size: 12.5px; line-height: 1.6; padding: 9px 11px; border-radius: 12px; border: 1px solid rgba(106, 214, 168, 0.28); background: rgba(106, 214, 168, 0.09); color: var(--good); word-break: break-word; }
 .login-msg.err { border-color: rgba(255, 107, 107, 0.32); background: rgba(255, 107, 107, 0.09); color: #ff9b9b; }
@@ -411,3 +421,11 @@ body {
   font-size: 13px;
   color: var(--muted);
 }
+
+/* 登录页（对齐原型 05：logo + 登录后开局） */
+.login-hero { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 6px 0 4px; }
+.login-logo { width: 54px; height: 54px; border-radius: 27px; display: flex; align-items: center; justify-content: center; font-size: 26px; background: linear-gradient(135deg, rgba(246, 199, 106, 0.95), rgba(240, 182, 77, 0.55)); }
+.login-title { margin: 0; font-size: 22px; font-weight: 800; letter-spacing: 0.5px; }
+.login-sub { margin: 0; font-size: 11.5px; color: var(--muted); text-align: center; line-height: 1.6; }
+.login-field { margin-top: 12px; }
+.field-hint { margin: 6px 0 0; font-size: 11px; color: #6b7290; }
