@@ -12,6 +12,7 @@
  *   GET  /api/live                    进行中对局（大厅）
  *   GET  /api/matches                 战绩墙
  */
+import { createHash } from 'node:crypto';
 import { parse as parseUrl } from 'node:url';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { RoomManager } from './rooms.js';
@@ -27,7 +28,7 @@ import {
   validateDeck,
 } from '../game/catalog.js';
 import type { DeckSlot } from '../game/catalog.js';
-import { readBearer } from './auth.js';
+import { readAccessToken } from './auth.js';
 import { listRooms, parseLobbyQuery } from './lobby.js';
 import { SlidingWindowLimiter, actorKey, clientIp } from './rate-limit.js';
 import type {
@@ -252,17 +253,21 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, ctx: 
     if (path === '/api/whoami' && method === 'GET') {
       const rl = limits.read.take(`whoami:${ip || 'unknown'}`);
       if (!rl.ok) return tooMany(res, rl.retryAfterSec, '请求过于频繁，请稍后再试');
-      const token = readBearer(req);
+      const token = readAccessToken(req);
       if (!token) return sendJson(res, 200, { signedIn: false, reason: 'no-token' } satisfies WhoAmIResponse);
 
       const ownerId = ctx.resolveOwner ? await ctx.resolveOwner(req) : null;
       if (ownerId) return sendJson(res, 200, { signedIn: true, status: 200 } satisfies WhoAmIResponse);
 
       const probe = ctx.probeOwner ? await ctx.probeOwner(token) : null;
+      /* tokenHint：收到的 token 的 SHA-256 前 8 位。用于确认「网关有没有把 Authorization 换掉」——
+         拿它和自己发出的 token 比一下就知道，且不泄露 token 本身 */
+      const tokenHint = createHash('sha256').update(token).digest('hex').slice(0, 8);
       return sendJson(res, 200, {
         signedIn: false,
         reason: 'unresolved',
         status: probe?.status ?? 'skipped',
+        tokenHint,
       } satisfies WhoAmIResponse);
     }
 

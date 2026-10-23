@@ -55,6 +55,13 @@
    `401 invalid_grant: ...issued for another client`。
 
 第 2 条曾经漏掉，表现不是「报错」，而是**静默降级成匿名**：页面显示已登录，战绩却按全网口径统计。
+
+还有第 3 条，比前两条更隐蔽：**平台的 HTTP 网关会用自己的凭据覆盖浏览器的 `Authorization`**。
+实测（2026-10-23）：前端发 `Authorization: Bearer AAAA`，服务端收到的 token 哈希与 `AAAA` 对不上，
+且每个请求都不同 —— 用户身份根本传不到服务端。所以用户 token 改走自定义头 `X-WW-Token`
+（实测原样透传），服务端优先读它，仍兼容 `Authorization` 以便本地 curl 调试。
+排查手段：`GET /api/whoami` 会回 `tokenHint`（收到 token 的 SHA-256 前 8 位），
+拿它和自己发出的 token 比一下就知道是「网关换掉了」还是「token 过期」。
 排查方法（不需要真实 token 也能判定网关是否在校验 Origin）：
 
 ```bash

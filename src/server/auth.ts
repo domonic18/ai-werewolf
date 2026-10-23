@@ -20,6 +20,21 @@ export type OwnerResolver = (req: IncomingMessage) => Promise<string | null>;
 
 const BEARER = /^Bearer\s+(.+)$/i;
 
+/**
+ * 取用户 token。
+ *
+ * 优先读 `x-ww-token`：线上网关会把浏览器的 Authorization 换成它自己的凭据
+ * （2026-10-23 实测：前端发 'Bearer AAAA'，服务端收到的 token 哈希对不上，且每个请求都不同），
+ * 于是用户身份永远传不到服务端。自定义头不在网关的改写列表里，实测可以透传。
+ * 仍然兼容 Authorization，本地开发与 curl 调试更顺手。
+ */
+export function readAccessToken(req: IncomingMessage): string | null {
+  const custom = req.headers['x-ww-token'];
+  const value = Array.isArray(custom) ? custom[0] : custom;
+  if (typeof value === 'string' && value.trim()) return value.trim();
+  return readBearer(req);
+}
+
 /** 从请求头取出 token（大小写不敏感，忽略多余空格） */
 export function readBearer(req: IncomingMessage): string | null {
   const raw = req.headers.authorization;
@@ -33,7 +48,7 @@ export function readBearer(req: IncomingMessage): string | null {
 export function createOwnerResolver(verifier: TokenVerifier | null): OwnerResolver {
   return async (req) => {
     if (!verifier) return null;
-    const token = readBearer(req);
+    const token = readAccessToken(req);
     if (!token) return null;
     try {
       return await verifier.verify(token);

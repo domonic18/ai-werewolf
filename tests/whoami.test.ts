@@ -41,7 +41,9 @@ beforeAll(async () => {
     limiters: permissiveLimiters(),
     /* 只在 token 等于 'good-token' 时认人，其它一律探测出 401 */
     resolveOwner: async (req) => {
-      const token = String(req.headers.authorization ?? '').replace(/^Bearer\s+/i, '');
+      /* 与 createOwnerResolver 一致：优先自定义头（线上网关会覆盖 Authorization） */
+      const custom = req.headers['x-ww-token'];
+      const token = typeof custom === 'string' ? custom : String(req.headers.authorization ?? '').replace(/^Bearer\s+/i, '');
       return token === 'good-token' ? 'user-1' : null;
     },
     probeOwner: async (token) => ({ userId: null, status: token ? 401 : 'network' }),
@@ -75,6 +77,13 @@ describe('/api/whoami', () => {
       reason: 'unresolved',
       status: 401,
     });
+  });
+
+  it('自定义头 x-ww-token 优先：网关会覆盖 Authorization，用户 token 只能走这里', async () => {
+    const res = await fetch(`${base}/api/whoami`, {
+      headers: { Authorization: 'Bearer gateway-token', 'X-WW-Token': 'good-token' },
+    });
+    await expect(res.json()).resolves.toMatchObject({ signedIn: true });
   });
 
   it('不泄露 token 与账号 id', async () => {

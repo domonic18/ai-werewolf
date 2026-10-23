@@ -385,6 +385,8 @@ export interface WhoAmIResponse {
   reason?: 'no-token' | 'unresolved';
   /** 云端 /user/me 的 HTTP 状态码；网络失败为 'network'；'skipped' 表示没配校验器 */
   status?: number | 'network' | 'skipped' | null;
+  /** 服务端实际收到的 token 的 SHA-256 前 8 位：用来确认网关有没有替换 Authorization */
+  tokenHint?: string;
 }
 
 export interface OkResponse {

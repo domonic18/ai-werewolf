@@ -42,7 +42,13 @@ const SHARE_CODE = typeof window === 'undefined' ? '' : readShareCode(window.loc
 async function request<T>(path: string, body?: unknown, token?: string): Promise<T> {
   /* 登录态自动带上：token 由 SDK 提供（必要时自动续期），没有就匿名 */
   const accessToken = await resolveAuthToken();
-  const headers: Record<string, string> = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
+  /*
+   * 用户 token 走自定义头：平台网关会用自己的凭据覆盖 Authorization，
+   * 结果服务端拿到的是网关的身份，用户永远被当成匿名。
+   */
+  const headers: Record<string, string> = accessToken
+    ? { Authorization: `Bearer ${accessToken}`, 'X-WW-Token': accessToken }
+    : {};
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   /* 玩家凭证走请求头：不进 URL，避免出现在日志与分享里 */
   if (token) headers['X-Player-Token'] = token;
