@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { currentShareCode, readShareCode, withShareCode } from '../client/src/lib/url';
+import { currentShareCode, readShareCode, screenUrl, withShareCode } from '../client/src/lib/url';
 
 /**
  * 这组用例锁定一个平台约束：发布网关只对带 sharecode 的请求放行（POST 尤其严格）。
@@ -85,5 +85,33 @@ describe('currentShareCode：地址栏优先，其次本机记住', () => {
 
   it('两处都没有就返回空串（本地开发不为难）', () => {
     expect(currentShareCode('')).toBe('');
+  });
+});
+
+/**
+ * 分屏地址的拼接顺序。
+ *
+ * 线上踩过：`#setup?sharecode=…` —— 查询串被塞进了 hash。刷新时 screenFromHash()
+ * 读到 `setup?sharecode=…`，认不出分屏，直接掉回首页。走邀请链接时最容易撞上，
+ * 因为那时 query 里同时有 sharecode 和 ref。
+ */
+describe('screenUrl：path + query + hash', () => {
+  const loc = { pathname: '/', search: '?sharecode=2IBHTRFFFL&ref=YEKE-7F2' };
+
+  it('分屏放在最后，query 保持在 hash 之前', () => {
+    expect(screenUrl('setup', loc)).toBe('/?sharecode=2IBHTRFFFL&ref=YEKE-7F2#setup');
+  });
+
+  it('首页不带 hash', () => {
+    expect(screenUrl('home', loc)).toBe('/?sharecode=2IBHTRFFFL&ref=YEKE-7F2');
+  });
+
+  it('没有 query 时也不多出问号', () => {
+    expect(screenUrl('me', { pathname: '/', search: '' })).toBe('/#me');
+  });
+
+  it('hash 里不能再出现问号（否则刷新认不出分屏）', () => {
+    const url = screenUrl('setup', loc);
+    expect(url.slice(url.indexOf('#'))).toBe('#setup');
   });
 });

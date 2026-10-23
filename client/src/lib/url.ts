@@ -63,3 +63,16 @@ export function currentShareCode(search?: string): string {
     return '';
   }
 }
+
+/**
+ * 拼「分屏地址」：`/path?query#screen`。
+ *
+ * 顺序不能反 —— 早期写成 `#${screen}${search}`，结果是 `#setup?sharecode=…`：
+ * 查询串被塞进 hash，刷新时 `screenFromHash()` 读到的就是 `setup?sharecode=…`，
+ * 认不出任何分屏，直接掉回首页（2026-10-23 实测）。走邀请链接时最明显，
+ * 因为那时 query 里同时有 sharecode 和 ref。
+ */
+export function screenUrl(screen: string, location: { pathname: string; search: string }): string {
+  const hash = screen === 'home' ? '' : `#${screen}`;
+  return `${location.pathname}${location.search}${hash}`;
+}

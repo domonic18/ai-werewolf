@@ -12,6 +12,7 @@ import { MePage } from './pages/MePage';
 import { flushPendingRef } from './hooks/useInvite';
 import { useMatchPolling } from './hooks/useMatchPolling';
 import { clearSavedGame, readSavedGame } from './lib/storage';
+import { screenUrl } from './lib/url';
 import { useGameStore } from './store/gameStore';
 
 type Screen = 'home' | 'lobby' | 'setup' | 'login' | 'me';
@@ -44,9 +45,9 @@ export function App(): JSX.Element {
   useEffect(() => {
     /* 观战深链 #watch=… 优先，别被分屏同步覆盖掉 */
     if (/^#watch=/.test(window.location.hash)) return;
-    const target = screen === 'home' ? window.location.pathname : `#${screen}`;
     if (screen === 'home' ? !window.location.hash : window.location.hash === `#${screen}`) return;
-    window.history.replaceState({}, '', `${target}${window.location.search}`);
+    /* 顺序是 path + query + hash：查询串被塞进 hash 会让刷新掉回首页（见 screenUrl 注释） */
+    window.history.replaceState({}, '', screenUrl(screen, window.location));
   }, [screen]);
 
   /* 用户手改 hash / 浏览器后退时，把页面切回去 */
