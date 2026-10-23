@@ -2484,3 +2484,20 @@ button.me-row:hover { border-color: var(--line-strong); }
 @media (prefers-reduced-motion: reduce) {
   .ig-dots i { animation: none; opacity: 0.6; }
 }
+
+/*
+ * 自己的标记：姓名后面挂一个小「你」。
+ * 以前直接把名字写成「你」，AI 说话时也用第二人称，两种「你」混在一起分不清。
+ */
+.me-badge {
+  display: inline-block;
+  margin-left: 4px;
+  padding: 0 3px;
+  border-radius: 2px;
+  border: 1px solid rgba(185, 154, 99, 0.4);
+  color: var(--brass);
+  font-size: 8.5px;
+  font-style: normal;
+  line-height: 1.5;
+  vertical-align: 1px;
+}

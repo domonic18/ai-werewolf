@@ -120,7 +120,7 @@ export const AI_CAST: CastMember[] = [
 export const GAME_RULES = {
   minPlayers: 6,
   maxRounds: 8,
-  humanPlayerName: '你',
+  humanPlayerName: '无名氏',
 } as const;
 
 /** 胜负判定：狼人全灭 → 好人胜；狼人数 ≥ 好人数 → 狼人胜 */

@@ -118,7 +118,10 @@ function ChatBubbles({
           <div key={event.seq} className={p.isHuman ? 'ig-msg me' : 'ig-msg'}>
             <div className="ig-msg-head">
               <Avatar name={p.name} seat={p.playerId} isHuman={p.isHuman} size={20} />
-              <span className="nm">{p.isHuman ? '你' : p.name}</span>
+              <span className="nm">
+                {p.name}
+                {p.isHuman ? <em className="me-badge">你</em> : null}
+              </span>
               {p.order ? (
                 <span className="tag">
                   {p.order}/{p.total} 位
@@ -130,8 +133,11 @@ function ChatBubbles({
         );
       })}
 
+      {/* 还没吐第一个字：先给一行「正在组织语言」，避免出现只有一个边框的空框 */}
+      {live && !live.text ? <div className="ig-sys">{live.name} 正在组织语言…</div> : null}
+
       {/* 正在生成的那一句：逐字长出来，最后一条 speech 事件到达后由 live=null 收走 */}
-      {live ? (
+      {live && live.text ? (
         <div className="ig-msg streaming">
           <div className="ig-msg-head">
             <Avatar name={live.name} seat={live.playerId} isHuman={false} size={20} />
@@ -347,7 +353,10 @@ function PlayView(): JSX.Element {
               return (
                 <div key={ref.id} className={classes.join(' ')}>
                   <Avatar name={seat.name} seat={seat.seat} isHuman={seat.isHuman} size={32} />
-                  <span className="nm">{seat.isHuman ? '你' : seat.name}</span>
+                  <span className="nm">
+                    {seat.name}
+                    {seat.isHuman ? <em className="me-badge">你</em> : null}
+                  </span>
                 </div>
               );
             })}
@@ -600,7 +609,7 @@ function SpectateView({ players }: { players: Seat[] }): JSX.Element {
           })
         )}
 
-        {live ? (
+        {live && live.text ? (
           <div className="sp-msg streaming">
             <div className="sp-msg-head">
               <Avatar name={live.name} seat={live.playerId} isHuman={false} size={18} />

@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { api } from '../api/client';
+import { defaultName, normalizeName, rememberName } from '../lib/nickname';
 import { Icon, roleIcon } from '../components/Icon';
 import { SiteFooter } from '../components/SiteFooter';
 import { useHomeData } from '../hooks/useHomeData';
@@ -54,7 +55,7 @@ export function SetupPage({ onBack, onStarted }: SetupPageProps): JSX.Element {
   const [players, setPlayers] = useState(6);
   const [data, setData] = useState<RolesResponse | null>(null);
   const [deck, setDeck] = useState<Partial<Record<RoleKey, number>>>({});
-  const [name, setName] = useState('');
+  const [name, setName] = useState(() => defaultName());
   const [starting, setStarting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showAllLocked, setShowAllLocked] = useState(false);
@@ -110,7 +111,9 @@ export function SetupPage({ onBack, onStarted }: SetupPageProps): JSX.Element {
     setError(null);
     try {
       const payload = Object.entries(deck).map(([key, count]) => ({ key, count: count ?? 0 }));
-      const result = await api.createGame({ playerName: name.trim() || '你', deck: payload });
+      const playerName = normalizeName(name) || defaultName();
+      rememberName(playerName);
+      const result = await api.createGame({ playerName, deck: payload });
       onStarted(result.gameId, result.playerToken);
     } catch (e) {
       setError(e instanceof Error ? e.message : '开局失败');
@@ -143,6 +146,27 @@ export function SetupPage({ onBack, onStarted }: SetupPageProps): JSX.Element {
         </button>
         <p className="su-nav-title">新建对局</p>
         <span style={{ width: 36, height: 36 }} />
+      </div>
+
+      <div className="su-card">
+        <div className="su-head">
+          <b>你的代号</b>
+          <span>局内显示这个名字</span>
+        </div>
+        <div className="lg-input">
+          <input
+            id="setupName"
+            maxLength={8}
+            placeholder="例如：夜客"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            onBlur={() => rememberName(normalizeName(name))}
+          />
+        </div>
+        <div className="su-hint">
+          <Icon name="info" size={12} />
+          <span>别用「你」——AI 说话时也常说「你」，两个「你」会分不清</span>
+        </div>
       </div>
 
       <div className="su-card">
@@ -268,21 +292,11 @@ export function SetupPage({ onBack, onStarted }: SetupPageProps): JSX.Element {
       <div className="su-card">
         <button className="su-head" style={{ background: 'none', border: 0, padding: 0, cursor: 'pointer' }} onClick={() => setMoreOpen((v) => !v)}>
           <b>更多设置</b>
-          <span style={{ color: 'var(--d-muted)', fontSize: 11 }}>{moreOpen ? '收起' : '代号 / AI 模型'}</span>
+          <span style={{ color: 'var(--d-muted)', fontSize: 11 }}>{moreOpen ? '收起' : 'AI 模型'}</span>
         </button>
         {moreOpen ? (
           <div className="lg-field">
-            <label htmlFor="setupName">你的代号</label>
-            <div className="lg-input">
-              <input
-                id="setupName"
-                maxLength={8}
-                placeholder="留空则叫「你」"
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </div>
-            <label htmlFor="modelSelect" style={{ marginTop: 6 }}>
+            <label htmlFor="modelSelect">
               AI 玩家模型（决定 5 个智能体的言行风格）
             </label>
             <div className="lg-input">

@@ -341,8 +341,11 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, ctx: 
         players?: number;
         deck?: { key: string; count: number }[];
       }>(req);
-      /* 代号会进 AI prompt 与战绩表：去掉控制字符、限长，空则用「你」 */
-      const name = cleanText(String(body.playerName ?? ''), 8) || '你';
+      /*
+       * 代号会进 AI prompt 与战绩表：去掉控制字符、限长。
+       * 空值不叫「你」——AI 发言里满口「你」，两种「你」混起来分不清谁在说谁。
+       */
+      const name = cleanText(String(body.playerName ?? ''), 8) || '无名氏';
 
       /* 牌组：显式传入则校验，否则按人数给推荐（不传人数 = 6 人基础局） */
       let deckSlots: DeckSlot[] = recommendDeck(body.players ?? MIN_PLAYERS);

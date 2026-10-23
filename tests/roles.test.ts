@@ -26,6 +26,8 @@ interface Script {
 
 function scriptedLLM(script: Script): LLMClient {
   let wolfTurn = 0;
+  /* 女巫每夜换一个毒杀目标：固定毒「列表第一个人」时，20 局里可能一次都毒不到猎人（曾出现偶发失败） */
+  let witchTurn = 0;
   const pick = (user: string, marker: RegExp, index = 0): string => {
     const listed = user.match(marker)?.[1];
     const names = listed?.split('、').map((n) => n.trim()).filter(Boolean) ?? [];
@@ -42,7 +44,7 @@ function scriptedLLM(script: Script): LLMClient {
         return { target: pick(user, /可以守护的存活玩家：(.+?)。/), reason: 'scripted-guard' };
       }
       if (/你是女巫/.test(system)) {
-        const poison = script.poison ? pick(user, /可以毒死场上任意一人：(.+?)。/) : '';
+        const poison = script.poison ? pick(user, /可以毒死场上任意一人：(.+?)。/, witchTurn++) : '';
         return { save: script.save, poison, reason: 'scripted-witch' };
       }
       if (/你是猎人/.test(system)) {

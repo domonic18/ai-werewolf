@@ -6,6 +6,7 @@ import { Avatar } from '../components/Avatar';
 import { SiteFooter } from '../components/SiteFooter';
 import { Icon } from '../components/Icon';
 import { useHomeData } from '../hooks/useHomeData';
+import { defaultName } from '../lib/nickname';
 import { clearSavedGame, readSavedGame } from '../lib/storage';
 import { useGameStore } from '../store/gameStore';
 
@@ -72,7 +73,8 @@ export function HomePage({ onWatch, onOpenLobby, onNewGame, onOpenLogin, onOpenS
     setQuickStarting(true);
     setStartError(null);
     try {
-      const result = await api.createGame({ playerName: '你' });
+      /* 用玩家自己的代号：叫「你」会和 AI 嘴里的第二人称混成一片 */
+      const result = await api.createGame({ playerName: defaultName() });
       open(result.gameId, { token: result.playerToken });
     } catch (e) {
       setStartError(e instanceof Error ? e.message : '开局失败');
