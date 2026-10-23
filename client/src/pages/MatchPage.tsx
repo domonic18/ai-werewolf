@@ -168,28 +168,49 @@ function ChatBubbles({
  */
 function useNight(phase: Phase, round: number, events: GameEvent[]) {
   const cues = useMemo(() => nightCuesForRound(events, round), [events, round]);
-  /* 「哪一夜 + 演到第几句 + 是否跳过 + 是否正在演」合在一个状态里：换夜时自然失效，不需要额外的重置 effect */
-  const [state, setState] = useState({ round: -1, shown: 0, skipped: false, open: false });
+  /*
+   * 「哪一夜 + 演到第几句 + 是否跳过 + 是否正在演 + 天亮的幕是否放过了」合在一个状态里：
+   * 换夜时自然失效，不需要额外的重置 effect。
+   */
+  const [state, setState] = useState({ round: -1, shown: 0, skipped: false, open: false, dawn: false });
 
   const sameRound = state.round === round;
   const shownCount = sameRound ? state.shown : 0;
   const skipped = sameRound && state.skipped;
+  const dawnShown = sameRound && state.dawn;
   const open = sameRound && state.open;
 
   useEffect(() => {
     if (open) return;
+
+    /* 夜里：还有没演过的口令就拉起 */
     if (shouldRaiseCurtain({ phase, shownCount, cueCount: cues.length, skipped })) {
-      setState({ round, shown: shownCount, skipped, open: true });
+      setState({ round, shown: shownCount, skipped, open: true, dawn: dawnShown });
+      return;
     }
-  }, [open, phase, round, shownCount, skipped, cues.length]);
+
+    /*
+     * 天亮：单独放一次幕，交代「昨夜谁出局」。
+     *
+     * 不能只靠「夜里那次幕一直演到天亮」—— 实测线上，玩家自己用药的那一夜，
+     * 幕在待决策时就收了，天亮时根本没有幕可切，天亮就只剩一行日志。
+     * 条件里的 `shownCount > 0` 是为了避免「中途加载进第 N 天」时凭空弹一句天亮了。
+     */
+    if (phase === 'day' && !skipped && !dawnShown && shownCount > 0) {
+      setState({ round, shown: shownCount, skipped, open: true, dawn: dawnShown });
+    }
+  }, [open, phase, round, shownCount, skipped, cues.length, dawnShown]);
+
+  const close = (shownTotal: number, isDawn: boolean): void =>
+    setState({ round, shown: shownTotal, skipped: false, open: false, dawn: dawnShown || isDawn });
 
   return {
     open,
     cues,
     startAt: shownCount,
     lastCue: cues.length ? (cues[cues.length - 1] as string) : null,
-    onDone: (shownTotal: number) => setState({ round, shown: shownTotal, skipped: false, open: false }),
-    onSkip: () => setState({ round, shown: cues.length, skipped: true, open: false }),
+    onDone: (shownTotal: number) => close(shownTotal, phase !== 'night'),
+    onSkip: () => setState({ round, shown: cues.length, skipped: true, open: false, dawn: true }),
   };
 }
 
