@@ -355,8 +355,13 @@ export interface SpectateSeat {
   emoji: string;
   alive: boolean;
   isHuman: boolean;
-  role: RoleKey;
-  camp: Team;
+  /**
+   * 身份：只有**已翻牌**（放逐 / 白痴亮牌 / 长老受罚 / 结算后）才有值。
+   * 进行中且未翻牌时为 null —— 观战不能比场上玩家知道得多，否则边看边玩就是开挂。
+   */
+  role: RoleKey | null;
+  /** 阵营，同上；未翻牌时为 null（阵营也是信息） */
+  camp: Team | null;
 }
 
 export interface SpectateSnapshot {
@@ -367,7 +372,11 @@ export interface SpectateSnapshot {
   winner: Team | null;
   aborted: { reason: string } | null;
   players: SpectateSeat[];
-  /** 上帝视角复盘时间轴：狼刀/解药/毒药/放逐 */
+  /**
+   * 复盘时间轴：狼刀/解药/毒药/放逐。
+   * **对局进行中为空数组** —— 这里的夜间行动足以推出谁是什么身份，
+   * UI 不渲染不代表抓包看不到。结算后才下发。
+   */
   timeline: NightRecord[];
   /** 阵营存活统计，观战页用来画双方进度条 */
   factions: {

@@ -582,11 +582,13 @@ function SpectateView({ players }: { players: Seat[] }): JSX.Element {
         <div className="sp-god-head">
           <div className="sp-god-title">
             <Icon name="eye" size={14} />
-            <span>上帝视角 · 身份已公开</span>
+            <span>观战 · 已翻牌的身份公开</span>
           </div>
           <em>实时</em>
         </div>
-        <p>观战无需凭证、不占座位，你的任何操作都不会进入牌局，避免影响对局公平</p>
+        <p>
+          只读、不占座。存活玩家的身份要等放逐翻牌或结算后才公开——边看边玩也没法提前知道谁是狼。
+        </p>
       </div>
 
       <div className="sp-grid">
@@ -605,9 +607,9 @@ function SpectateView({ players }: { players: Seat[] }): JSX.Element {
                 <Avatar name={player.name} seat={player.seat} isHuman={player.isHuman} size={22} />
                 <span className="nm">{player.name}</span>
               </div>
-              <div className="sp-role">
-                <Icon name={roleIcon(player.role)} size={11} />
-                {card ? card.name : '未知'}
+              <div className={card ? 'sp-role' : 'sp-role unknown'}>
+                {card ? <Icon name={roleIcon(player.role)} size={11} /> : null}
+                {card ? card.name : '未翻牌'}
               </div>
             </div>
           );

@@ -270,17 +270,31 @@ export class GameEngine implements GameView {
    * 与 snapshot() 方向相反（一个"藏"、一个"亮"），两者物理分离，禁止合并成一个函数。
    * 刻意不含 pendingAction —— 「谁正在行动」永远不进观战数据。
    */
+  /**
+   * 观战投影。
+   *
+   * 与玩家快照的区别：观战能看到**已经公开**的身份，而不是**全部**身份。
+   * 判据就是 `revealRole`（放逐翻牌 / 白痴亮牌 / 长老受罚时置 true）。
+   *
+   * 早期这里是全量下发，于是玩家在局内点「观战」、把链接粘到另一个窗口，
+   * 就能边看全场身份边做决定 —— 单人局里只是自我作弊，但一旦上排行或真人房就是硬伤。
+   * 现在：进行中只给已翻牌者；结算（winner / aborted）后全量。
+   */
   spectateSnapshot(): SpectateSnapshot {
-    const seats: SpectateSeat[] = this.players.map((p) => ({
-      id: p.id,
-      seat: p.seat,
-      name: p.name,
-      emoji: p.emoji,
-      alive: p.alive,
-      isHuman: p.isHuman,
-      role: p.role,
-      camp: ROLES[p.role].team,
-    }));
+    const finished = this.winner !== null || this.aborted !== null || this.phase === 'over';
+    const seats: SpectateSeat[] = this.players.map((p) => {
+      const revealed = finished || p.revealRole;
+      return {
+        id: p.id,
+        seat: p.seat,
+        name: p.name,
+        emoji: p.emoji,
+        alive: p.alive,
+        isHuman: p.isHuman,
+        role: revealed ? p.role : null,
+        camp: revealed ? ROLES[p.role].team : null,
+      };
+    });
 
     const tally = (team: Team): { alive: number; total: number } => {
       const members = this.players.filter((p) => ROLES[p.role].team === team);
@@ -295,7 +309,8 @@ export class GameEngine implements GameView {
       winner: this.winner,
       aborted: this.aborted,
       players: seats,
-      timeline: this.timeline,
+      /* 进行中不给复盘：里面的狼刀/用药足以反推身份 */
+      timeline: finished ? this.timeline : [],
       factions: { wolf: tally('wolf'), good: tally('good') },
     };
   }

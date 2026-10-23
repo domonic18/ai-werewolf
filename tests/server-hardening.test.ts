@@ -54,7 +54,7 @@ const getJson = async <T>(path: string, init?: RequestInit): Promise<{ status: n
 };
 
 describe('观战投影（P0：身份隔离）', () => {
-  it('玩家快照不含身份与阵营字段，观战快照含全量身份', async () => {
+  it('玩家快照不含身份；观战快照只给「已翻牌」的身份', async () => {
     const created = await fetch(base + '/api/games', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -71,14 +71,20 @@ describe('观战投影（P0：身份隔离）', () => {
     }
     expect(player.body).not.toHaveProperty('factions');
 
-    /* 观战视角：上帝视角，每个座位都带身份与阵营 */
+    /*
+     * 观战视角：只公开「已经翻牌」的身份。
+     * 刚开局的 6 个座位谁都没翻牌，所以身份与阵营都必须是 null ——
+     * 否则玩家点「观战」再另开一个窗口，就能边看谁是狼边做决定。
+     */
     const spectate = await getJson<SpectateResponse>(`/api/games/${gameId}/spectate?since=0&client=watcher-1`);
     expect(spectate.status).toBe(200);
     expect(spectate.body.snapshot.players).toHaveLength(6);
     for (const seat of spectate.body.snapshot.players) {
-      expect(['wolf', 'seer', 'witch', 'villager']).toContain(seat.role);
-      expect(['wolf', 'good']).toContain(seat.camp);
+      expect(seat.role).toBeNull();
+      expect(seat.camp).toBeNull();
     }
+    /* 进行中也不下发复盘时间轴：里面的狼刀/用药足以反推身份 */
+    expect(spectate.body.snapshot.timeline).toEqual([]);
 
     /* 阵营统计：2 狼 4 好（6 人局固定配置） */
     expect(spectate.body.snapshot.factions.wolf.total).toBe(2);

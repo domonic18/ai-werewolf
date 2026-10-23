@@ -3013,3 +3013,9 @@ button.me-row:hover { border-color: var(--line-strong); }
   line-height: 1.7;
   color: var(--smoke);
 }
+
+/* 未翻牌：观战时只看得到「有人坐在这里」，身份要等放逐翻牌或结算 */
+.sp-role.unknown {
+  border-style: dashed;
+  color: var(--faint);
+}
