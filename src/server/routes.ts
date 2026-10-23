@@ -27,6 +27,7 @@ import {
   validateDeck,
 } from '../game/catalog.js';
 import type { DeckSlot } from '../game/catalog.js';
+import { readBearer } from './auth.js';
 import { listRooms, parseLobbyQuery } from './lobby.js';
 import { SlidingWindowLimiter, actorKey, clientIp } from './rate-limit.js';
 import type {
@@ -36,6 +37,7 @@ import type {
   HealthResponse,
   LiveResponse,
   MatchesResponse,
+  WhoAmIResponse,
   RolesResponse,
   ModelsResponse,
   OkResponse,
@@ -88,6 +90,8 @@ export interface ApiContext {
   resolveOwner?: (req: IncomingMessage) => Promise<string | null>;
   /** 限流器（不传则用默认规则） */
   limiters?: ApiLimiters;
+  /** 身份自检：拿 token 问一次云端，返回状态码（供 /api/whoami 用） */
+  probeOwner?: (token: string) => Promise<{ userId: string | null; status: number | 'network' }>;
 }
 
 /** 请求体上限：一局请求就十几个字段，32KB 足够；再大就是攻击或 bug */
@@ -239,6 +243,27 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, ctx: 
         mine: mineStats,
       };
       return sendJson(res, 200, body);
+    }
+
+    /*
+     * 身份自检：浏览器里直接打开就能看到「服务端有没有认出我」。
+     * 只回布尔与状态码，不回 token、不回账号 id —— 排查够用，泄露为零。
+     */
+    if (path === '/api/whoami' && method === 'GET') {
+      const rl = limits.read.take(`whoami:${ip || 'unknown'}`);
+      if (!rl.ok) return tooMany(res, rl.retryAfterSec, '请求过于频繁，请稍后再试');
+      const token = readBearer(req);
+      if (!token) return sendJson(res, 200, { signedIn: false, reason: 'no-token' } satisfies WhoAmIResponse);
+
+      const ownerId = ctx.resolveOwner ? await ctx.resolveOwner(req) : null;
+      if (ownerId) return sendJson(res, 200, { signedIn: true, status: 200 } satisfies WhoAmIResponse);
+
+      const probe = ctx.probeOwner ? await ctx.probeOwner(token) : null;
+      return sendJson(res, 200, {
+        signedIn: false,
+        reason: 'unresolved',
+        status: probe?.status ?? 'skipped',
+      } satisfies WhoAmIResponse);
     }
 
     /* ---------- 登录配置（只下发可公开值） ---------- */

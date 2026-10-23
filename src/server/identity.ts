@@ -51,7 +51,18 @@ function pickUserId(payload: unknown): string | null {
   return null;
 }
 
-export function createCloudTokenVerifier(options: CloudIdentityOptions): TokenVerifier {
+export interface VerifyProbe {
+  userId: string | null;
+  /** 云端返回的 HTTP 状态码；网络失败为 'network' */
+  status: number | 'network';
+}
+
+export interface ProbingVerifier extends TokenVerifier {
+  /** 不做缓存的一次性自检：只给 /api/whoami 用，便于在浏览器里定位「为什么认不出我」 */
+  probe(accessToken: string): Promise<VerifyProbe>;
+}
+
+export function createCloudTokenVerifier(options: CloudIdentityOptions): ProbingVerifier {
   const base = options.endpoint.replace(/\/+$/, '');
   const doFetch = options.fetchImpl ?? fetch;
   const ttl = options.ttlMs ?? 60_000;
@@ -66,7 +77,30 @@ export function createCloudTokenVerifier(options: CloudIdentityOptions): TokenVe
     cache.set(key, { userId, expiresAt: Date.now() + (userId ? ttl : negativeTtl) });
   };
 
+  const call = async (accessToken: string): Promise<VerifyProbe> => {
+    try {
+      const res = await doFetch(`${base}/.cloud/auth/v1/user/me`, {
+        method: 'GET',
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          'x-wb-webapp-access-key': options.publishableKey,
+          Origin: base,
+          Referer: `${base}/`,
+        },
+        signal: AbortSignal.timeout(timeoutMs),
+      });
+      if (!res.ok) return { userId: null, status: res.status };
+      return { userId: pickUserId(await res.json()), status: res.status };
+    } catch {
+      return { userId: null, status: 'network' };
+    }
+  };
+
   return {
+    async probe(accessToken: string): Promise<VerifyProbe> {
+      return call(accessToken);
+    },
+
     async verify(accessToken: string): Promise<string | null> {
       if (!accessToken) return null;
       const key = keyOf(accessToken);

@@ -9,6 +9,7 @@ import type {
   OkResponse,
   Snapshot,
   SpectateResponse,
+  WhoAmIResponse,
 } from '@shared/types';
 import { readShareCode, withShareCode } from '../lib/url';
 import { resolveAuthToken } from '../auth/session';
@@ -82,6 +83,7 @@ export const api = {
   selectModel: (id: string): Promise<OkResponse> => request('/models/select', { id }),
   /** mine=true 时按账号取（未登录服务端会退回全网，不会报错） */
   matches: (mine = false): Promise<MatchesResponse> => request(`/matches${mine ? '?mine=1' : ''}`),
+  whoami: (): Promise<WhoAmIResponse> => request('/whoami'),
   live: (query: LiveQuery = {}): Promise<LiveResponse> => {
     const params = new URLSearchParams();
     if (query.filter && query.filter !== 'all') params.set('filter', query.filter);

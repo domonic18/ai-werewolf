@@ -43,6 +43,8 @@ export function MePage({ onBack, onLogin, onStart, onResume }: MePageProps): JSX
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [resyncing, setResyncing] = useState(false);
+  /* 自检结果：只用来把「为什么认不出我」说清楚，不参与业务判断 */
+  const [authIssue, setAuthIssue] = useState<string | null>(null);
 
   const load = useCallback(async (): Promise<void> => {
     if (!signedIn) {
@@ -62,6 +64,17 @@ export function MePage({ onBack, onLogin, onStart, onResume }: MePageProps): JSX
     setMatches(history);
     setOngoing(live?.games ?? []);
     setLoading(false);
+
+    /* 服务端把人认成匿名时，问一次 /whoami 把原因落到字符串上 */
+    if (signedIn && history && history.scope === 'all') {
+      const info = await api.whoami().catch(() => null);
+      if (info?.signedIn) setAuthIssue(null);
+      else if (info?.status === 'network') setAuthIssue('云端不可达');
+      else if (typeof info?.status === 'number') setAuthIssue(`云端返回 ${info.status}`);
+      else setAuthIssue('没有可用的凭证');
+    } else {
+      setAuthIssue(null);
+    }
   }, [signedIn]);
 
   useEffect(() => {
@@ -136,7 +149,9 @@ export function MePage({ onBack, onLogin, onStart, onResume }: MePageProps): JSX
           {staleAuth ? (
             <div className="me-stale">
               <Icon name="info" size={12} />
-              <span>服务端没有认出当前账号，这份统计暂时是全网数据。</span>
+              <span>
+                服务端没有认出当前账号{authIssue ? `（${authIssue}）` : ''}，这份统计暂时是全网数据。
+              </span>
               <button className="me-stale-btn" onClick={() => void resync()} disabled={resyncing}>
                 {resyncing ? '同步中…' : '重新同步'}
               </button>

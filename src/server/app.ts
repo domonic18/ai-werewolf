@@ -122,6 +122,7 @@ export function createApp(options: AppOptions): http.Server {
     resolveOwner: options.resolveOwner,
     publicConfig: options.publicConfig,
     limiters: options.limiters,
+    probeOwner: options.probeOwner,
   };
 
   return http.createServer((req, res) => {

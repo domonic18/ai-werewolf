@@ -83,6 +83,7 @@ export async function main(): Promise<import('node:http').Server> {
     matchStore,
     env,
     resolveOwner: createOwnerResolver(verifier),
+    probeOwner: (token) => verifier.probe(token),
     publicConfig: {
       endpoint: config.endpoint,
       publishableKey: config.publishableKey,

@@ -379,6 +379,14 @@ export interface CreateGameResponse {
   playerToken: string;
 }
 
+/** 登录自检：服务端到底有没有把 Bearer 认成某个账号（不返回 token 与账号 id） */
+export interface WhoAmIResponse {
+  signedIn: boolean;
+  reason?: 'no-token' | 'unresolved';
+  /** 云端 /user/me 的 HTTP 状态码；网络失败为 'network'；'skipped' 表示没配校验器 */
+  status?: number | 'network' | 'skipped' | null;
+}
+
 export interface OkResponse {
   ok: true;
 }
