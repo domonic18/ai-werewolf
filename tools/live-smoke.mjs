@@ -324,21 +324,35 @@ if (gameId) {
   /* ---------- 6. 观战投影（P0-1 回归） ---------- */
   console.log('\n[6/7] 观战投影');
 
-  await check('观战无需凭证，且返回上帝视角', async () => {
+  /*
+   * 观战是免鉴权的，所以它下发的必须是**公开信息**。
+   * v1.13.1 起：未翻牌的身份不再下发给观战（否则玩家点「观战」再开个窗口就能偷看），
+   * 复盘时间轴也只在对局结束后才给。这条检查从「上帝视角全公开」翻转成「身份不泄露」。
+   */
+  await check('观战无需凭证，但不下发未公开的身份', async () => {
     const { status, body } = await json(`/api/games/${gameId}/spectate?since=0&client=smoke`);
     assert(status === 200, `HTTP ${status}`);
     assert(body.snapshot, '缺少 snapshot');
     const seats = body.snapshot.players ?? [];
     assert(seats.length > 0, '座位为空');
-    assert(seats.every((s) => typeof s.role === 'string'), '有座位缺身份，上帝视角不成立');
-    assert(seats.every((s) => s.camp === 'wolf' || s.camp === 'good'), '有座位缺阵营');
+
+    const finished = Boolean(body.snapshot.winner) || Boolean(body.snapshot.aborted) || body.snapshot.phase === 'over';
+    if (!finished) {
+      /* 这一局通常还在进行中：未翻牌的座位不该带身份 */
+      const leaked = seats.filter((s) => s.role !== null && s.role !== undefined);
+      assert(leaked.length === 0, `进行中泄露了 ${leaked.length} 个身份：${leaked.map((s) => s.name).join('、')}`);
+      assert(seats.every((s) => s.camp === null || s.camp === undefined), '进行中泄露了阵营');
+      assert((body.snapshot.timeline ?? []).length === 0, '进行中不该下发复盘时间轴');
+    } else {
+      assert(seats.every((s) => typeof s.role === 'string'), '已结束的局应全量公开身份');
+    }
+
     const wolf = body.snapshot.factions?.wolf;
     assert(wolf && wolf.total > 0, 'factions 缺失');
     assert(!('pendingAction' in body.snapshot), '观战投影泄露了 pendingAction');
     assert(!('myRole' in body.snapshot), '观战投影不该有 myRole');
     assert(typeof body.spectators === 'number', '缺少 spectators');
-    assert(Array.isArray(body.snapshot.timeline), '观战投影缺少 timeline');
-    return `${seats.length} 座 · 狼 ${wolf.alive}/${wolf.total} · 观战 ${body.spectators} · 时间轴 ${body.snapshot.timeline.length} 轮`;
+    return `${seats.length} 座 · 狼 ${wolf.alive}/${wolf.total} · 观战 ${body.spectators} · ${finished ? '已结束全公开' : '进行中已打码'}`;
   });
 
   await check('观战者拿不到凭证也无法操作', async () => {
