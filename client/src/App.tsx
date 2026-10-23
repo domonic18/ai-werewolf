@@ -12,6 +12,8 @@ import { MePage } from './pages/MePage';
 import { flushPendingRef } from './hooks/useInvite';
 import { useMatchPolling } from './hooks/useMatchPolling';
 import { clearSavedGame, readSavedGame } from './lib/storage';
+import { trackOnce } from './lib/track';
+import { currentRef } from './lib/invite';
 import { screenUrl } from './lib/url';
 import { useGameStore } from './store/gameStore';
 
@@ -97,8 +99,17 @@ export function App(): JSX.Element {
 
   /* 页内登录（手机号 / 微信授权）不会刷新页面，所以还要盯住登录态变化 */
   useEffect(() => {
-    if (signedIn) void flushPendingRef();
+    if (!signedIn) return;
+    void flushPendingRef();
+    /* 带 ref 的登录 = 一次邀请转化；没有 ref 也记一次登录，用于算整体转化率 */
+    trackOnce('login', 'login', currentRef());
   }, [signedIn]);
+
+  /* 落地：带邀请码打开首页算一次。同一会话只记一次，刷新页面不重复计 */
+  useEffect(() => {
+    const ref = currentRef();
+    if (ref) trackOnce('landing', 'landing', ref);
+  }, []);
 
   /*
    * 第三方登录回调必须在这里、在任何页面判断之前处理：

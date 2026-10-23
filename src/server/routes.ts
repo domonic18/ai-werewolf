@@ -19,6 +19,8 @@ import type { RoomManager } from './rooms.js';
 import type { MatchStore } from '../cloud/match-store.js';
 import type { SocialStore } from '../cloud/social-store.js';
 import { normalizeInviteCode } from '../cloud/social-store.js';
+import type { EventStore } from '../cloud/event-store.js';
+import { isTrackEvent } from '../cloud/event-store.js';
 import type { LLMService } from './llm-service.js';
 import {
   MAX_PLAYERS,
@@ -45,6 +47,9 @@ import type {
   InvitePreviewResponse,
   BindInviteResponse,
   UpdateProfileResponse,
+  TrackResponse,
+  TrackSummaryResponse,
+  TrackEventName,
   RolesResponse,
   ModelsResponse,
   OkResponse,
@@ -85,6 +90,8 @@ export interface ApiContext {
   matchStore: MatchStore;
   /** 账号资料与邀请关系（云库未就绪时也传，内部会降级） */
   socialStore?: SocialStore;
+  /** 埋点（四个事件，可选） */
+  eventStore?: EventStore;
   /** 运行环境：前端据此显示区分标识 */
   env: AppEnv;
   /** 前端登录所需的可公开配置（endpoint / publishableKey / oauthRelayBaseUrl），不含密钥 */
@@ -333,11 +340,50 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, ctx: 
       if (!code) return sendJson(res, 200, { ok: false, status: 'bad-code' } satisfies BindInviteResponse);
 
       const result = ctx.socialStore ? await ctx.socialStore.bind(code, ownerId) : { status: 'unavailable' as const };
+      /* 邀请关系建立只在**真正写入**时记一次：幂等命中（exists）不算新增转化 */
+      if (result.status === 'bound') void ctx.eventStore?.record('invite_bound', { ownerId, ref: code });
       return sendJson(res, 200, {
         ok: result.status === 'bound' || result.status === 'exists',
         status: result.status,
         inviterName: result.inviterName,
       } satisfies BindInviteResponse);
+    }
+
+    /*
+     * 埋点上报：四个事件白名单，其余一律 400。
+     * 不要求登录——落地事件发生在登录之前；能认出人时带哈希标识用于去重。
+     */
+    if (path === '/api/track' && method === 'POST') {
+      const rl = limits.read.take(`track:${ip || 'unknown'}`);
+      if (!rl.ok) return tooMany(res, rl.retryAfterSec, '请求过于频繁，请稍后再试');
+      const body = await readBody<{ event: string; ref?: string }>(req);
+      if (!isTrackEvent(body.event)) {
+        return sendJson(res, 400, { error: '未知事件' } satisfies ErrorResponse);
+      }
+      const ownerId = ctx.resolveOwner ? await ctx.resolveOwner(req).catch(() => null) : null;
+      await ctx.eventStore?.record(body.event, {
+        ownerId,
+        ref: typeof body.ref === 'string' ? normalizeInviteCode(body.ref) || null : null,
+      });
+      return sendJson(res, 200, { ok: true } satisfies TrackResponse);
+    }
+
+    /*
+     * 埋点汇总：只回聚合计数，不含任何身份。
+     * 要求登录：这数据是给自家人看的，没必要对匿名开放。
+     */
+    if (path === '/api/track/summary' && method === 'GET') {
+      const rl = limits.read.take(`track-summary:${ip || 'unknown'}`);
+      if (!rl.ok) return tooMany(res, rl.retryAfterSec, '请求过于频繁，请稍后再试');
+      const ownerId = ctx.resolveOwner ? await ctx.resolveOwner(req) : null;
+      if (!ownerId) return sendJson(res, 401, { error: '登录后才能查看统计' } satisfies ErrorResponse);
+
+      const days = Math.min(30, Math.max(1, Number(parsed.query.days ?? 7) || 7));
+      const rows = ctx.eventStore ? await ctx.eventStore.summary(days) : [];
+      return sendJson(res, 200, {
+        days,
+        counts: rows as { name: TrackEventName; count: number }[],
+      } satisfies TrackSummaryResponse);
     }
 
     /* 改昵称 / 战绩是否公开 */

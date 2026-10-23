@@ -14,6 +14,9 @@ import type {
   InvitePreviewResponse,
   BindInviteResponse,
   UpdateProfileResponse,
+  TrackEventName,
+  TrackResponse,
+  TrackSummaryResponse,
 } from '@shared/types';
 import { currentShareCode, withShareCode } from '../lib/url';
 import { resolveAuthToken } from '../auth/session';
@@ -101,6 +104,11 @@ export const api = {
     request(`/invite/preview?ref=${encodeURIComponent(ref)}`),
   /** 登录后补记邀请关系（幂等） */
   bindInvite: (ref: string): Promise<BindInviteResponse> => request('/invite/bind', { ref }),
+  /** 埋点：四个事件白名单（服务端会拒未知事件）。失败不抛，见 lib/track */
+  track: (event: TrackEventName, ref?: string | null): Promise<TrackResponse> =>
+    request('/track', { event, ref: ref ?? undefined }),
+  /** 埋点汇总（需登录） */
+  trackSummary: (days = 7): Promise<TrackSummaryResponse> => request(`/track/summary?days=${days}`),
   /** 改昵称 / 战绩是否公开 */
   updateProfile: (patch: { nickname?: string; hideStats?: boolean }): Promise<UpdateProfileResponse> =>
     request('/profile', patch),

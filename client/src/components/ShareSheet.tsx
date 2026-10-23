@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Icon } from './Icon';
 import { copyText, shareLink } from '../lib/share';
+import { trackEvent } from '../lib/track';
 
 /**
  * 分享弹层（底部 sheet）。
@@ -35,6 +36,7 @@ export function ShareSheet({ open, title, hint, url, text, qr, file, extra, onCl
   if (!open) return null;
 
   const doShare = async (): Promise<void> => {
+    trackEvent('share_click');
     const result = await shareLink({ title, text, url, file });
     if (result === 'shared') {
       onClose();
@@ -44,6 +46,7 @@ export function ShareSheet({ open, title, hint, url, text, qr, file, extra, onCl
   };
 
   const doCopy = async (): Promise<void> => {
+    trackEvent('share_click');
     setMsg((await copyText(url)) ? '链接已复制' : '复制失败，请长按链接手动复制');
   };
 

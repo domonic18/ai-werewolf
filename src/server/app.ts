@@ -121,6 +121,7 @@ export function createApp(options: AppOptions): http.Server {
     env: options.env ?? 'production',
     resolveOwner: options.resolveOwner,
     socialStore: options.socialStore,
+    eventStore: options.eventStore,
     publicConfig: options.publicConfig,
     limiters: options.limiters,
     probeOwner: options.probeOwner,

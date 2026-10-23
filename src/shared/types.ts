@@ -436,6 +436,20 @@ export interface BindInviteResponse {
   inviterName?: string;
 }
 
+/** 埋点：只接受四个已知事件名 */
+export type TrackEventName = 'share_click' | 'landing' | 'login' | 'invite_bound';
+
+export interface TrackResponse {
+  ok: boolean;
+}
+
+export interface TrackSummaryResponse {
+  /** 统计窗口（天） */
+  days: number;
+  /** 按固定顺序返回四个事件的计数 */
+  counts: { name: TrackEventName; count: number }[];
+}
+
 export interface UpdateProfileResponse {
   ok: boolean;
   nickname?: string | null;
