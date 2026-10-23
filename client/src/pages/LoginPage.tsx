@@ -11,18 +11,16 @@ interface LoginPageProps {
   onSignedIn: () => void;
 }
 
-type Channel = 'phone' | 'email';
-
 /**
- * 登录页（设计规范 v2「夜席」）：手机号/邮箱验证码 + 第三方登录。
- * 结构 = 返回栏 / Logo+标题 / 登录卡（Tab·手机号·验证码·登录）/ 其他方式 /
- *        协议行 / 托管说明 / 页脚。已登录时整卡换成账号状态，避免重复登录。
+ * 登录页（设计规范 v2「夜席」）：手机号验证码 + 微信 / WorkBuddy 两种授权登录。
+ *
+ * 三种方式都在线上跑通过，邮箱通道试过但没验证，产品上先不提供（SDK 层仍支持，
+ * 只是界面不给入口）。哪些入口出现由服务端 /api/auth-config 的 providers 决定，
+ * 避免「摆了按钮但点了必失败」。
  */
 export function LoginPage({ onBack, onSignedIn }: LoginPageProps): JSX.Element {
   const { session } = useSession();
-  const [channel, setChannel] = useState<Channel>('phone');
   const [phone, setPhone] = useState('');
-  const [email, setEmail] = useState('');
   const [code, setCode] = useState('');
   const [countdown, setCountdown] = useState(0);
   const [verificationId, setVerificationId] = useState('');
@@ -31,22 +29,18 @@ export function LoginPage({ onBack, onSignedIn }: LoginPageProps): JSX.Element {
   const [verifying, setVerifying] = useState(false);
   const [agreed, setAgreed] = useState(true);
   /* 登录方式由服务端声明：没开启的 Provider 不显示，避免「点了必失败」的按钮 */
-  const [providers, setProviders] = useState<string[]>(['phone', 'email']);
+  const [providers, setProviders] = useState<string[]>(['phone', 'wechat', 'workbuddy']);
   const canWechat = providers.includes('wechat');
   const canWorkbuddy = providers.includes('workbuddy');
   const canOauth = canWechat || canWorkbuddy;
   const canPhone = providers.includes('phone');
-  const canEmail = providers.includes('email');
   /* 提示紧跟按钮显示：失败信息藏在页面底部会被当成「点了没反应」 */
   const [msg, setMsg] = useState<{ kind: 'ok' | 'err'; text: string } | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     void fetchAuthProviders().then((list) => {
-      if (cancelled) return;
-      setProviders(list);
-      /* 没开手机号通道时，默认落到邮箱 */
-      if (!list.includes('phone') && list.includes('email')) setChannel('email');
+      if (!cancelled) setProviders(list);
     });
     return () => {
       cancelled = true;
@@ -59,25 +53,24 @@ export function LoginPage({ onBack, onSignedIn }: LoginPageProps): JSX.Element {
     return () => window.clearTimeout(timer);
   }, [countdown]);
 
-  const value = channel === 'phone' ? phone : email;
-  const valid = channel === 'phone' ? /^1\d{10}$/.test(phone) : /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+  const valid = /^1\d{10}$/.test(phone);
 
   const requestCode = async (): Promise<void> => {
     /* 按钮不做「灰掉」：设计稿里它是常亮的，格式问题点一下再说清楚更友好 */
     if (countdown > 0 || sending) return;
     if (!valid) {
-      setMsg({ kind: 'err', text: channel === 'phone' ? '请输入 11 位手机号' : '请输入有效邮箱' });
+      setMsg({ kind: 'err', text: '请输入 11 位手机号' });
       return;
     }
     setSending(true);
     setMsg(null);
-    const result = await sendOtp({ kind: channel, value });
+    const result = await sendOtp({ kind: 'phone', value: phone });
     setSending(false);
     if (result.ok) {
       setVerificationId(result.data.verificationId);
       setIsExistingUser(result.data.isExistingUser);
       setCountdown(60);
-      setMsg({ kind: 'ok', text: channel === 'phone' ? '验证码已发送，请查收短信' : '验证码已发送，请查收邮件' });
+      setMsg({ kind: 'ok', text: '验证码已发送，请查收短信' });
     } else {
       setMsg({ kind: 'err', text: `发送失败：${result.error}` });
     }
@@ -86,7 +79,7 @@ export function LoginPage({ onBack, onSignedIn }: LoginPageProps): JSX.Element {
   const submit = async (): Promise<void> => {
     if (verifying) return;
     if (!valid) {
-      setMsg({ kind: 'err', text: channel === 'phone' ? '请输入 11 位手机号' : '请输入有效邮箱' });
+      setMsg({ kind: 'err', text: '请输入 11 位手机号' });
       return;
     }
     if (!verificationId) {
@@ -104,7 +97,7 @@ export function LoginPage({ onBack, onSignedIn }: LoginPageProps): JSX.Element {
     setVerifying(true);
     setMsg(null);
     const result = await verifyOtp({
-      target: { kind: channel, value },
+      target: { kind: 'phone', value: phone },
       code: code.trim(),
       verificationId,
       isExistingUser,
@@ -166,79 +159,58 @@ export function LoginPage({ onBack, onSignedIn }: LoginPageProps): JSX.Element {
         </>
       ) : (
         <div className="lg-card">
-          <div className="lg-tabs">
-            {canPhone ? (
-              <button className={channel === 'phone' ? 'lg-tab on' : 'lg-tab'} onClick={() => setChannel('phone')}>
-                手机号
-              </button>
-            ) : null}
-            {canEmail ? (
-              <button className={channel === 'email' ? 'lg-tab on' : 'lg-tab'} onClick={() => setChannel('email')}>
-                邮箱
-              </button>
-            ) : null}
-          </div>
-
-          {channel === 'phone' ? (
-            <div className="lg-field">
-              <label htmlFor="loginPhone">手机号</label>
-              <div className="lg-input">
-                <span className="lg-prefix">+86</span>
-                <input
-                  id="loginPhone"
-                  inputMode="numeric"
-                  maxLength={11}
-                  placeholder="138 0013 8000"
-                  value={phone}
-                  onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
-                />
+          {canPhone ? (
+            <>
+              <div className="lg-field">
+                <label htmlFor="loginPhone">手机号</label>
+                <div className="lg-input">
+                  <span className="lg-prefix">+86</span>
+                  <input
+                    id="loginPhone"
+                    inputMode="numeric"
+                    maxLength={11}
+                    placeholder="138 0013 8000"
+                    value={phone}
+                    onChange={(e) => setPhone(e.target.value.replace(/\D/g, ''))}
+                  />
+                </div>
+                <p className="lg-hint">中国大陆 11 位手机号</p>
               </div>
-              <p className="lg-hint">中国大陆 11 位手机号</p>
-            </div>
+
+              <div className="lg-field">
+                <label htmlFor="loginCode">短信验证码</label>
+                <div className="lg-code-row">
+                  <div className="lg-input">
+                    <input
+                      id="loginCode"
+                      inputMode="numeric"
+                      maxLength={6}
+                      placeholder="6 位数字"
+                      value={code}
+                      onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
+                    />
+                  </div>
+                  <button className="lg-send" disabled={sending || countdown > 0} onClick={() => void requestCode()}>
+                    {sending ? '发送中…' : countdown > 0 ? `${countdown}s` : '获取验证码'}
+                  </button>
+                </div>
+                <p className="lg-hint">收不到？60 秒后可重新获取</p>
+              </div>
+
+              <button className="lg-submit" onClick={() => void submit()}>
+                {verifying ? '登录中…' : '登录 / 注册'}
+              </button>
+              {msg ? <p className={msg.kind === 'err' ? 'login-msg err' : 'login-msg'}>{msg.text}</p> : null}
+              <p className="lg-note">
+                <Icon name="info" size={12} />
+                <span>未注册的手机号会自动创建账号，全程验证码，不设密码</span>
+              </p>
+            </>
           ) : (
-            <div className="lg-field">
-              <label htmlFor="loginEmail">邮箱</label>
-              <div className="lg-input">
-                <input
-                  id="loginEmail"
-                  inputMode="email"
-                  placeholder="you@example.com"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value.trim())}
-                />
-              </div>
-              <p className="lg-hint">邮箱验证码登录，同样不设密码</p>
-            </div>
+            <p className="lg-hint" style={{ textAlign: 'center', lineHeight: 1.7 }}>
+              这台部署没有开启验证码通道，请用下面的第三方账号登录。
+            </p>
           )}
-
-          <div className="lg-field">
-            <label htmlFor="loginCode">{channel === 'phone' ? '短信验证码' : '邮箱验证码'}</label>
-            <div className="lg-code-row">
-              <div className="lg-input">
-                <input
-                  id="loginCode"
-                  inputMode="numeric"
-                  maxLength={6}
-                  placeholder="6 位数字"
-                  value={code}
-                  onChange={(e) => setCode(e.target.value.replace(/\D/g, ''))}
-                />
-              </div>
-              <button className="lg-send" disabled={sending || countdown > 0} onClick={() => void requestCode()}>
-                {sending ? '发送中…' : countdown > 0 ? `${countdown}s` : '获取验证码'}
-              </button>
-            </div>
-            <p className="lg-hint">收不到？60 秒后可重新获取</p>
-          </div>
-
-          <button className="lg-submit" onClick={() => void submit()}>
-            {verifying ? '登录中…' : '登录 / 注册'}
-          </button>
-          {msg ? <p className={msg.kind === 'err' ? 'login-msg err' : 'login-msg'}>{msg.text}</p> : null}
-          <p className="lg-note">
-            <Icon name="info" size={12} />
-            <span>未注册的手机号会自动创建账号，全程验证码，不设密码</span>
-          </p>
         </div>
       )}
 
@@ -282,7 +254,7 @@ export function LoginPage({ onBack, onSignedIn }: LoginPageProps): JSX.Element {
               {agreed ? <Icon name="check" size={10} /> : null}
             </button>
             <p>
-              我已阅读并同意 <b>用户协议</b> 与 <b>隐私政策</b>，手机号仅用于登录验证
+              我已阅读并同意 <b>用户协议</b> 与 <b>隐私政策</b>，登录信息仅用于身份验证
             </p>
           </div>
 

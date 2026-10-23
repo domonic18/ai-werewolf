@@ -88,11 +88,12 @@ export async function main(): Promise<import('node:http').Server> {
       publishableKey: config.publishableKey,
       ...(config.oauthRelayBaseUrl ? { oauthRelayBaseUrl: config.oauthRelayBaseUrl } : {}),
       /*
-       * 哪些登录方式真的可用，由部署方声明（WB_AUTH_PROVIDERS=phone,email,wechat,workbuddy）。
-       * 默认只开验证码：OAuth Provider 需要在 WorkBuddy 云服务管理页单独开启，
-       * 没开却在登录页摆一个按钮，点下去只会报错——那是最糟的体验。
+       * 哪些登录方式真的可用，由部署方声明（WB_AUTH_PROVIDERS=phone,wechat,workbuddy）。
+       * 默认与线上实际一致：手机号验证码 + 微信 + WorkBuddy 三种（邮箱试过但没验证，产品上不提供）。
+       * 某个 Provider 若在云服务管理页被关掉，部署时改成只声明可用的那几个即可，
+       * 前端不会摆出「点了必失败」的按钮。
        */
-      providers: (process.env.WB_AUTH_PROVIDERS ?? 'phone,email')
+      providers: (process.env.WB_AUTH_PROVIDERS ?? 'phone,wechat,workbuddy')
         .split(',')
         .map((v) => v.trim())
         .filter(Boolean),

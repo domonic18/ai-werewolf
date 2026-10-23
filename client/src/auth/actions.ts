@@ -88,9 +88,9 @@ export async function fetchAuthProviders(): Promise<string[]> {
     const res = await fetch('/api/auth-config');
     const cfg = (await res.json()) as Partial<AuthConfig>;
     const list = Array.isArray(cfg.providers) ? cfg.providers.filter((v) => typeof v === 'string') : [];
-    return list.length ? list : ['phone', 'email'];
+    return list.length ? list : ['phone', 'wechat', 'workbuddy'];
   } catch {
-    return ['phone', 'email'];
+    return ['phone', 'wechat', 'workbuddy'];
   }
 }
 

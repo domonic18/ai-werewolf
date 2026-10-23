@@ -247,7 +247,7 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, ctx: 
         endpoint: ctx.publicConfig?.endpoint ?? null,
         publishableKey: ctx.publicConfig?.publishableKey ?? null,
         oauthRelayBaseUrl: ctx.publicConfig?.oauthRelayBaseUrl ?? null,
-        providers: ctx.publicConfig?.providers ?? ['phone', 'email'],
+        providers: ctx.publicConfig?.providers ?? ['phone', 'wechat', 'workbuddy'],
       });
     }
 

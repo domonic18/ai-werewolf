@@ -99,26 +99,32 @@ async function captureNight(page, gameId, token, maxTries = 90) {
   for (let i = 0; i < maxTries; i++) {
     const snap = await api(`/api/games/${gameId}`, { headers: { 'x-player-token': token } });
     if (snap.phase === 'over') return false;
+
+    /* 先答掉自己的夜间决策：轮到自己时过场会让位，等在这里只会拍到夜幕条 */
+    if (snap.pendingAction) {
+      const a = snap.pendingAction;
+      const value = a.kind === 'input' ? '我先听一圈，暂时不站边。' : (a.options[0]?.value ?? 1);
+      await api(`/api/games/${gameId}/action`, {
+        method: 'POST',
+        headers: { 'x-player-token': token },
+        body: JSON.stringify({ value }),
+      });
+      await new Promise((r) => setTimeout(r, 400));
+      continue;
+    }
+
     if (snap.phase === 'night') {
       if (await page.locator('.nc').count()) {
         await page.waitForTimeout(1500);
         await page.screenshot({ path: join(outDir, 'night.png') });
         return 'curtain';
       }
-      if (await page.locator('.ig-night').count()) {
-        await page.waitForTimeout(500);
+      /* 过场已经落幕（超过上限或刚跳过）才退而求其次拍夜幕条 */
+      if (i > 10 && (await page.locator('.ig-night').count())) {
+        await page.waitForTimeout(400);
         await page.screenshot({ path: join(outDir, 'night.png'), fullPage: true });
         return 'strip';
       }
-    }
-    const pending = snap.pendingAction;
-    if (pending) {
-      const value = pending.kind === 'input' ? '我先听一圈，暂时不站边。' : (pending.options[0]?.value ?? 1);
-      await api(`/api/games/${gameId}/action`, {
-        method: 'POST',
-        headers: { 'x-player-token': token },
-        body: JSON.stringify({ value }),
-      });
     }
     await new Promise((r) => setTimeout(r, 700));
   }
