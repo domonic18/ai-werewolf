@@ -21,7 +21,8 @@
     "test:watch": "vitest",
     "smoke:live": "node tools/live-smoke.mjs",
     "screens": "node tools/screens.mjs",
-    "design:export": "node tools/ardot-export.mjs"
+    "design:export": "node tools/ardot-export.mjs",
+    "repo:check": "node tools/repo-check.mjs"
   },
   "dependencies": {
     "@tencent-ai/workbuddy-cloud-sdk": "dev",

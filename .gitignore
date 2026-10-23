@@ -1,20 +1,85 @@
+# ============================================================================
+# .gitignore
+#
+# 原则：仓库只放「源码 + 文档 + 可复现的资源」，其余一律忽略。
+# 不要依赖本机的全局 gitignore（~/.gitignore_global 里有一份把 *.md / *.png / tmp
+# 全忽略的规则），换机器或别人克隆时它并不存在 —— 所以这里自己写全。
+#
+# 自查：npm run repo:check   # 有没有垃圾/密钥/产物被跟踪（见 tools/repo-check.mjs）
+# ============================================================================
+
+# ---------- 依赖 ----------
 node_modules/
-.DS_Store
-*.log
-.env
-config/cloud.json
+.pnpm-store/
 
-# 本地调试产物（截图、临时脚本、抓包结果）
-# 不能依赖本机的全局 gitignore：换机器或别人克隆后这批文件会变成未跟踪文件
-tmp/
-
-# 构建产物（Vite 前端 + tsc 服务端）
+# ---------- 构建产物 ----------
 dist/
 dist-server/
-coverage/
+build/
+out/
 *.tsbuildinfo
 
-# 项目文档需要入库（覆盖全局 *.md 忽略规则）
+# ---------- 测试与覆盖率 ----------
+coverage/
+.nyc_output/
+test-results/
+playwright-report/
+.playwright/
+
+# ---------- 运行时产物 ----------
+*.log
+logs/
+*.pid
+*.seed
+.cache/
+.eslintcache
+.stylelintcache
+
+# ---------- 本地配置与密钥（绝不入库） ----------
+.env
+.env.*
+*.env
+!.env.example
+config/cloud.json
+config/*.local.json
+*.pem
+*.key
+*.p12
+
+# ---------- 临时文件 ----------
+# 截图、一次性脚本、抓包结果都放这里；调试完可以整个删掉
+tmp/
+*.tmp
+*.bak
+*.orig
+*.swp
+*~
+
+# ---------- 打包产物 ----------
+*.tgz
+*.zip
+
+# ---------- 编辑器与系统 ----------
+.DS_Store
+._*
+Thumbs.db
+desktop.ini
+.idea/
+.vscode/
+.history/
+
+# ---------- 本项目特有 ----------
+# Ardot 导入用的静态稿是生成物（npm run design:export 可重建）
+docs/designs-v2/
+
+# ============================================================================
+# 反选：这些必须入库
+#
+# 用来对抗「全局 *.md / *.png 忽略规则」。换到没有那份全局规则的机器时，
+# 这些反选不会报错，只是变成无害的冗余。
+# ============================================================================
+
+# 文档
 !README.md
 !AGENTS.md
 !CLAUDE.md
@@ -23,8 +88,8 @@ coverage/
 !.specify/**/*.md
 !.claude/skills/**/*.md
 
-# README 界面截图需要入库（覆盖全局 *.png 忽略规则）
+# README 用的界面截图（人工确认过的成品，不是临时截图）
 !docs/screenshots/*.png
 
-# Ardot 导入用的静态稿是生成物（npm run design:export 可重建）
-docs/designs-v2/
+# 部署配置模板（真配置 config/cloud.json 已在上面忽略）
+!config/cloud.example.json

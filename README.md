@@ -109,6 +109,7 @@ npm run dev:server # 后端热重载（tsx watch，默认 :3000，可 PORT=8787�
 npm test           # vitest：单元 + 引擎冒烟 + API 全链路（Mock LLM，无需网络）
 npm run typecheck  # 前后端类型检查
 npm run smoke:live # 线上回归：对已部署实例跑 24 项检查（发版后必跑，失败退出码非 0）
+npm run repo:check # 仓库卫生：有没有垃圾/密钥/构建产物被跟踪（已接入 npm test）
 
 # 以测试环境启动（页面显示 STAGING 徽章，且默认不写生产战绩表）
 WB_ENV=staging npm start
