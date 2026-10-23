@@ -71,23 +71,26 @@ werewolf-ai/
 ├── client/                     # 前端（Vite + React + TS）
 │   ├── index.html
 │   └── src/
-│       ├── main.tsx / App.tsx  # 挂载与三屏路由（首页 / 对局 / 结算）
-│       ├── api/client.ts       # REST 客户端（fetch 封装，共享类型）
-│       ├── store/gameStore.ts  # zustand 单 store：快照 + 事件 + 轮询游标
-│       ├── hooks/              # useMatchPolling / useHomeData
-│       ├── pages/              # HomePage / MatchPage / ResultPage
-│       ├── components/         # SeatGrid / SpeechOrderBar / PromptPanel / SpeechLog / ...
-│       ├── lib/                # 名字高亮、阶段文案、舞台派生（纯函数）
-│       └── styles/app.css
+│       ├── main.tsx / App.tsx  # 挂载与分屏路由（首页/大厅/配置/登录/我的战绩/对局，hash 同步）
+│       ├── api/client.ts       # 唯一 HTTP 出口（补 sharecode、带 X-WW-Token、错误归一）
+│       ├── store/gameStore.ts  # zustand 单 store：快照 + 观战投影 + 事件 + 流式发言 + 游标
+│       ├── hooks/              # useMatchPolling（有流式发言时提速）/ useHomeData / useLobby
+│       ├── pages/              # Home / Lobby / Setup / Login / Me / Match / Result
+│       ├── components/         # Avatar / Icon / SiteFooter / AccountCard / NightCurtain / RoundTimeline
+│       ├── lib/                # format / highlight / night / sound / stage / tally / timeline / url / storage / nickname（纯函数）
+│       └── styles/app.css      # 设计令牌 + 全站样式
 ├── src/                        # 后端（Node + TS，ESM）
-│   ├── shared/                 # types.ts / roles.ts（前后端共用，仅类型与常量）
-│   ├── server/                 # index.ts（启动）/ app.ts（装配）/ routes.ts / rooms.ts
-│   ├── game/                   # engine.ts（权威状态机）/ roles.ts / types.ts
-│   ├── ai/                     # llm-gateway.ts / ai-player.ts / json.ts / types.ts
-│   └── cloud/                  # match-store.ts（ww_matches 战绩表）
-├── tests/                      # vitest：json / engine（Mock LLM 10 局）/ API 全链路
-├── tools/                      # 构建辅助 / 设计稿抽取 / 构建守护 / 线上冒烟
-└── docs/                       # PRD / 规范（standard/）/ AI 人格 / 界面截图
+│   ├── shared/                 # types.ts（前后端契约）/ roles.ts（角色元数据）
+│   ├── server/                 # index.ts（启动/配置）/ app.ts（装配/静态托管）/ routes.ts（薄路由）
+│   │                           # rooms.ts / lobby.ts / identity.ts（云端认人）/ auth.ts
+│   │                           # llm-runtime.ts（后台引导）/ rate-limit.ts（限流）
+│   ├── game/                   # engine.ts（权威状态机）/ catalog.ts（角色库与推荐牌组）/ behaviors.ts
+│   ├── ai/                     # llm-gateway.ts（模型/流式/JSON）/ ai-player.ts / speech-stream.ts
+│   └── cloud/                  # match-store.ts（ww_matches 战绩表，staging 只读）
+├── tests/                      # vitest：引擎 / 隐私 / 认证 / 限流 / 契约 / 仓库卫生（28 个文件）
+├── tools/                      # ensure-build / live-smoke（线上 24 项）/ screens / repo-check / ardot-export
+├── docs/                       # PRD / standard（视觉·安全）/ AI 人格 / 文档索引 / 界面截图
+└── specs/                      # 需求合同（只放 spec.md）
 ```
 
 ## 快速开始
@@ -148,7 +151,8 @@ WB_ENV=staging WB_WRITE_MATCHES=1 npm start
 
 | 文档 | 内容 |
 |---|---|
-| [docs/PRD.md](docs/PRD.md) | 产品定位、需求 R1~R7、路线图、工程决策与风险 |
+| [AGENTS.md](AGENTS.md) | **给编码 Agent 的项目规范**：红线、事实源、目录职责、编码/测试/发布规则、硬性禁止 |
+| [docs/PRD.md](docs/PRD.md) | 产品定位、需求 R1~R8、路线图、工程决策与风险 |
 | [docs/standard/DESIGN-V2.md](docs/standard/DESIGN-V2.md) | 视觉规范「夜席」：色板 / 字体 / 图标 / 图像 / 动效 / 夜幕 |
 | [docs/standard/SECURITY.md](docs/standard/SECURITY.md) | 安全与反作弊：信任边界、接口防线、残留风险 |
 | [docs/AI-PERSONA.md](docs/AI-PERSONA.md) | AI 信息边界、人格参数与推理深度分层 |
