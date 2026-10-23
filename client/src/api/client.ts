@@ -10,6 +10,10 @@ import type {
   Snapshot,
   SpectateResponse,
   WhoAmIResponse,
+  InviteOverviewResponse,
+  InvitePreviewResponse,
+  BindInviteResponse,
+  UpdateProfileResponse,
 } from '@shared/types';
 import { currentShareCode, withShareCode } from '../lib/url';
 import { resolveAuthToken } from '../auth/session';
@@ -90,6 +94,16 @@ export const api = {
   /** mine=true 时按账号取（未登录服务端会退回全网，不会报错） */
   matches: (mine = false): Promise<MatchesResponse> => request(`/matches${mine ? '?mine=1' : ''}`),
   whoami: (): Promise<WhoAmIResponse> => request('/whoami'),
+  /** 我的邀请码 + 我邀请来的朋友（未登录会抛 401） */
+  invite: (): Promise<InviteOverviewResponse> => request('/invite'),
+  /** 落地页用：凭邀请码看邀请人的昵称与战绩（公开） */
+  invitePreview: (ref: string): Promise<InvitePreviewResponse> =>
+    request(`/invite/preview?ref=${encodeURIComponent(ref)}`),
+  /** 登录后补记邀请关系（幂等） */
+  bindInvite: (ref: string): Promise<BindInviteResponse> => request('/invite/bind', { ref }),
+  /** 改昵称 / 战绩是否公开 */
+  updateProfile: (patch: { nickname?: string; hideStats?: boolean }): Promise<UpdateProfileResponse> =>
+    request('/profile', patch),
   live: (query: LiveQuery = {}): Promise<LiveResponse> => {
     const params = new URLSearchParams();
     if (query.filter && query.filter !== 'all') params.set('filter', query.filter);

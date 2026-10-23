@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { completeOAuthCallback, hasCloudAuth, stripOAuthParams } from './auth/actions';
 import { clearSession, getSession, setSession, syncSession } from './auth/session';
+import { useSession } from './auth/useSession';
 import { HomePage } from './pages/HomePage';
 import { LobbyPage } from './pages/LobbyPage';
 import { MatchPage } from './pages/MatchPage';
@@ -8,6 +9,7 @@ import { ResultPage } from './pages/ResultPage';
 import { SetupPage } from './pages/SetupPage';
 import { LoginPage } from './pages/LoginPage';
 import { MePage } from './pages/MePage';
+import { flushPendingRef } from './hooks/useInvite';
 import { useMatchPolling } from './hooks/useMatchPolling';
 import { clearSavedGame, readSavedGame } from './lib/storage';
 import { useGameStore } from './store/gameStore';
@@ -33,8 +35,10 @@ export function App(): JSX.Element {
   const open = useGameStore((s) => s.open);
   const close = useGameStore((s) => s.close);
   const { lost, reason } = useMatchPolling();
+  const { signedIn } = useSession();
 
   const [screen, setScreen] = useState<Screen>(() => screenFromHash());
+
 
   /* 地址栏跟着当前分屏走（replaceState：不产生历史记录，但刷新后能回到这一屏） */
   useEffect(() => {
@@ -83,11 +87,17 @@ export function App(): JSX.Element {
       if (!sdkReady || cancelled) return; /* SDK 不可用 ≠ 会话失效，别误伤 */
       const alive = await syncSession();
       if (!alive && !cancelled) clearSession();
+      if (alive) void flushPendingRef();
     })();
     return () => {
       cancelled = true;
     };
   }, []);
+
+  /* 页内登录（手机号 / 微信授权）不会刷新页面，所以还要盯住登录态变化 */
+  useEffect(() => {
+    if (signedIn) void flushPendingRef();
+  }, [signedIn]);
 
   /*
    * 第三方登录回调必须在这里、在任何页面判断之前处理：

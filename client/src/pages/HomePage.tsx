@@ -5,6 +5,7 @@ import { AccountCard } from '../components/AccountCard';
 import { Avatar } from '../components/Avatar';
 import { SiteFooter } from '../components/SiteFooter';
 import { Icon } from '../components/Icon';
+import { InviteBanner } from '../components/InviteBanner';
 import { useHomeData } from '../hooks/useHomeData';
 import { defaultName } from '../lib/nickname';
 import { clearSavedGame, readSavedGame } from '../lib/storage';
@@ -148,6 +149,9 @@ export function HomePage({ onWatch, onOpenLobby, onNewGame, onOpenLogin, onOpenS
           </button>
         </div>
       </div>
+
+      {/* 被邀请进来的人先看到「谁在请」，再看到主视觉 */}
+      <InviteBanner signedIn={signedIn} onStart={onNewGame} />
 
       <div className="hero-card">
         <div className="hero-art" aria-hidden />

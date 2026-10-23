@@ -2740,3 +2740,246 @@ button.me-row:hover { border-color: var(--line-strong); }
   .ig-quit svg,
   .ig-badge svg { display: none; }
 }
+
+/* ==========================================================================
+   邀请（R8.1 / 8.2）
+   落地横幅、邀请码、朋友列表。视觉沿用「暖黑纸面 + 黄铜单一强调」，
+   不新增颜色——邀请是次级动作，不该抢开局按钮的位置。
+   ========================================================================== */
+
+/* 落地横幅：被邀请人打开链接时，先看到「谁在请」 */
+.iv-banner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: var(--r-md);
+  border: 1px solid rgba(185, 154, 99, 0.34);
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgba(185, 154, 99, 0.12), transparent 62%),
+    var(--ink-850);
+}
+.iv-banner-main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+.iv-banner-mark {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid rgba(185, 154, 99, 0.4);
+  color: var(--brass);
+}
+.iv-banner-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.iv-banner-text b {
+  font-size: 12px;
+  font-weight: 600;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.iv-banner-text span {
+  font-size: 10px;
+  color: var(--faint);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.iv-banner-actions {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 3px;
+}
+.iv-banner-go {
+  padding: 5px 10px;
+  border-radius: var(--r-sm);
+  border: 1px solid rgba(185, 154, 99, 0.5);
+  background: rgba(185, 154, 99, 0.14);
+  color: var(--brass);
+  font-size: 11px;
+  cursor: pointer;
+}
+.iv-banner-later {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--faint);
+  font-size: 9.5px;
+  cursor: pointer;
+}
+
+/* 邀请码 */
+.iv-code-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 11px;
+  border-radius: var(--r-md);
+  border: 1px dashed rgba(185, 154, 99, 0.36);
+  background: rgba(185, 154, 99, 0.04);
+}
+.iv-code-box {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.iv-code-label {
+  font-size: 9.5px;
+  letter-spacing: 0.14em;
+  color: var(--faint);
+}
+.iv-code {
+  font-family: var(--font-mono);
+  font-size: 19px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  color: var(--brass);
+  white-space: nowrap;
+}
+.iv-code-actions {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+.iv-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 5px 9px;
+  font-size: 10.5px;
+  white-space: nowrap;
+}
+
+/* 昵称与开关：复用 me-row 的骨架，只改必要的细节 */
+.iv-name-row,
+.iv-switch-row { margin-top: 8px; }
+.iv-name-input {
+  flex: 1;
+  min-width: 0;
+  height: 28px;
+  padding: 0 9px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line-strong);
+  background: var(--ink-900);
+  color: var(--bone);
+  font-size: 12px;
+  font-family: inherit;
+}
+.iv-name-input:focus { outline: none; border-color: rgba(185, 154, 99, 0.55); }
+.iv-mini {
+  flex: none;
+  padding: 4px 9px;
+  border-radius: var(--r-sm);
+  border: 1px solid var(--line);
+  background: none;
+  color: var(--ash);
+  font-size: 10.5px;
+  cursor: pointer;
+}
+.iv-mini:hover { color: var(--bone); border-color: var(--line-strong); }
+
+/* 开关：只用黄铜色表示「开」，关闭时是灰底 */
+.sw {
+  flex: none;
+  width: 38px;
+  height: 22px;
+  padding: 2px;
+  border-radius: 11px;
+  border: 1px solid var(--line);
+  background: var(--ink-900);
+  cursor: pointer;
+  transition: background 160ms var(--ease), border-color 160ms var(--ease);
+}
+.sw i {
+  display: block;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--smoke);
+  transition: transform 160ms var(--ease), background 160ms var(--ease);
+}
+.sw.on {
+  border-color: rgba(185, 154, 99, 0.5);
+  background: rgba(185, 154, 99, 0.18);
+}
+.sw.on i { background: var(--brass); transform: translateX(16px); }
+.sw:disabled { opacity: 0.6; cursor: default; }
+
+/* 朋友列表 */
+.fr-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 8px;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-md);
+  background: var(--ink-900);
+}
+.fr-row.stale { opacity: 0.62; }
+.fr-av {
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px solid var(--line-strong);
+  background: var(--ink-850);
+  color: var(--ash);
+  font-size: 12px;
+}
+.fr-tag {
+  display: inline-block;
+  margin-left: 5px;
+  padding: 0 4px;
+  border-radius: 2px;
+  border: 1px solid var(--line-strong);
+  color: var(--faint);
+  font-size: 8.5px;
+  font-style: normal;
+  line-height: 1.6;
+  vertical-align: 1px;
+}
+.fr-when {
+  flex: none;
+  font-size: 10px;
+  color: var(--faint);
+  white-space: nowrap;
+}
+
+/* 空态：给一条能走的路，而不是「暂无数据」 */
+.iv-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 9px;
+  padding: 18px 12px 14px;
+  text-align: center;
+}
+.iv-empty p {
+  margin: 0;
+  font-size: 11px;
+  line-height: 1.7;
+  color: var(--smoke);
+}

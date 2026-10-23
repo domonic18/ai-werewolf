@@ -6,6 +6,7 @@ import { refreshAccessToken } from '../auth/actions';
 import { logout } from '../auth/session';
 import { useSession } from '../auth/useSession';
 import { Icon, roleIcon } from '../components/Icon';
+import { InvitePanel } from '../components/InvitePanel';
 import { SiteFooter } from '../components/SiteFooter';
 import { formatWhen, matchOutcome, roleFromLabel } from '../lib/format';
 import { readSavedGame } from '../lib/storage';
@@ -182,6 +183,8 @@ export function MePage({ onBack, onLogin, onStart, onResume }: MePageProps): JSX
               {mine?.aborted ? <span>{mine.aborted} 局中止未计入</span> : null}
             </div>
           </div>
+
+          <InvitePanel />
 
           {ongoing.length ? (
             <div className="panel">

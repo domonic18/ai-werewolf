@@ -7,7 +7,8 @@ import { RoundTimeline } from '../components/RoundTimeline';
 import { ShareSheet } from '../components/ShareSheet';
 import { useSession } from '../auth/useSession';
 import { downloadBlob, pickCardQuote, renderShareCard } from '../lib/share-card';
-import { qrDataUrl, siteOrigin, withShareCode } from '../lib/share';
+import { qrDataUrl, inviteUrl, siteOrigin, withShareCode } from '../lib/share';
+import { useMyInvite } from '../hooks/useInvite';
 import { useDocTitle } from '../lib/doc-title';
 import { currentShareCode } from '../lib/url';
 import { timelineFromRecords, timelineFromReview } from '../lib/timeline';
@@ -114,6 +115,7 @@ export function ResultPage({ onOpenStats }: { onOpenStats?: () => void } = {}): 
           reveal={reveal}
           log={log}
           playerName={reveal.find((row) => row.isHuman)?.name ?? '你'}
+          signedIn={signedIn}
         />
       ) : null}
 
@@ -230,6 +232,7 @@ function ResultCard({
   reveal,
   log,
   playerName,
+  signedIn,
 }: {
   winner: 'good' | 'wolf';
   roleName: string;
@@ -237,6 +240,8 @@ function ResultCard({
   reveal: { name: string; alive: boolean; isHuman: boolean }[];
   log: string[];
   playerName: string;
+  /** 登录了才拿得到自己的邀请码；没有就退回「站点首页 + sharecode」 */
+  signedIn: boolean;
 }): JSX.Element {
   const [blob, setBlob] = useState<Blob | null>(null);
   const [preview, setPreview] = useState<string | null>(null);
@@ -244,7 +249,10 @@ function ResultCard({
   const [open, setOpen] = useState(false);
 
   const shareCode = currentShareCode();
-  const url = withShareCode(siteOrigin(), shareCode);
+  /* 卡上的二维码指向「我邀请你」：带 ref 才是拉新，带 gameId 的观战链接两小时后就废了 */
+  const { data: invite } = useMyInvite(signedIn);
+  const inviteCode = invite?.available ? invite.code : '';
+  const url = inviteCode ? inviteUrl(inviteCode, shareCode) : withShareCode(siteOrigin(), shareCode);
   const qr = useMemo(() => qrDataUrl(url), [url]);
 
   useEffect(() => {
