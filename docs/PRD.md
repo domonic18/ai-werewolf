@@ -30,11 +30,12 @@
 ### R3 登录与游戏大厅
 
 **3.1 登录（v1.5 已上线）**
-- WorkBuddy 云服务 Auth 支持四种方式，SDK 为 `@tencent-ai/workbuddy-cloud-sdk` 的 `cloud.auth`：
+- WorkBuddy 云服务 Auth 支持四种方式，SDK 为 `@tencent-ai/workbuddy-cloud-sdk` 的 `cloud.auth`；**本产品提供其中三种**：
   1. **手机号短信验证码**（`sendOtp({phone})` + `verifyOtp`）—— 默认主推，中国大陆 11 位校验，60s 重发倒计时
-  2. **邮箱验证码**（同上，`{email}`）—— Tab 备选
-  3. **微信登录**（`signInWithOAuth({provider:'wechat'})`）
-  4. **使用 WorkBuddy 登录**（`signInWithOAuth({provider:'workbuddy'})`，PKCE + Relay，仅 Web）
+  2. **微信登录**（`signInWithOAuth({provider:'wechat'})`）
+  3. **使用 WorkBuddy 登录**（`signInWithOAuth({provider:'workbuddy'})`，PKCE + Relay，仅 Web）
+- **邮箱通道不提供**：SDK 支持 `{email}`，但未在线上验证过，产品上不放入口（`WB_AUTH_PROVIDERS` 默认 `phone,wechat,workbuddy`）。
+  三种方式均已在线上跑通（2026-10-22 人工验证）。
 - 发送验证码只认 `credentials.phone / credentials.email`；按 SDK 类型注释传 `phone_number` 会在运行时直接报错（见 AGENTS.md 硬性禁止）
 - 无游客模式：SDK 不提供匿名登录，禁止 localStorage 假会话；对局归属账号，登录是可选增强而非登录墙
 - 无密码体系：验证码注册/登录均不设密码
@@ -150,7 +151,7 @@
 | 编号 | 问题 | 结论 |
 |---|---|---|
 | Q1 | 作者署名与主页协议 | ✅ domonic；主页已切 https://17aitech.com |
-| Q2 | 登录方式首选 | ✅ 手机号验证码主推，邮箱 / 微信 / WorkBuddy 并列 |
+| Q2 | 登录方式首选 | ✅ 手机号验证码主推，微信 / WorkBuddy 并列；邮箱不提供（未验证） |
 | Q3 | 观战是否延迟 | ✅ 不延迟（上帝视角是卖点） |
 | Q4 | 新角色范围 | ✅ 猎人 + 守卫（v1.5）→ 白痴 + 长老 + 黑狼王（v1.8）→ 摄梦人（v1.10） |
 | Q5 | 域名是否迁到 17aitech.com | 参赛后再迁：现在换域名会让已发出的分享链接全部失效 |
