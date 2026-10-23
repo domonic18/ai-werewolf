@@ -23,6 +23,7 @@ import type {
   SpectateSeat,
   SpectateSnapshot,
   NightRecord,
+  LiveSpeech,
   Team,
   Thought,
 } from '../shared/types.js';
@@ -84,6 +85,12 @@ export class GameEngine implements GameView {
   publicLog: string[] = [];
   /** 长老被好人误伤后，全体好人神职技能失效（预言家/女巫/守卫/猎人） */
   skillsDisabled = false;
+
+  /**
+   * 正在流式输出的发言（内存态，不进事件流）。
+   * 一段发言有上百个增量，塞进事件流会把 500 条上限撑爆，历史就被挤没了。
+   */
+  liveSpeech: LiveSpeech | null = null;
   lastNightText = '';
   /** 复盘时间轴：每夜/每天一条，上帝视角全量；玩家视角只取其中公开部分 */
   timeline: NightRecord[] = [];
@@ -291,6 +298,11 @@ export class GameEngine implements GameView {
       timeline: this.timeline,
       factions: { wolf: tally('wolf'), good: tally('good') },
     };
+  }
+
+  /** 实时状态投影：给轮询响应带上「此刻正在说的话」 */
+  liveSpeechView(): LiveSpeech | null {
+    return this.liveSpeech ? { ...this.liveSpeech } : null;
   }
 
   /* ---------- 事件与真人输入 ---------- */
@@ -764,7 +776,16 @@ export class GameEngine implements GameView {
       } else {
         /* 白天发言的"思考中"不含身份信息，安全 */
         this.pushEvent('ai-thinking', { playerId: p.id, label: `思考中（${i + 1}/${order.length}）…` });
-        const result = await new AIPlayer(p, this.llm).speak(this);
+        /* 边生成边上屏：前端每 300ms 拉一次 live，看到的就是逐字说完再轮到下一位 */
+        this.liveSpeech = { playerId: p.id, name: p.name, text: '' };
+        let result;
+        try {
+          result = await new AIPlayer(p, this.llm).speak(this, (text) => {
+            if (this.liveSpeech && this.liveSpeech.playerId === p.id) this.liveSpeech.text = text;
+          });
+        } finally {
+          this.liveSpeech = null;
+        }
         this.publicLog.push(`第${this.round}天 ${p.name}：${result.speech}`);
         p.voteIntent = result.vote;
         p.thoughts.push({ round: this.round, phase: '昼', text: result.reason });

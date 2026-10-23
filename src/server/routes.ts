@@ -402,6 +402,7 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, ctx: 
           /* 上帝视角投影：全量身份，与玩家快照是两个函数 */
           snapshot: engine.spectateSnapshot(),
           spectators: room.spectatorCount,
+          live: engine.liveSpeechView(),
         };
         return sendJson(res, 200, body);
       }
@@ -430,6 +431,7 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, ctx: 
           version: engine.version,
           events: engine.events.filter((e) => e.seq > since),
           snapshot: engine.snapshot(engine.human.id),
+          live: engine.liveSpeechView(),
         };
         return sendJson(res, 200, body);
       }

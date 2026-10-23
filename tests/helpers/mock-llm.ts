@@ -13,6 +13,11 @@ export interface MockOptions {
   witchSave?: boolean;
   /** 女巫每局都下毒，毒第一个候选人（用来覆盖死因标注） */
   witchPoison?: boolean;
+  /**
+   * 流式发言时每一段的间隔（毫秒）。给测试留出一个「话说到一半」的观察窗口，
+   * 默认 0 表示不额外等待。
+   */
+  streamDelayMs?: number;
 }
 
 export function createMockLLM(options: MockOptions = {}): MockLLM {
@@ -43,6 +48,32 @@ export function createMockLLM(options: MockOptions = {}): MockLLM {
       if (/遗言/.test(system)) return { text: '留个遗言。', reason: 'mock' };
       return { ok: true };
     },
+
+    /**
+     * 流式发言：把最终结果切成三段回调出去，模拟「边生成边上屏」。
+     * 只有发言任务会产生 speech 字段，其它任务回调空串（真实实现同理：抽不到字段就不回调）。
+     */
+    async streamTask(
+      system: string,
+      user: string,
+      options: LLMTaskOptions | undefined,
+      onText: (text: string) => void,
+    ): Promise<Record<string, unknown>> {
+      const obj = await mock.task(system, user, options);
+      const speech = typeof obj.speech === 'string' ? obj.speech : '';
+      if (!speech) return obj;
+
+      for (let part = 1; part <= 3; part++) {
+        onText(speech.slice(0, Math.ceil((speech.length * part) / 3)));
+        if (options?.temperature !== undefined && options.temperature < 0) break;
+        if ((mock as unknown as { streamDelayMs?: number }).streamDelayMs) {
+          await new Promise((r) => setTimeout(r, (mock as unknown as { streamDelayMs?: number }).streamDelayMs));
+        }
+      }
+      return obj;
+    },
   };
+
+  if (options.streamDelayMs) (mock as unknown as { streamDelayMs?: number }).streamDelayMs = options.streamDelayMs;
   return mock;
 }

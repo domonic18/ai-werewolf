@@ -10,6 +10,16 @@ export interface LLMTaskOptions {
 export interface LLMClient {
   /** 要求模型输出 JSON 并解析；失败抛错（llmFailure 标记） */
   task(system: string, user: string, options?: LLMTaskOptions): Promise<Record<string, unknown>>;
+  /**
+   * 同上，但边收边回调 `onText`（已解析出 speech 字段的当前文本）。
+   * 引擎用它把「发言」做成真的流式；没实现这个方法时自动退回 task。
+   */
+  streamTask?(
+    system: string,
+    user: string,
+    options: LLMTaskOptions | undefined,
+    onText: (text: string) => void,
+  ): Promise<Record<string, unknown>>;
   /** 当前模型的可读名（日志/健康检查用） */
   label(): string;
   /** 累计调用次数（用于"观战不增加成本"这类断言） */

@@ -5,6 +5,8 @@ import { useGameStore } from '../store/gameStore';
 
 const POLL_MS = 1200;
 const SPECTATE_POLL_MS = 1600;
+/** 有人正在流式发言时的轮询间隔：逐字效果靠它，1.2s 一次会变成一段一段蹦 */
+const LIVE_POLL_MS = 300;
 const MAX_FAILURES = 3;
 
 export type LostReason = 'expired' | 'unauthorized' | null;
@@ -41,11 +43,16 @@ export function useMatchPolling(): { lost: boolean; reason: LostReason } {
           /* 观战只认 /spectate：它返回上帝视角投影，不再借用真人快照接口（那会泄露身份） */
           const stream = await api.spectate(gameId, since, getClientId());
           if (cancelled) return;
-          apply({ events: stream.events, version: stream.version, spectate: stream.snapshot });
+          apply({
+            events: stream.events,
+            version: stream.version,
+            spectate: stream.snapshot,
+            live: stream.live ?? null,
+          });
         } else {
           const data = await api.events(gameId, since, token as string);
           if (cancelled) return;
-          apply({ events: data.events, version: data.version, snapshot: data.snapshot });
+          apply({ events: data.events, version: data.version, snapshot: data.snapshot, live: data.live ?? null });
         }
         failures = 0;
       } catch (e) {
@@ -65,7 +72,11 @@ export function useMatchPolling(): { lost: boolean; reason: LostReason } {
           return;
         }
       }
-      if (!cancelled) timer = setTimeout(() => void tick(), watching ? SPECTATE_POLL_MS : POLL_MS);
+      if (!cancelled) {
+        const streaming = Boolean(useGameStore.getState().live);
+        const delay = watching ? (streaming ? LIVE_POLL_MS : SPECTATE_POLL_MS) : streaming ? LIVE_POLL_MS : POLL_MS;
+        timer = setTimeout(() => void tick(), delay);
+      }
     };
 
     void tick();

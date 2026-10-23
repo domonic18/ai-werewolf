@@ -85,6 +85,22 @@ export class LLMRuntime implements LLMService {
     return this.gateway.task(system, user, options);
   }
 
+  /**
+   * 流式任务：透传给网关。漏了这层转发，引擎拿不到 streamTask 就会静默退回整段输出 ——
+   * 表现是「代码写了流式，页面还是一下蹦出来」。
+   */
+  async streamTask(
+    system: string,
+    user: string,
+    options: LLMTaskOptions | undefined,
+    onText: (text: string) => void,
+  ): Promise<Record<string, unknown>> {
+    if (!this.gateway) {
+      throw Object.assign(new Error(`AI 通道尚未就绪：${this.lastError ?? '正在初始化'}`), { llmFailure: true });
+    }
+    return this.gateway.streamTask(system, user, options, onText);
+  }
+
   /** 健康检查：结果缓存 20s，避免首页每次刷新都真实消耗一次补全 */
   async selfTest(): Promise<{ ok: boolean; sec: string; model?: string; error?: string }> {
     if (!this.gateway) {

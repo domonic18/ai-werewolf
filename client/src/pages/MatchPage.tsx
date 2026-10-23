@@ -13,7 +13,7 @@ import { speakingPlayerId } from '../lib/stage';
 import type { LostReason } from '../hooks/useMatchPolling';
 import { useGameStore } from '../store/gameStore';
 import { ROLES } from '@shared/roles';
-import type { GameEvent, Phase } from '@shared/types';
+import type { GameEvent, LiveSpeech, Phase } from '@shared/types';
 
 const QUICK_LINES = ['我是平民', '我怀疑他', '我先过'];
 const CHAT_LIMIT = 6;
@@ -77,9 +77,17 @@ function useMessages(events: GameEvent[]) {
   }, [events]);
 }
 
-function ChatBubbles({ events, names }: { events: GameEvent[]; names: string[] }): JSX.Element {
+function ChatBubbles({
+  events,
+  names,
+  live,
+}: {
+  events: GameEvent[];
+  names: string[];
+  live?: LiveSpeech | null;
+}): JSX.Element {
   const messages = useMessages(events);
-  if (!messages.length) {
+  if (!messages.length && !live) {
     return (
       <div className="ig-chat">
         <div className="ig-sys">天亮了，等第一个人开口</div>
@@ -105,6 +113,21 @@ function ChatBubbles({ events, names }: { events: GameEvent[]; names: string[] }
           </div>
         );
       })}
+
+      {/* 正在生成的那一句：逐字长出来，最后一条 speech 事件到达后由 live=null 收走 */}
+      {live ? (
+        <div className="ig-msg streaming">
+          <div className="ig-msg-head">
+            <Avatar name={live.name} seat={live.playerId} isHuman={false} size={20} />
+            <span className="nm">{live.name}</span>
+            <span className="tag live">正在说</span>
+          </div>
+          <div className="ig-bubble">
+            {highlightNames(live.text, names)}
+            <i className="ig-caret" aria-hidden />
+          </div>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -186,6 +209,7 @@ function PlayView(): JSX.Element {
   const token = useGameStore((s) => s.token);
   const snapshot = useGameStore((s) => s.snapshot);
   const events = useGameStore((s) => s.events);
+  const live = useGameStore((s) => s.live);
   const close = useGameStore((s) => s.close);
 
   const [answeredKey, setAnsweredKey] = useState<string | null>(null);
@@ -316,7 +340,11 @@ function PlayView(): JSX.Element {
       ) : null}
 
       {/* 夜里始终用夜幕条：即使轮到自己行动，上面的旧发言也不该顶在行动面板前 */}
-      {phase === 'night' ? <NightStrip round={round} cue={night.lastCue} /> : <ChatBubbles events={events} names={names} />}
+      {phase === 'night' ? (
+        <NightStrip round={round} cue={night.lastCue} />
+      ) : (
+        <ChatBubbles events={events} names={names} live={live} />
+      )}
 
       {ranked.length ? (
         <div className="ig-vote">
@@ -417,6 +445,7 @@ function PlayView(): JSX.Element {
 function SpectateView({ players }: { players: Seat[] }): JSX.Element {
   const spectate = useGameStore((s) => s.spectate);
   const events = useGameStore((s) => s.events);
+  const live = useGameStore((s) => s.live);
   const close = useGameStore((s) => s.close);
   const names = useMemo(() => players.map((p) => p.name), [players]);
   const messages = useMessages(events);
@@ -554,6 +583,20 @@ function SpectateView({ players }: { players: Seat[] }): JSX.Element {
             );
           })
         )}
+
+        {live ? (
+          <div className="sp-msg streaming">
+            <div className="sp-msg-head">
+              <Avatar name={live.name} seat={live.playerId} isHuman={false} size={18} />
+              <span className="nm">{live.name}</span>
+              <span className="tag live">正在说</span>
+            </div>
+            <p>
+              {highlightNames(live.text, names)}
+              <i className="ig-caret" aria-hidden />
+            </p>
+          </div>
+        ) : null}
       </div>
 
       <SiteFooter />

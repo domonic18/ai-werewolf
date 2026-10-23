@@ -206,7 +206,11 @@ export class AIPlayer {
   /* ---------- 决策点（每个都真实调用 LLM） ---------- */
 
   /** 白天发言 + 投票意图 */
-  async speak(game: GameView): Promise<SpeakResult> {
+  /**
+   * 白天发言。给了 onText 就走流式：模型边生成、这里边把已解析出的发言文本回传，
+   * 前端就能逐字看到 A 说完再轮到 B，而不是等整段生成完一起蹦出来。
+   */
+  async speak(game: GameView, onText?: (text: string) => void): Promise<SpeakResult> {
     const sys = SYS_BASE + '\n你现在要完成：白天发言，并给出你这一轮打算投谁。';
     const user = [
       this.publicBrief(game),
@@ -217,7 +221,9 @@ export class AIPlayer {
       '请输出 JSON：{"speech":"你的发言（第一人称口语，贴合你的性格）","vote":"你要投的存活玩家名字（不能是自己）","reason":"你真实的内心判断，一句话"}',
     ].join('\n');
 
-    const obj = await this.llm.task(sys, user, { temperature: this.temp(0.92) });
+    const obj = onText && this.llm.streamTask
+      ? await this.llm.streamTask(sys, user, { temperature: this.temp(0.92) }, onText)
+      : await this.llm.task(sys, user, { temperature: this.temp(0.92) });
     const target = matchPlayerByName(obj.vote, game.alivePlayers(), this.p);
     return {
       speech: String(obj.speech ?? '').slice(0, 160),

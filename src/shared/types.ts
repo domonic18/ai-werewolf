@@ -126,6 +126,19 @@ export interface SpeechPayload {
   total?: number;
 }
 
+/**
+ * 正在流式输出的发言。
+ *
+ * 刻意不放进事件流：一段 100 字的发言会产生上百个增量，客户端事件上限只有 500 条，
+ * 一次发言就能把整局历史挤掉。它是「实时状态」，通过轮询响应里的 live 字段下发。
+ */
+export interface LiveSpeech {
+  playerId: number;
+  name: string;
+  /** 目前已生成的部分（不是增量） */
+  text: string;
+}
+
 /* ---------- 复盘时间轴 ---------- */
 
 /** 上帝视角的一夜 + 一天：狼刀/解药/毒药/放逐全量 */
@@ -330,6 +343,8 @@ export interface EventsResponse {
   version: number;
   events: GameEvent[];
   snapshot: Snapshot;
+  /** 此刻正在流式输出的发言；没有则为 null */
+  live?: LiveSpeech | null;
 }
 
 /** 观战座位：与玩家视角不同，观战是上帝视角，身份全量可见 */
@@ -366,6 +381,8 @@ export interface SpectateResponse {
   events: GameEvent[];
   /** 观战投影：全量身份，与玩家快照物理分离 */
   snapshot: SpectateSnapshot;
+  /** 此刻正在流式输出的发言（观战也要能逐字看） */
+  live?: LiveSpeech | null;
   /** 当前观战人数（服务端心跳统计） */
   spectators: number;
 }

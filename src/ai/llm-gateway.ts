@@ -6,6 +6,7 @@
 import { createWorkBuddyCloud } from '@tencent-ai/workbuddy-cloud-sdk';
 import type { PublicLLMModel, WorkBuddyCloudClient } from '@tencent-ai/workbuddy-cloud-sdk';
 import { extractJSON } from './json.js';
+import { extractSpeechSoFar } from './speech-stream.js';
 import type { LLMClient, LLMTaskOptions } from './types.js';
 import type { ModelInfo } from '../shared/types.js';
 
@@ -81,10 +82,17 @@ export class LLMGateway implements LLMClient {
     return this.model ? this.model.name || this.model.id : '';
   }
 
-  /** 流式收集一次补全：content 优先，思考型模型 reasoning_content 兜底 */
+  /**
+   * 流式收集一次补全：content 优先，思考型模型 reasoning_content 兜底。
+   * `onChunk` 会在每个增量到达时回调「目前已收到的完整文本」，用于把发言做成流式。
+   */
   async raw(
     messages: { role: 'system' | 'user' | 'assistant'; content: string }[],
-    { temperature = 0.9, timeoutMs = REQUEST_TIMEOUT_MS }: { temperature?: number; timeoutMs?: number } = {},
+    {
+      temperature = 0.9,
+      timeoutMs = REQUEST_TIMEOUT_MS,
+      onChunk,
+    }: { temperature?: number; timeoutMs?: number; onChunk?: (soFar: string) => void } = {},
   ): Promise<string> {
     if (!this.model) throw new Error('模型尚未初始化');
 
@@ -106,8 +114,13 @@ export class LLMGateway implements LLMClient {
 
       for await (const chunk of stream) {
         const delta = chunk.choices?.[0]?.delta;
-        if (delta?.content) content += delta.content;
+        let grew = false;
+        if (delta?.content) {
+          content += delta.content;
+          grew = true;
+        }
         if (delta?.reasoning_content) reasoning += delta.reasoning_content;
+        if (grew && onChunk) onChunk(content);
       }
     } finally {
       clearTimeout(timer);
@@ -122,6 +135,31 @@ export class LLMGateway implements LLMClient {
    * 失败抛带 llmFailure 标记的错误（含原因与原文片段）。
    */
   async task(system: string, user: string, options: LLMTaskOptions = {}): Promise<Record<string, unknown>> {
+    return this.runTask(system, user, options);
+  }
+
+  /**
+   * 流式任务：与 task 一样的重试与 JSON 解析，只是边收边把 speech 文本回调出去。
+   * 只在「发言」这类需要逐字上屏的任务上用；决策类（刀谁/验谁）不需要。
+   */
+  async streamTask(
+    system: string,
+    user: string,
+    options: LLMTaskOptions = {},
+    onText: (text: string) => void,
+  ): Promise<Record<string, unknown>> {
+    return this.runTask(system, user, options, (soFar) => {
+      const speech = extractSpeechSoFar(soFar);
+      if (speech) onText(speech);
+    });
+  }
+
+  private async runTask(
+    system: string,
+    user: string,
+    options: LLMTaskOptions = {},
+    onChunk?: (soFar: string) => void,
+  ): Promise<Record<string, unknown>> {
     const { temperature = 0.9, retries = 1 } = options;
     const messages = [
       { role: 'system' as const, content: system },
@@ -133,7 +171,7 @@ export class LLMGateway implements LLMClient {
 
     for (let attempt = 0; attempt <= retries; attempt++) {
       try {
-        const raw = await this.raw(messages, { temperature });
+        const raw = await this.raw(messages, { temperature, onChunk });
         lastRaw = raw;
         const parsed = extractJSON(raw);
         if (parsed) return parsed;

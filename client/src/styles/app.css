@@ -2434,3 +2434,36 @@ button.me-row:hover { border-color: var(--line-strong); }
   cursor: pointer;
 }
 .me-stale-btn:disabled { opacity: 0.6; cursor: default; }
+
+/* 流式发言：正在生成的那一句。文字逐段长出来，末尾一个黄铜色的光标在闪 */
+.ig-msg.streaming .ig-bubble {
+  border-color: rgba(185, 154, 99, 0.28);
+}
+.ig-msg-head .tag.live {
+  color: var(--brass);
+  border: 1px solid rgba(185, 154, 99, 0.35);
+  border-radius: var(--r-sm);
+  padding: 0 5px;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+.ig-caret {
+  display: inline-block;
+  width: 2px;
+  height: 1em;
+  margin-left: 2px;
+  vertical-align: -0.12em;
+  background: var(--brass);
+  opacity: 0.9;
+  animation: caret-blink 1s steps(1, end) infinite;
+}
+.sp-msg.streaming p { border-color: rgba(185, 154, 99, 0.28); }
+
+@keyframes caret-blink {
+  0%, 50% { opacity: 0.9; }
+  51%, 100% { opacity: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ig-caret { animation: none; }
+}
