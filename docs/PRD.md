@@ -191,7 +191,8 @@ ww_invites  (invitee_id text primary key, inviter_id text not null, created_at t
 - 战绩卡二维码指向**站点首页（带 ref）**，不指向观战链接（房间 2 小时回收会变死链）
 - 观战分享沿用 `#watch=<gameId>`，提示「对局结束后 2 小时内可看」
 - 埋点只记 4 个事件：分享点击、链接落地、登录转化、邀请关系建立；不引第三方
-- `hide_stats` 开关放「我的战绩」页账号卡右侧，不新开设置页
+- `hide_stats` 开关放「我的战绩」页的邀请面板内（账号卡下方），不新开设置页；
+  关闭后**服务端不再返回局数与胜率**，前端拿不到数字，也就无从遮挡
 
 **8.8 验收标准**
 
@@ -212,12 +213,19 @@ ww_invites  (invitee_id text primary key, inviter_id text not null, created_at t
 | 分享面板（`navigator.share` → 复制 → 二维码） | ✅ v1.11.0 |
 | 观战深链分享（只读、不占座） | ✅ v1.11.0（链接缺 sharecode 的问题 v1.11.5 已修） |
 | 标题随场景 + og / twitter 标签 | ✅ v1.11.0 |
-| 邀请码、`ww_profiles` / `ww_invites`、落地横幅、我邀请的朋友、`hide_stats` | ⬜ 未开始（v1.12） |
+| 邀请码（4 字母 + 3 位，一账号一码）、`ww_profiles` / `ww_invites` | ✅ v1.12.0 |
+| 落地横幅（邀请人昵称 + 局数 + 胜率） | ✅ v1.12.0 |
+| 登录后补记关系（幂等、禁自邀请、同浏览器 24h 内最后一次 ref 生效） | ✅ v1.12.0 |
+| 我邀请的朋友（聚合、20 人上限、0 局显示「—」、180 天标「很久没来」） | ✅ v1.12.0 |
+| `hide_stats`：关闭后服务端不再返回局数与胜率（不只是前端遮挡） | ✅ v1.12.0 |
+| 我的战绩页「邀请朋友」分享入口（补齐 AC2 的第三处） | ✅ v1.12.0 |
 
-遗留前置条件（v1.12 开工前必须先确认，否则做完也跑不起来）：
-- 云库建表权限：仓库里没有任何迁移脚本，`ww_matches` 是控制台手工建的；两张新表需要同样的 DDL 能力
-- staging 写保护：`WB_ENV=staging` 默认只读（`match-store` 直接回 `staging_read_only`），
-  邀请关系要在本地/预发落库，得显式 `WB_WRITE_MATCHES=1`，或给邀请表单独放行
+两张表已于 2026-10-23 建好（RLS 开启）：`ww_profiles`（邀请码 / 昵称 / hide_stats）、
+`ww_invites`（`invitee_id` 主键，天然保证「只记第一条」）。建表语句与策略说明见
+[standard/SECURITY.md](standard/SECURITY.md)。
+
+注意：`WB_ENV=staging` 时**资料与邀请表也走只读**（与战绩表同一开关），
+要在本地/预发验证邀请链路需显式 `WB_WRITE_MATCHES=1`。
 
 ## 三、非功能需求
 
@@ -241,7 +249,7 @@ ww_invites  (invitee_id text primary key, inviter_id text not null, created_at t
 | v1.9 | 夜晚氛围 | 夜幕过场 + 程序化环境音 + 夜里常驻夜幕条 | ✅ |
 | v1.10 | 观战与收尾 | 观战身份常显（网格 + 发言标签）、文档整理、我的战绩页 | ✅ v1.9.5 |
 | v1.11 | 传播（分享） | R8.3：战绩卡出图、分享面板、观战深链、标题与 og | ✅ v1.11.5 |
-| v1.12 | 邀请制好友 | R8.1 / 8.2 / 8.5：邀请码、落地横幅、我邀请的朋友、`hide_stats` | 待排期 |
+| v1.12 | 邀请制好友 | R8.1 / 8.2 / 8.5：邀请码、落地横幅、我邀请的朋友、`hide_stats` | ✅ v1.12.0 |
 | v2.0 | 真人多人 | R7 真人房、排行、对局回放、同局玩伴 | 参赛后 |
 
 ## 五、工程决策与风险记录
