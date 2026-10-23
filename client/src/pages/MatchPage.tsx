@@ -550,6 +550,8 @@ function SpectateView({ players }: { players: Seat[] }): JSX.Element {
   const nightCues = useMemo(() => nightCuesForRound(events, round), [events, round]);
   const lastCue = nightCues.length ? (nightCues[nightCues.length - 1] as string) : null;
   useDawnChime(phase);
+  /* 观战也要有标题：分享出去的是观战链接，对方在微信里看到的标题就是它 */
+  useDocTitle(`观战 · ${roundBadge(phase, round)}`);
 
   const roleClass = (role?: string | null): string => {
     if (!role) return '';
