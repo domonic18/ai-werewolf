@@ -40,6 +40,8 @@ export type IconName =
   | 'ballot'
   | 'mic'
   | 'note'
+  | 'share'
+  | 'copy'
   | 'grid'
   | 'list'
   | 'sort'
@@ -206,6 +208,21 @@ const PATHS: Record<IconName, JSX.Element> = {
       <rect x="9.2" y="3.2" width="5.6" height="10" rx="2.8" />
       <path d="M5.6 11.2a6.4 6.4 0 0012.8 0" />
       <path d="M12 17.6v3.2" />
+    </>
+  ),
+  /* 分享：从盒子往外送 */
+  share: (
+    <>
+      <path d="M12 3.4v10.2" />
+      <path d="M8.4 6.9 12 3.3l3.6 3.6" />
+      <path d="M6.2 12.4H4.6v7.9h14.8v-7.9h-1.6" />
+    </>
+  ),
+  /* 复制：两张错开的纸 */
+  copy: (
+    <>
+      <rect x="8.6" y="8.6" width="10.8" height="11.8" rx="2" />
+      <path d="M15.4 5.6H6.6a2 2 0 0 0-2 2v8.6" />
     </>
   ),
   note: (

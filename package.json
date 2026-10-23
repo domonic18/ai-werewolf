@@ -1,6 +1,6 @@
 {
   "name": "werewolf-ai",
-  "version": "1.10.2",
+  "version": "1.11.0",
   "private": true,
   "type": "module",
   "description": "AI 狼人杀 · Agent 补位局 —— 6 人局狼人杀（1 真人 + 5 LLM 智能体），全部 AI 言行由大模型实时生成",
@@ -26,6 +26,7 @@
   },
   "dependencies": {
     "@tencent-ai/workbuddy-cloud-sdk": "dev",
+    "qrcode-generator": "^2.0.4",
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "zustand": "^4.5.7"

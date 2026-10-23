@@ -4,7 +4,12 @@ import type { GameEvent } from '@shared/types';
 import { api } from '../api/client';
 import { Icon, roleIcon } from '../components/Icon';
 import { RoundTimeline } from '../components/RoundTimeline';
+import { ShareSheet } from '../components/ShareSheet';
 import { useSession } from '../auth/useSession';
+import { downloadBlob, pickCardQuote, renderShareCard } from '../lib/share-card';
+import { qrDataUrl, siteOrigin, withShareCode } from '../lib/share';
+import { useDocTitle } from '../lib/doc-title';
+import { readShareCode } from '../lib/url';
 import { timelineFromRecords, timelineFromReview } from '../lib/timeline';
 import { useGameStore } from '../store/gameStore';
 
@@ -78,6 +83,7 @@ export function ResultPage({ onOpenStats }: { onOpenStats?: () => void } = {}): 
   }
 
   const { winner, reveal, thoughts, log } = over.payload;
+  useDocTitle(winner === 'good' ? '好人阵营胜利' : '狼人阵营胜利');
   const myRole = watching ? null : snapshot?.myRole ?? null;
   const humanWin = myRole ? (winner === 'good') === (myRole !== 'wolf') : false;
 
@@ -98,6 +104,18 @@ export function ResultPage({ onOpenStats }: { onOpenStats?: () => void } = {}): 
               : ''}
         </p>
       </div>
+
+      {/* 观战者没有身份，不做战绩卡 */}
+      {myRole ? (
+        <ResultCard
+          winner={winner}
+          roleName={ROLES[myRole].name}
+          rounds={snapshot?.round ?? 0}
+          reveal={reveal}
+          log={log}
+          playerName={reveal.find((row) => row.isHuman)?.name ?? '你'}
+        />
+      ) : null}
 
       <div className="panel">
         <div className="panel-title">身份揭晓</div>
@@ -194,5 +212,112 @@ export function ResultPage({ onOpenStats }: { onOpenStats?: () => void } = {}): 
         </p>
       </div>
     </section>
+  );
+}
+
+/* -------------------------------------------------------------- 战绩卡 */
+
+/**
+ * 战绩卡面板。
+ *
+ * 单独一个组件不是为了好看：canvas 生成与弹层状态都是 hooks，
+ * 而父组件在「没有结算结果」时会提前 return —— hooks 写在它后面会违反调用顺序。
+ */
+function ResultCard({
+  winner,
+  roleName,
+  rounds,
+  reveal,
+  log,
+  playerName,
+}: {
+  winner: 'good' | 'wolf';
+  roleName: string;
+  rounds: number;
+  reveal: { name: string; alive: boolean; isHuman: boolean }[];
+  log: string[];
+  playerName: string;
+}): JSX.Element {
+  const [blob, setBlob] = useState<Blob | null>(null);
+  const [preview, setPreview] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [open, setOpen] = useState(false);
+
+  const shareCode = readShareCode(window.location.search);
+  const url = withShareCode(siteOrigin(), shareCode);
+  const qr = useMemo(() => qrDataUrl(url), [url]);
+
+  useEffect(() => {
+    let cancelled = false;
+    void (async () => {
+      const drawn = await renderShareCard({
+        winner,
+        roleName,
+        rounds,
+        survivors: reveal.filter((row) => row.alive).length,
+        players: reveal.filter((row) => !row.isHuman).map((row) => row.name),
+        quote: pickCardQuote(log, playerName),
+        qrUrl: url,
+        host: window.location.host,
+        qrImage: qr || undefined,
+      });
+      if (cancelled) return;
+      if (!drawn) {
+        setError('这个浏览器不支持生成图片，可以改用「复制链接」分享');
+        return;
+      }
+      setBlob(drawn);
+      setPreview(URL.createObjectURL(drawn));
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [winner, roleName, rounds, reveal, log, playerName, url, qr]);
+
+  /* objectURL 手动回收，否则连打几局会攒内存 */
+  useEffect(() => {
+    return () => {
+      if (preview) URL.revokeObjectURL(preview);
+    };
+  }, [preview]);
+
+  const save = (): void => {
+    if (blob) downloadBlob(blob, '狼人杀战绩.png');
+  };
+
+  return (
+    <div className="panel">
+      <div className="panel-head">
+        <span className="panel-title">战绩卡</span>
+        <span className="panel-sub">可直接发给朋友</span>
+      </div>
+
+      {preview ? (
+        <img className="card-preview" src={preview} alt="本局战绩卡" />
+      ) : (
+        <div className="lb-empty">{error ?? '正在生成…'}</div>
+      )}
+
+      <div className="card-actions">
+        <button className="btn ghost" style={{ flex: 1 }} disabled={!blob} onClick={save}>
+          保存图片
+        </button>
+        <button className="btn primary" style={{ flex: 1 }} onClick={() => setOpen(true)}>
+          分享给朋友
+        </button>
+      </div>
+
+      <ShareSheet
+        open={open}
+        title="把这一局发给朋友"
+        hint="对方点开能看这局的上帝视角，也能自己开一局。"
+        url={url}
+        text={`我刚打完一局狼人杀：${winner === 'good' ? '好人赢了' : '狼人赢了'}，我扮演${roleName}。`}
+        qr={qr}
+        file={blob ? new File([blob], '狼人杀战绩.png', { type: 'image/png' }) : undefined}
+        extra={blob ? { label: '保存战绩卡', onClick: save } : undefined}
+        onClose={() => setOpen(false)}
+      />
+    </div>
   );
 }

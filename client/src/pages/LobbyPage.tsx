@@ -3,6 +3,7 @@ import type { LobbyGame } from '@shared/types';
 import { Avatar } from '../components/Avatar';
 import { Icon } from '../components/Icon';
 import { SiteFooter } from '../components/SiteFooter';
+import { useDocTitle } from '../lib/doc-title';
 import { useLobby } from '../hooks/useLobby';
 import type { LobbyState } from '../hooks/useLobby';
 import { readSavedGame } from '../lib/storage';
@@ -111,6 +112,7 @@ function GameCard({
  */
 export function LobbyPage({ onBack, onWatch, onResume, onStart }: LobbyPageProps): JSX.Element {
   const lobby = useLobby();
+  useDocTitle('游戏大厅');
   const [grid, setGrid] = useState(false);
   const mineId = readSavedGame()?.id ?? null;
   const watching = lobby.games.reduce((sum, game) => sum + game.spectators, 0);

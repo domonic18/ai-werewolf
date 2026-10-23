@@ -3,10 +3,14 @@ import { api } from '../api/client';
 import { Avatar } from '../components/Avatar';
 import { Icon, roleIcon } from '../components/Icon';
 import { NightCurtain } from '../components/NightCurtain';
+import { ShareSheet } from '../components/ShareSheet';
 import { SiteFooter } from '../components/SiteFooter';
 import { nightCuesForRound, nightLabel, shouldRaiseCurtain } from '../lib/night';
+import { qrDataUrl, watchUrl } from '../lib/share';
+import { readShareCode } from '../lib/url';
 import { playDawnChime, setSoundEnabled, soundEnabled } from '../lib/sound';
 import { highlightNames } from '../lib/highlight';
+import { useDocTitle } from '../lib/doc-title';
 import { roundBadge } from '../lib/format';
 import { deriveVoteTally } from '../lib/tally';
 import { speakingPlayerId } from '../lib/stage';
@@ -298,6 +302,14 @@ function PlayView(): JSX.Element {
 
   const alive = players.filter((p) => p.alive).length;
   const myRole = snapshot?.myRole ?? null;
+  useDocTitle(roundBadge(phase, round));
+
+  /*
+   * 「叫朋友来看」：不发玩家链接（对方拿了凭证能替你操作），只给观战深链。
+   * 观众是只读投影，不占座、也不消耗模型调用。
+   */
+  const [shareOpen, setShareOpen] = useState(false);
+  const spectateUrl = gameId ? watchUrl(gameId, readShareCode(window.location.search)) : '';
 
   return (
     <section className="screen page-game">
@@ -325,6 +337,9 @@ function PlayView(): JSX.Element {
               {ROLES[myRole].name}
             </span>
           ) : null}
+          <button className="ig-quit share" onClick={() => setShareOpen(true)} aria-label="叫朋友来看">
+            <Icon name="eye" size={12} /> 观战
+          </button>
           <button className="ig-quit" onClick={() => void quit()}>
             <Icon name="close" size={12} /> 退出
           </button>
@@ -459,6 +474,16 @@ function PlayView(): JSX.Element {
           )}
         </div>
       ) : null}
+
+      <ShareSheet
+        open={shareOpen}
+        title="叫个朋友来看"
+        hint="他打开是上帝视角，能看全场身份，但不能替你操作。对局结束后 2 小时内可看。"
+        url={spectateUrl}
+        text={`来看我这局狼人杀：${roundBadge(phase, round)}，${alive} 人存活。`}
+        qr={spectateUrl ? qrDataUrl(spectateUrl) : undefined}
+        onClose={() => setShareOpen(false)}
+      />
 
       <SiteFooter />
     </section>
