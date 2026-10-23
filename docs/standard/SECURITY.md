@@ -45,6 +45,29 @@
 | `POST /api/models/select` | production 需登录 | 6 次/小时/人 | 全局生效，属管理型操作 |
 | `GET /api/health`、`/api/roles`、`/api/auth-config` | 无 | — | 只返回可公开值 |
 
+### 身份核实的两个硬约束（2026-10-23 线上排查得到）
+
+服务端拿用户 token 去云端 `/.cloud/auth/v1/user/me` 认人时，必须同时满足：
+
+1. **带 `x-wb-webapp-access-key`**，否则网关只回 `invalid_client`；
+2. **带 `Origin`（以及 `Referer`）且等于应用自己的公网域名** —— 会话是按「appId + Origin」绑定的，
+   服务端到服务端调用默认没有 Origin，网关会当成另一个客户端，回
+   `401 invalid_grant: ...issued for another client`。
+
+第 2 条曾经漏掉，表现不是「报错」，而是**静默降级成匿名**：页面显示已登录，战绩却按全网口径统计。
+排查方法（不需要真实 token 也能判定网关是否在校验 Origin）：
+
+```bash
+# 错误 Origin → 403 access_denied（证明 Origin 参与校验）
+curl -i https://<域名>/.cloud/auth/v1/user/me \
+  -H 'Authorization: Bearer x' -H 'x-wb-webapp-access-key: <wbpk_…>' \
+  -H 'Origin: https://evil.example.com'
+```
+
+另外：access token 会过期，**续期只能由客户端发起**（SDK 的 `getAccessToken()` / `refreshSession()`，
+句柄绑定 appId + Origin）。服务端不缓存 token 以外的东西，前端也不能把登录瞬间拿到的 token 存下来一直用——
+过期后服务端只会认成匿名。
+
 ## 四、响应头与传输
 
 - `Content-Security-Policy`：脚本只允许同源（无 `unsafe-inline`）、禁止被 iframe 嵌套（`frame-ancestors 'none'`）、

@@ -79,6 +79,13 @@ export function createCloudTokenVerifier(options: CloudIdentityOptions): TokenVe
           headers: {
             Authorization: `Bearer ${accessToken}`,
             'x-wb-webapp-access-key': options.publishableKey,
+            /*
+             * 会话是按「appId + Origin」绑定的（SDK 的 refreshToken 文档写得很明确）。
+             * 服务端到服务端调用默认没有 Origin，网关会把它当成另一个客户端，
+             * 回 invalid_grant —— 现象就是「明明刚登录，却说登录态失效」。
+             */
+            Origin: base,
+            Referer: `${base}/`,
           },
           signal: AbortSignal.timeout(timeoutMs),
         });

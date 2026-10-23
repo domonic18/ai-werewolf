@@ -2,7 +2,8 @@ import { useCallback, useEffect, useState } from 'react';
 import type { LobbyGame, MatchesResponse } from '@shared/types';
 import { ROLES } from '@shared/roles';
 import { api } from '../api/client';
-import { clearSession } from '../auth/session';
+import { refreshAccessToken } from '../auth/actions';
+import { logout } from '../auth/session';
 import { useSession } from '../auth/useSession';
 import { Icon, roleIcon } from '../components/Icon';
 import { SiteFooter } from '../components/SiteFooter';
@@ -41,6 +42,7 @@ export function MePage({ onBack, onLogin, onStart, onResume }: MePageProps): JSX
   const [ongoing, setOngoing] = useState<LobbyGame[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [resyncing, setResyncing] = useState(false);
 
   const load = useCallback(async (): Promise<void> => {
     if (!signedIn) {
@@ -65,6 +67,20 @@ export function MePage({ onBack, onLogin, onStart, onResume }: MePageProps): JSX
   useEffect(() => {
     void load();
   }, [load]);
+
+  /* 服务端认不出人时给一次「重新同步」：先让 SDK 续期，续不上才是真的要重新登录 */
+  const resync = async (): Promise<void> => {
+    setResyncing(true);
+    const token = await refreshAccessToken();
+    if (token) {
+      await load();
+      setResyncing(false);
+      return;
+    }
+    setResyncing(false);
+    await logout();
+    onLogin();
+  };
 
   const mine = matches?.mine ?? null;
   /* 本地有会话但服务端认不出人（token 过期/换环境）：别让 0 局看起来像「你没打过」 */
@@ -112,7 +128,7 @@ export function MePage({ onBack, onLogin, onStart, onResume }: MePageProps): JSX
                 <span>{session ? maskId(session.userId) : ''}</span>
               </div>
             </div>
-            <button className="account-out" onClick={() => clearSession()}>
+            <button className="account-out" onClick={() => void logout()}>
               退出
             </button>
           </div>
@@ -120,7 +136,10 @@ export function MePage({ onBack, onLogin, onStart, onResume }: MePageProps): JSX
           {staleAuth ? (
             <div className="me-stale">
               <Icon name="info" size={12} />
-              <span>登录态可能已失效，战绩没有按账号取到。退出后重新登录再试。</span>
+              <span>服务端没有认出当前账号，这份统计暂时是全网数据。</span>
+              <button className="me-stale-btn" onClick={() => void resync()} disabled={resyncing}>
+                {resyncing ? '同步中…' : '重新同步'}
+              </button>
             </div>
           ) : null}
 

@@ -65,6 +65,11 @@ interface CloudAuth {
   /** 回调落地页用：读 URL 上的 code/state 换会话；不是回调时返回 data: null（不是错误） */
   handleWorkBuddyCallback(search?: string): Promise<CloudResult<CloudSession | null>>;
   handleWechatWebCallback(search?: string): Promise<CloudResult<CloudSession | null>>;
+  /** 取一个当前可用的 access token，必要时先续期；无会话返回 undefined */
+  getAccessToken(): Promise<string | undefined>;
+  /** 主动续期一次（句柄绑定 appId + Origin） */
+  refreshSession(): Promise<CloudResult<CloudSession | null>>;
+  signOut(): Promise<CloudResult<null>>;
 }
 
 type CloudModule = {
@@ -91,6 +96,51 @@ export async function fetchAuthProviders(): Promise<string[]> {
     return list.length ? list : ['phone', 'wechat', 'workbuddy'];
   } catch {
     return ['phone', 'wechat', 'workbuddy'];
+  }
+}
+
+/**
+ * 取当前可用的 access token。
+ *
+ * 必须问 SDK：session 存在它的 localStorage 里，续期（wbrt_ 句柄换发）也在它内部完成。
+ * 我们早期把登录瞬间的 token 抄进 sessionStorage 就再也没管过 —— access token 一过期，
+ * 服务端 /user/me 就认不出人，页面却还显示「已登录」，战绩全部退回全网口径。
+ */
+export async function currentAccessToken(): Promise<string | null> {
+  const auth = await getAuth();
+  if (!auth) return null;
+  try {
+    return (await auth.getAccessToken()) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** SDK 是否可用：区分「没有会话」与「SDK 根本加载不出来」，前者才该判定为登出 */
+export async function hasCloudAuth(): Promise<boolean> {
+  return (await getAuth()) !== null;
+}
+
+/** 主动续期一次；失败返回 null（调用方据此判断「真的要重新登录」） */
+export async function refreshAccessToken(): Promise<string | null> {
+  const auth = await getAuth();
+  if (!auth) return null;
+  try {
+    const result = await auth.refreshSession();
+    return result.data?.accessToken ?? null;
+  } catch {
+    return null;
+  }
+}
+
+/** 退出：连 SDK 自己的会话一起清，否则下次进页面又「自动登录」回来 */
+export async function signOutCloud(): Promise<void> {
+  const auth = await getAuth();
+  if (!auth) return;
+  try {
+    await auth.signOut();
+  } catch {
+    /* 退出失败不影响本地清理 */
   }
 }
 

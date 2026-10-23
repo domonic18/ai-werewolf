@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { completeOAuthCallback, stripOAuthParams } from './auth/actions';
-import { setSession } from './auth/session';
+import { completeOAuthCallback, hasCloudAuth, stripOAuthParams } from './auth/actions';
+import { clearSession, getSession, setSession, syncSession } from './auth/session';
 import { HomePage } from './pages/HomePage';
 import { LobbyPage } from './pages/LobbyPage';
 import { MatchPage } from './pages/MatchPage';
@@ -69,6 +69,25 @@ export function App(): JSX.Element {
   useEffect(() => {
     if (finished) clearSavedGame();
   }, [finished]);
+
+  /*
+   * 启动时对齐一次登录态：
+   * access token 会过期，续期只能由 SDK 发起（refreshToken 绑定 appId + Origin）。
+   * 拿不到新 token 就说明会话真的死了，这时候要老实退出，而不是让页面继续显示「已登录」。
+   */
+  useEffect(() => {
+    if (!getSession()) return;
+    let cancelled = false;
+    void (async () => {
+      const sdkReady = await hasCloudAuth();
+      if (!sdkReady || cancelled) return; /* SDK 不可用 ≠ 会话失效，别误伤 */
+      const alive = await syncSession();
+      if (!alive && !cancelled) clearSession();
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   /*
    * 第三方登录回调必须在这里、在任何页面判断之前处理：

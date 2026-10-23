@@ -11,7 +11,7 @@ import type {
   SpectateResponse,
 } from '@shared/types';
 import { readShareCode, withShareCode } from '../lib/url';
-import { authHeaders } from '../auth/session';
+import { resolveAuthToken } from '../auth/session';
 
 /** 大厅查询：字段与 src/server/lobby.ts 的 LobbyQuery 一一对应 */
 export interface LiveQuery {
@@ -39,8 +39,9 @@ export class ApiError extends Error {
 const SHARE_CODE = typeof window === 'undefined' ? '' : readShareCode(window.location.search);
 
 async function request<T>(path: string, body?: unknown, token?: string): Promise<T> {
-  /* 登录态自动带上：有会话就 Bearer，没有就匿名（匿名局照常可玩） */
-  const headers: Record<string, string> = { ...authHeaders() };
+  /* 登录态自动带上：token 由 SDK 提供（必要时自动续期），没有就匿名 */
+  const accessToken = await resolveAuthToken();
+  const headers: Record<string, string> = accessToken ? { Authorization: `Bearer ${accessToken}` } : {};
   if (body !== undefined) headers['Content-Type'] = 'application/json';
   /* 玩家凭证走请求头：不进 URL，避免出现在日志与分享里 */
   if (token) headers['X-Player-Token'] = token;

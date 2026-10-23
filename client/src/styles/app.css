@@ -2412,7 +2412,7 @@ button.me-row:hover { border-color: var(--line-strong); }
 /* 登录态失效提示：0 局不该被误读成「你没打过」 */
 .me-stale {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   gap: 7px;
   padding: 9px 11px;
   border-radius: var(--r-md);
@@ -2422,3 +2422,15 @@ button.me-row:hover { border-color: var(--line-strong); }
   font-size: 10.5px;
   line-height: 1.6;
 }
+.me-stale span { flex: 1; }
+.me-stale-btn {
+  flex: none;
+  padding: 3px 8px;
+  border-radius: var(--r-sm);
+  border: 1px solid rgba(192, 82, 63, 0.4);
+  background: none;
+  color: var(--ember-soft);
+  font-size: 10px;
+  cursor: pointer;
+}
+.me-stale-btn:disabled { opacity: 0.6; cursor: default; }

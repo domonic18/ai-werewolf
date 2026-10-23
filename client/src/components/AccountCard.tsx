@@ -1,4 +1,4 @@
-import { clearSession } from '../auth/session';
+import { logout } from '../auth/session';
 import { Icon } from './Icon';
 import { useSession } from '../auth/useSession';
 
@@ -35,7 +35,7 @@ export function AccountCard({ onOpenStats }: { onOpenStats?: () => void }): JSX.
           </span>
         ) : null}
       </button>
-      <button className="account-out" onClick={() => clearSession()}>
+      <button className="account-out" onClick={() => void logout()}>
         退出
       </button>
     </div>

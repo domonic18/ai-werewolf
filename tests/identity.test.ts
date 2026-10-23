@@ -23,8 +23,15 @@ describe('createCloudTokenVerifier', () => {
 
     const [url, init] = fetchImpl.mock.calls[0] as unknown as [string, RequestInit];
     expect(url).toBe(`${ENDPOINT}/.cloud/auth/v1/user/me`);
-    expect((init.headers as Record<string, string>)['x-wb-webapp-access-key']).toBe(KEY);
-    expect((init.headers as Record<string, string>).Authorization).toBe('Bearer tok-abc');
+    const headers = init.headers as Record<string, string>;
+    expect(headers['x-wb-webapp-access-key']).toBe(KEY);
+    expect(headers.Authorization).toBe('Bearer tok-abc');
+    /*
+     * 会话按 appId + Origin 绑定：服务端调用若不带 Origin，网关会当成另一个客户端，
+     * 回 invalid_grant —— 线上表现就是「刚登录，却提示登录态失效」。
+     */
+    expect(headers.Origin).toBe(ENDPOINT);
+    expect(headers.Referer).toBe(`${ENDPOINT}/`);
   });
 
   it('同一个 token 会被缓存，不重复打云端', async () => {

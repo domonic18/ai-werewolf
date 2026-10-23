@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { fetchAuthProviders, sendOtp, signInWithOAuth, verifyOtp } from '../auth/actions';
-import { clearSession, setSession } from '../auth/session';
+import { logout, setSession } from '../auth/session';
 import { Icon } from '../components/Icon';
 import { SiteFooter } from '../components/SiteFooter';
 import { useSession } from '../auth/useSession';
@@ -152,7 +152,7 @@ export function LoginPage({ onBack, onSignedIn }: LoginPageProps): JSX.Element {
             <button className="lg-submit" onClick={onBack}>
               回到首页继续
             </button>
-            <button className="lg-oauth wb" style={{ justifyContent: 'center' }} onClick={() => clearSession()}>
+            <button className="lg-oauth wb" style={{ justifyContent: 'center' }} onClick={() => void logout()}>
               <span className="lg-oauth-left">退出登录</span>
             </button>
           </div>
