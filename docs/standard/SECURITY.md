@@ -81,11 +81,16 @@ curl -i https://<域名>/.cloud/auth/v1/user/me \
 |---|---|---|
 | `ww_profiles` | 账号昵称、邀请码、是否公开战绩 | SELECT 全开；INSERT / UPDATE 只校验形状（`invite_code ~ '^[A-Z]{4}-[0-9A-Z]{3}$'`） |
 | `ww_invites` | 邀请关系（`invitee_id` 主键） | SELECT 全开；INSERT 带 `invitee_id <> inviter_id`（库层挡自邀请） |
+| `ww_events` | 埋点（4 个事件） | SELECT 全开；INSERT 只允许四个事件名（库层白名单） |
 
 读写都只发生在服务端：客户端从不直连数据库，所有入口都要求登录（`/api/invite*`、`/api/profile` 未登录回 401）。
 策略之所以对 `anon` 放行，是因为服务端用的是 publishable key（`auth.uid()` 为空），
 与既有的 `ww_matches` 同一套取舍——**publishable key 泄露后，别人可以绕过我们的 API 直接写库**，
 这是本阶段已知且接受的风险（写的内容是邀请码与昵称，无资金与隐私数据；有 API 限流兜住正常路径）。
+
+埋点表里**不存账号 id**：`actor` 是 `sha256(盐:userId)` 的前 16 位十六进制，
+用于「同一个人去重」而不用于识别。因为这张表对 anon 可读，存原值等于把用户 id 公开。
+埋点写入失败一律静默（`EventStore.record` 吞异常），统计问题不该影响玩家正在做的事。
 
 `hide_stats` 关闭后，服务端在聚合时就**不返回**局数与胜率（不是前端遮挡）——
 否则抓包一样能看到，承诺就没有意义。

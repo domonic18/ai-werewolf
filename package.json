@@ -1,6 +1,6 @@
 {
   "name": "werewolf-ai",
-  "version": "1.12.3",
+  "version": "1.13.0",
   "private": true,
   "type": "module",
   "description": "AI 狼人杀 · Agent 补位局 —— 6 人局狼人杀（1 真人 + 5 LLM 智能体），全部 AI 言行由大模型实时生成",
