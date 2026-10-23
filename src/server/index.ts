@@ -12,6 +12,7 @@ import { createOwnerResolver } from './auth.js';
 import { createCloudTokenVerifier } from './identity.js';
 import type { CloudConfig } from '../ai/llm-gateway.js';
 import { MatchStore } from '../cloud/match-store.js';
+import { SocialStore } from '../cloud/social-store.js';
 import { RoomManager } from './rooms.js';
 import { LLMRuntime } from './llm-runtime.js';
 import type { AppEnv } from '../shared/types.js';
@@ -66,6 +67,11 @@ export async function main(): Promise<import('node:http').Server> {
 
   const llm = new LLMRuntime(config);
   const matchStore = new MatchStore(() => llm.cloud, { readOnly: readOnlyMatches });
+  /*
+   * 资料与邀请表与战绩表共用同一个开关：staging 默认不写，避免联调数据进生产库。
+   * 要在本地/预发验证邀请链路，显式 `WB_WRITE_MATCHES=1`（见 README「环境」）。
+   */
+  const socialStore = new SocialStore(() => llm.cloud, { readOnly: readOnlyMatches });
   const rooms = new RoomManager({ llm, matchStore });
 
   /*
@@ -83,6 +89,7 @@ export async function main(): Promise<import('node:http').Server> {
     matchStore,
     env,
     resolveOwner: createOwnerResolver(verifier),
+    socialStore,
     probeOwner: (token) => verifier.probe(token),
     publicConfig: {
       endpoint: config.endpoint,

@@ -17,6 +17,8 @@ import { parse as parseUrl } from 'node:url';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 import type { RoomManager } from './rooms.js';
 import type { MatchStore } from '../cloud/match-store.js';
+import type { SocialStore } from '../cloud/social-store.js';
+import { normalizeInviteCode } from '../cloud/social-store.js';
 import type { LLMService } from './llm-service.js';
 import {
   MAX_PLAYERS,
@@ -39,6 +41,10 @@ import type {
   LiveResponse,
   MatchesResponse,
   WhoAmIResponse,
+  InviteOverviewResponse,
+  InvitePreviewResponse,
+  BindInviteResponse,
+  UpdateProfileResponse,
   RolesResponse,
   ModelsResponse,
   OkResponse,
@@ -77,6 +83,8 @@ export interface ApiContext {
   llm: LLMService;
   rooms: RoomManager;
   matchStore: MatchStore;
+  /** 账号资料与邀请关系（云库未就绪时也传，内部会降级） */
+  socialStore?: SocialStore;
   /** 运行环境：前端据此显示区分标识 */
   env: AppEnv;
   /** 前端登录所需的可公开配置（endpoint / publishableKey / oauthRelayBaseUrl），不含密钥 */
@@ -244,6 +252,120 @@ export async function handleApi(req: IncomingMessage, res: ServerResponse, ctx: 
         mine: mineStats,
       };
       return sendJson(res, 200, body);
+    }
+
+    /* ---------- 邀请与好友 ---------- */
+    /*
+     * 我的邀请码 + 我邀请来的朋友。
+     * 未登录一律 401：邀请关系是账号级数据，匿名没有「我」可言。
+     */
+    if (path === '/api/invite' && method === 'GET') {
+      const rl = limits.read.take(`invite:${ip || 'unknown'}`);
+      if (!rl.ok) return tooMany(res, rl.retryAfterSec, '请求过于频繁，请稍后再试');
+      const ownerId = ctx.resolveOwner ? await ctx.resolveOwner(req) : null;
+      if (!ownerId) return sendJson(res, 401, { error: '登录后才有邀请码' } satisfies ErrorResponse);
+
+      const store = ctx.socialStore;
+      if (!store) {
+        return sendJson(res, 200, {
+          available: false,
+          code: '',
+          nickname: null,
+          hideStats: false,
+          friends: [],
+        } satisfies InviteOverviewResponse);
+      }
+
+      const profile = await store.ensureProfile(ownerId);
+      if (!profile) {
+        /* 云库不可用 / 只读环境建不了资料：明确告诉前端，而不是回一份空列表 */
+        return sendJson(res, 200, {
+          available: false,
+          code: '',
+          nickname: null,
+          hideStats: false,
+          friends: [],
+        } satisfies InviteOverviewResponse);
+      }
+
+      const friends = await store.listFriends(ownerId);
+      return sendJson(res, 200, {
+        available: true,
+        code: profile.invite_code,
+        nickname: profile.nickname,
+        hideStats: profile.hide_stats,
+        friends,
+      } satisfies InviteOverviewResponse);
+    }
+
+    /*
+     * 落地页用：凭邀请码看邀请人的昵称与战绩。公开、不需要登录——
+     * 被邀请人此刻正是「还没登录」的状态，等他登录再问就晚了。
+     */
+    if (path === '/api/invite/preview' && method === 'GET') {
+      const rl = limits.read.take(`invite-preview:${ip || 'unknown'}`);
+      if (!rl.ok) return tooMany(res, rl.retryAfterSec, '请求过于频繁，请稍后再试');
+      const rawRef = parsed.query.ref;
+      const code = normalizeInviteCode(Array.isArray(rawRef) ? (rawRef[0] ?? '') : (rawRef ?? ''));
+      if (!code) return sendJson(res, 200, { ok: false } satisfies InvitePreviewResponse);
+      const preview = ctx.socialStore ? await ctx.socialStore.preview(code) : null;
+      if (!preview) return sendJson(res, 200, { ok: false } satisfies InvitePreviewResponse);
+      return sendJson(res, 200, {
+        ok: true,
+        name: preview.name,
+        games: preview.games,
+        wins: preview.wins,
+      } satisfies InvitePreviewResponse);
+    }
+
+    /*
+     * 登录后补记邀请关系。幂等：同一对只记一次，自己邀请自己直接拒。
+     * 客户端会在登录成功后自动调它，失败也不该打断玩家（他已经在玩了）。
+     */
+    if (path === '/api/invite/bind' && method === 'POST') {
+      const ownerId = ctx.resolveOwner ? await ctx.resolveOwner(req) : null;
+      if (!ownerId) return sendJson(res, 401, { error: '登录后才能记录邀请' } satisfies ErrorResponse);
+      const rl = limits.action.take(actorKey(ownerId, ip));
+      if (!rl.ok) return tooMany(res, rl.retryAfterSec, '操作过于频繁，请稍后再试');
+
+      const body = await readBody<{ ref: string }>(req);
+      const code = normalizeInviteCode(body.ref);
+      if (!code) return sendJson(res, 200, { ok: false, status: 'bad-code' } satisfies BindInviteResponse);
+
+      const result = ctx.socialStore ? await ctx.socialStore.bind(code, ownerId) : { status: 'unavailable' as const };
+      return sendJson(res, 200, {
+        ok: result.status === 'bound' || result.status === 'exists',
+        status: result.status,
+        inviterName: result.inviterName,
+      } satisfies BindInviteResponse);
+    }
+
+    /* 改昵称 / 战绩是否公开 */
+    if (path === '/api/profile' && method === 'POST') {
+      const ownerId = ctx.resolveOwner ? await ctx.resolveOwner(req) : null;
+      if (!ownerId) return sendJson(res, 401, { error: '登录后才能修改资料' } satisfies ErrorResponse);
+      const rl = limits.action.take(actorKey(ownerId, ip));
+      if (!rl.ok) return tooMany(res, rl.retryAfterSec, '操作过于频繁，请稍后再试');
+
+      const body = await readBody<{ nickname?: string; hideStats?: boolean }>(req);
+      const patch: { nickname?: string | null; hideStats?: boolean } = {};
+      if (typeof body.nickname === 'string') {
+        const name = cleanText(body.nickname, 12);
+        /* 空串 = 清空昵称，回落到「一位玩家」 */
+        patch.nickname = name || null;
+      }
+      if (typeof body.hideStats === 'boolean') patch.hideStats = body.hideStats;
+      if (!ctx.socialStore || !Object.keys(patch).length) {
+        return sendJson(res, 400, { ok: false, error: '没有可修改的字段' } satisfies UpdateProfileResponse);
+      }
+
+      const profile = await ctx.socialStore.updateProfile(ownerId, patch);
+      if (!profile) return sendJson(res, 503, { ok: false, error: '云库暂不可用' } satisfies UpdateProfileResponse);
+      return sendJson(res, 200, {
+        ok: true,
+        nickname: profile.nickname,
+        hideStats: profile.hide_stats,
+      } satisfies UpdateProfileResponse);
     }
 
     /*

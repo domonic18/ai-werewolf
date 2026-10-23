@@ -396,6 +396,53 @@ export interface CreateGameResponse {
   playerToken: string;
 }
 
+/* ---------- 邀请与好友 ---------- */
+
+/** 我邀请来的朋友：只有聚合口径，没有任何单局明细 */
+export interface FriendSummaryView {
+  name: string;
+  games: number;
+  wins: number;
+  lastPlayedAt: string | null;
+  /** 对方关了战绩公开 → 只显示「在玩」 */
+  hidden: boolean;
+  /** 超过 180 天没活跃：保留但排最后 */
+  stale: boolean;
+}
+
+export interface InviteOverviewResponse {
+  /** 云库没就绪时为 false：前端显示降级文案，而不是假装「你还没有朋友」 */
+  available: boolean;
+  /** 我的邀请码，形如 YEKE-7F2；未登录/不可用时为空串 */
+  code: string;
+  nickname: string | null;
+  hideStats: boolean;
+  friends: FriendSummaryView[];
+}
+
+export interface InvitePreviewResponse {
+  ok: boolean;
+  /** 邀请人的昵称与战绩（聚合），邀请码无效时 ok=false */
+  name?: string;
+  games?: number;
+  wins?: number;
+}
+
+export type BindInviteStatus = 'bound' | 'exists' | 'self' | 'bad-code' | 'unavailable';
+
+export interface BindInviteResponse {
+  ok: boolean;
+  status: BindInviteStatus;
+  inviterName?: string;
+}
+
+export interface UpdateProfileResponse {
+  ok: boolean;
+  nickname?: string | null;
+  hideStats?: boolean;
+  error?: string;
+}
+
 /** 登录自检：服务端到底有没有把 Bearer 认成某个账号（不返回 token 与账号 id） */
 export interface WhoAmIResponse {
   signedIn: boolean;
