@@ -41,3 +41,17 @@ describe('战绩卡 · 复盘片段选取', () => {
     expect(pickCardQuote(['第1天 夜客：我这轮先过，听你们的。'], '夜客')).toBe('第1天 夜客：我这轮先过，听你们的。');
   });
 });
+
+describe('战绩卡 · 截断', () => {
+  it('长发言截到 46 字并补省略号，不会断在半句上又没提示', () => {
+    const long = '第1天 老K：' + '这是一段很长很长的发言'.repeat(6);
+    const quote = pickCardQuote([long], '夜客');
+    expect(quote.endsWith('…')).toBe(true);
+    expect(quote.length).toBeLessThanOrEqual(47);
+  });
+
+  it('有短发言时优先用短的那句，避免截断', () => {
+    const log = ['第1天 老K：' + '铺开讲了很多细节'.repeat(8), '第1天 小满：我怀疑阿岚，他上一轮投得急。'];
+    expect(pickCardQuote(log, '夜客')).toBe('第1天 小满：我怀疑阿岚，他上一轮投得急。');
+  });
+});

@@ -49,25 +49,31 @@ const EMBER = '#C0523F';
  * 这张卡就靠这一句撑场面，放一句敷衍话比空着更糟。
  */
 const PASS_LINE = '我这轮先过';
+/** 卡面最多三行；超了截断加省略号，别让它断在半句话上 */
+const MAX_QUOTE = 46;
+
+function clip(text: string): string {
+  return text.length > MAX_QUOTE ? `${text.slice(0, MAX_QUOTE)}…` : text;
+}
 
 export function pickCardQuote(log: string[], playerName: string): string {
   const sentences = log.filter((line) => /第\d+天 .+：.+/.test(line) && !line.includes(PASS_LINE));
 
   const wolfOut = log.filter((line) => /被放逐，身份：(狼人|黑狼王)/.test(line));
-  if (wolfOut.length) return wolfOut[wolfOut.length - 1] as string;
+  if (wolfOut.length) return clip(wolfOut[wolfOut.length - 1] as string);
 
   const anyOut = log.filter((line) => /被放逐，身份：/.test(line));
-  if (anyOut.length) return anyOut[anyOut.length - 1] as string;
+  if (anyOut.length) return clip(anyOut[anyOut.length - 1] as string);
 
   const mine = sentences.filter((line) => line.includes(`${playerName}：`));
-  if (mine.length) return mine[mine.length - 1] as string;
+  if (mine.length) return clip(mine[mine.length - 1] as string);
 
-  /* 没轮到可说的时候，用全场信息量最大的一句（最长的），比随便挑一条有意义 */
-  if (sentences.length) {
-    return sentences.reduce((best, line) => (line.length > best.length ? line : best), sentences[0] as string);
-  }
+  /* 没轮到可说的时候，优先一句「说完的」短发言：长发言截断后像断句出错 */
+  const readable = sentences.filter((line) => line.length <= MAX_QUOTE);
+  if (readable.length) return readable[readable.length - 1] as string;
+  if (sentences.length) return clip(sentences[0] as string);
 
-  return log[0] ?? '这一局没有留下记录。';
+  return clip(log[0] ?? '这一局没有留下记录。');
 }
 
 function wrap(ctx: CanvasRenderingContext2D, text: string, maxWidth: number): string[] {
