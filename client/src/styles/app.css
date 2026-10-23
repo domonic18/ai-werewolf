@@ -2150,6 +2150,56 @@ button {
   transition: width 420ms linear;
 }
 
+/* ------------------------------------------------------------------
+   天亮：同一个过场的收尾
+   夜里的冷黑换成一点暖，月亮落下、天光起；只停 1.6 秒，交代完死讯就走。
+   ------------------------------------------------------------------ */
+.nc-sky.dawn {
+  background:
+    radial-gradient(120% 62% at 50% 108%, rgba(185, 154, 99, 0.16), transparent 62%),
+    linear-gradient(180deg, #14110d 0%, #1a150f 58%, #221a12 100%);
+}
+
+.nc-sun {
+  /* 不是又一个月亮：天光是地平线往上渗的一片，不画成实心圆 */
+  position: absolute;
+  left: 50%;
+  bottom: -150px;
+  width: 520px;
+  height: 320px;
+  margin-left: -260px;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(237, 231, 218, 0.3), rgba(185, 154, 99, 0.14) 52%, rgba(185, 154, 99, 0) 76%);
+  animation: sun-rise 1500ms var(--ease) both;
+  pointer-events: none;
+}
+.nc-sun::after {
+  /* 地平线：一道极淡的横线，把「天亮了」落到地上 */
+  content: '';
+  position: absolute;
+  left: 96px;
+  right: 96px;
+  bottom: 150px;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(185, 154, 99, 0.32), transparent);
+}
+
+.nc-dawn-note {
+  margin: 0;
+  font-size: 12px;
+  letter-spacing: 0.1em;
+  color: var(--smoke);
+}
+
+@keyframes sun-rise {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nc-sun { animation: none; }
+}
+
 @keyframes moon-rise {
   from { opacity: 0; transform: translateY(14px) scale(0.94); }
   to { opacity: 1; transform: translateY(0) scale(1); }
@@ -2234,9 +2284,28 @@ button {
   padding: 10px 12px;
   border-radius: var(--r-lg);
   border: 1px solid rgba(185, 154, 99, 0.18);
-  background: rgba(185, 154, 99, 0.05);
+  background:
+    radial-gradient(120% 140% at 4% 0%, rgba(185, 154, 99, 0.1), transparent 62%),
+    rgba(185, 154, 99, 0.04);
   color: var(--brass);
 }
+
+/*
+ * 观战的夜：不盖全屏（那是玩家的悬念），只把整屏压一层极淡的冷调，
+ * 加上一点点「月光落在顶上」的渐变。留住可读性，也留住这是夜里。
+ */
+.sp-night-mode {
+  background:
+    radial-gradient(90% 46% at 50% -8%, rgba(237, 231, 218, 0.05), transparent 68%),
+    linear-gradient(180deg, rgba(8, 8, 10, 0.5), transparent 42%);
+}
+.sp-night-mode .sp-grid {
+  filter: saturate(0.86) brightness(0.94);
+}
+.sp-night-mode .sp-god {
+  border-color: rgba(185, 154, 99, 0.28);
+}
+
 .sp-night .cue {
   font-family: var(--font-mark);
   font-size: 13px;

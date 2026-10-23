@@ -64,55 +64,91 @@ describe('夜晚过场：节奏', () => {
     expect(nextCueDelay(0)).toBe(NIGHT_TIMING.leadInMs);
     expect(nextCueDelay(1)).toBe(NIGHT_TIMING.gapMs);
     expect(nextCueDelay(7)).toBe(NIGHT_TIMING.gapMs);
-    expect(NIGHT_TIMING.leadInMs).toBeLessThan(NIGHT_TIMING.maxMs);
   });
 
-  it('一句一句铺开也不会超过上限：口令数 × 间隔 + 静场要留出余量', () => {
-    const worst = NIGHT_TIMING.leadInMs + NIGHT_TIMING.gapMs * 7;
-    expect(worst).toBeLessThanOrEqual(NIGHT_TIMING.maxMs + 1000);
+  it('续演时不再走整段静场：月亮已经升过了', () => {
+    expect(nextCueDelay(0, NIGHT_TIMING, true)).toBe(NIGHT_TIMING.resumeMs);
+    expect(NIGHT_TIMING.resumeMs).toBeLessThan(NIGHT_TIMING.leadInMs);
+  });
+
+  it('句间间隔要短于静场上限，否则每句都会被当成「AI 在思考」而让出屏幕', () => {
+    expect(NIGHT_TIMING.gapMs).toBeLessThan(NIGHT_TIMING.idleMs);
+    expect(NIGHT_TIMING.idleMs).toBeLessThan(NIGHT_TIMING.maxMs);
   });
 });
 
-describe('夜晚过场：该不该拉起 / 收起', () => {
-  const base = { phase: 'night' as const, round: 2, hasPending: false, watchedRound: 0, cueCount: 2 };
+describe('夜晚过场：该不该拉起', () => {
+  const base = { phase: 'night' as const, shownCount: 2, cueCount: 3, skipped: false };
 
-  it('夜里且有口令 → 拉起', () => {
+  it('还有没演过的口令 → 拉起', () => {
     expect(shouldRaiseCurtain(base)).toBe(true);
+  });
+
+  it('这一夜的口令都演完了 → 不拉', () => {
+    expect(shouldRaiseCurtain({ ...base, shownCount: 3 })).toBe(false);
   });
 
   it('天亮了不拉', () => {
     expect(shouldRaiseCurtain({ ...base, phase: 'day' })).toBe(false);
   });
 
-  it('玩家有待决策的动作时不拉：那是他自己的回合，不能挡', () => {
-    expect(shouldRaiseCurtain({ ...base, hasPending: true })).toBe(false);
-  });
-
-  it('同一夜只演一次：已看过/已跳过就不再拉', () => {
-    expect(shouldRaiseCurtain({ ...base, watchedRound: 2 })).toBe(false);
-    expect(shouldRaiseCurtain({ ...base, watchedRound: 3 })).toBe(false);
+  it('玩家这一夜点过跳过 → 后面的口令也不再打扰', () => {
+    expect(shouldRaiseCurtain({ ...base, skipped: true })).toBe(false);
   });
 
   it('还没有口令可演时不拉（避免空屏一片黑）', () => {
-    expect(shouldRaiseCurtain({ ...base, cueCount: 0 })).toBe(false);
+    expect(shouldRaiseCurtain({ ...base, shownCount: 0, cueCount: 0 })).toBe(false);
   });
 
-  it('待决策立刻收：晚一拍玩家就可能点错', () => {
-    expect(shouldCloseCurtain({ phase: 'night', elapsedMs: 200, hasPending: true })).toBe(true);
-    expect(shouldCloseCurtain({ phase: 'day', elapsedMs: 200, hasPending: true })).toBe(true);
+  /**
+   * 回归：线上实测「女巫不出现氛围」。
+   * 夜间顺序是 狼人 → 守卫 → 预言家 → 女巫，女巫永远排在最后；
+   * 旧规则「同一夜只演一次」让它在夜幕落幕之后才开口，只能在扁平条里滚过去。
+   */
+  it('最后一位（女巫）的口令在夜幕落幕之后到达，仍然要拉起', () => {
+    const shown = ['天黑请闭眼', '狼人请睁眼', '狼人请闭眼', '预言家请睁眼'];
+    /* 这四句演完后落幕 */
+    expect(
+      shouldRaiseCurtain({ phase: 'night', shownCount: shown.length, cueCount: shown.length, skipped: false }),
+    ).toBe(false);
+    /* 女巫开口：多出一句没演过的 */
+    expect(
+      shouldRaiseCurtain({
+        phase: 'night',
+        shownCount: shown.length,
+        cueCount: [...shown, '女巫请睁眼'].length,
+        skipped: false,
+      }),
+    ).toBe(true);
+  });
+});
+
+describe('夜晚过场：该不该落幕', () => {
+  const base = { phase: 'night' as const, elapsedMs: 2000, sinceCueMs: 300, hasPending: false };
+
+  it('夜里正常演：不落', () => {
+    expect(shouldCloseCurtain(base)).toBe(false);
   });
 
-  it('天亮要收，但先走完最短停留，避免闪一下黑屏', () => {
-    expect(shouldCloseCurtain({ phase: 'day', elapsedMs: 300, hasPending: false })).toBe(false);
-    expect(shouldCloseCurtain({ phase: 'vote', elapsedMs: 300, hasPending: false })).toBe(false);
-    expect(shouldCloseCurtain({ phase: 'day', elapsedMs: NIGHT_TIMING.minMs, hasPending: false })).toBe(true);
+  it('玩家要决策：走完最短停留才落，不会闪一下黑屏就跳面板', () => {
+    expect(shouldCloseCurtain({ ...base, elapsedMs: 300, hasPending: true })).toBe(false);
+    expect(shouldCloseCurtain({ ...base, elapsedMs: NIGHT_TIMING.pendingFloorMs, hasPending: true })).toBe(true);
   });
 
-  it('夜里到上限也收（AI 思考太久，不能长期盖住屏幕）', () => {
-    expect(shouldCloseCurtain({ phase: 'night', elapsedMs: NIGHT_TIMING.maxMs, hasPending: false })).toBe(true);
+  it('天亮：让「天亮了」停一下再落幕', () => {
+    expect(shouldCloseCurtain({ ...base, phase: 'day', elapsedMs: 400 })).toBe(false);
+    expect(shouldCloseCurtain({ ...base, phase: 'day', elapsedMs: NIGHT_TIMING.dawnMs })).toBe(true);
   });
 
-  it('夜里没到上限、也没待决策时继续演', () => {
-    expect(shouldCloseCurtain({ phase: 'night', elapsedMs: 3000, hasPending: false })).toBe(false);
+  it('静场过久（AI 在思考）先让出屏幕，口令到了再续演', () => {
+    expect(shouldCloseCurtain({ ...base, sinceCueMs: NIGHT_TIMING.idleMs })).toBe(true);
+  });
+
+  it('无论有没有新口令，都不能超过硬上限', () => {
+    expect(shouldCloseCurtain({ ...base, elapsedMs: NIGHT_TIMING.maxMs, sinceCueMs: 500 })).toBe(true);
+  });
+
+  it('预言家想 11 秒这种常见情况不该被中途砍掉（旧上限 9 秒正是女巫缺席的原因）', () => {
+    expect(shouldCloseCurtain({ ...base, elapsedMs: 9000, sinceCueMs: 2000 })).toBe(false);
   });
 });

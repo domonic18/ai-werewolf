@@ -159,30 +159,37 @@ function ChatBubbles({
 }
 
 /**
- * 夜晚过场的状态门控：这一夜要不要拉起夜幕、演到哪、演完记住。
+ * 夜晚过场的状态门控：这一夜要不要拉起夜幕、从第几句演起、演完记住。
  * 两个视角（玩家 / 观战）共用一套规则，避免「观战有戏、自己打没有」。
+ *
+ * 关键：按「口令数」而不是「轮次」记进度。
+ * 旧写法「同一夜只演一次」会让排在最后的角色（女巫）永远赶不上 ——
+ * 前面一位思考十几秒，夜幕早就到上限落幕了，后面的口令只能在扁平条里滚过去。
  */
-function useNight(phase: Phase, round: number, events: GameEvent[], hasPending: boolean) {
-  const [watchedRound, setWatchedRound] = useState(0);
-  const [openRound, setOpenRound] = useState<number | null>(null);
+function useNight(phase: Phase, round: number, events: GameEvent[]) {
   const cues = useMemo(() => nightCuesForRound(events, round), [events, round]);
+  /* 「哪一夜 + 演到第几句 + 是否跳过 + 是否正在演」合在一个状态里：换夜时自然失效，不需要额外的重置 effect */
+  const [state, setState] = useState({ round: -1, shown: 0, skipped: false, open: false });
 
-  /* 口令一到达就拉起夜幕；同一夜只拉一次，跳过/演完都记进 watchedRound */
+  const sameRound = state.round === round;
+  const shownCount = sameRound ? state.shown : 0;
+  const skipped = sameRound && state.skipped;
+  const open = sameRound && state.open;
+
   useEffect(() => {
-    if (openRound !== null) return;
-    if (shouldRaiseCurtain({ phase, round, hasPending, watchedRound, cueCount: cues.length })) {
-      setOpenRound(round);
+    if (open) return;
+    if (shouldRaiseCurtain({ phase, shownCount, cueCount: cues.length, skipped })) {
+      setState({ round, shown: shownCount, skipped, open: true });
     }
-  }, [phase, round, hasPending, watchedRound, cues.length, openRound]);
+  }, [open, phase, round, shownCount, skipped, cues.length]);
 
   return {
-    openRound,
+    open,
     cues,
+    startAt: shownCount,
     lastCue: cues.length ? (cues[cues.length - 1] as string) : null,
-    onDone: () => {
-      setOpenRound(null);
-      setWatchedRound(round);
-    },
+    onDone: (shownTotal: number) => setState({ round, shown: shownTotal, skipped: false, open: false }),
+    onSkip: () => setState({ round, shown: cues.length, skipped: true, open: false }),
   };
 }
 
@@ -274,9 +281,16 @@ function PlayView(): JSX.Element {
   const promptKey = pending ? `${round}-${pending.kind}-${pending.prompt.title}-${pending.options.length}` : null;
   const active = pending && promptKey !== answeredKey ? pending : null;
 
-  /* 夜里有挂起动作（验人/用药/狼刀）时过场必须让位，否则会挡住玩家自己的决策 */
-  const night = useNight(phase, round, events, Boolean(active));
+  /* 有挂起动作（验人/用药/狼刀）时过场只停留一个最短节拍，随后让位给玩家自己的决策面板 */
+  const night = useNight(phase, round, events);
   useDawnChime(phase);
+
+  /* 天亮后过场要多说一句「昨夜谁出局」——不然落幕那一刻只剩一行日志，太素 */
+  const dawnText = useMemo(() => {
+    const dawn = [...events].reverse().find((e) => e.type === 'dawn');
+    if (!dawn) return null;
+    return dawn.payload.dead.length ? `昨夜 ${dawn.payload.dead.length} 人出局` : '昨夜是平安夜';
+  }, [events]);
 
   const submit = async (value: string | number | null): Promise<void> => {
     if (!gameId || !token) return;
@@ -313,13 +327,16 @@ function PlayView(): JSX.Element {
 
   return (
     <section className="screen page-game">
-      {night.openRound !== null ? (
+      {night.open ? (
         <NightCurtain
-          round={night.openRound}
+          round={round}
           cues={night.cues}
+          startAt={night.startAt}
           phase={phase}
           hasPending={Boolean(active)}
+          dawnText={dawnText}
           onDone={night.onDone}
+          onSkip={night.onSkip}
         />
       ) : null}
 
@@ -506,7 +523,8 @@ function SpectateView({ players }: { players: Seat[] }): JSX.Element {
   /*
    * 观战**不拉全屏夜幕**：过场是给玩家制造悬念的，观众本来就是上帝视角，
    * 黑屏只会挡住身份和棋盘 —— 观战要能一直看着全场。
-   * 这里只取当前口令，做成一行小字挂在阵营卡下面。
+   * 折中做法：夜里给整屏压一层极淡的冷调（sp-night-mode），并把当前口令
+   * 做成月光色的一行挂在阵营卡下面，和玩家侧的过场用同一套语气。
    */
   const nightCues = useMemo(() => nightCuesForRound(events, round), [events, round]);
   const lastCue = nightCues.length ? (nightCues[nightCues.length - 1] as string) : null;
@@ -521,7 +539,7 @@ function SpectateView({ players }: { players: Seat[] }): JSX.Element {
   };
 
   return (
-    <section className="screen page-game">
+    <section className={phase === 'night' ? 'screen page-game sp-night-mode' : 'screen page-game'}>
       <div className="sp-bar">
         <div className="sp-bar-left">
           <span className="sp-live">
@@ -602,7 +620,7 @@ function SpectateView({ players }: { players: Seat[] }): JSX.Element {
         <div className="sp-night">
           <Icon name="cloudNight" size={13} />
           <span className="cue">{lastCue ?? '天黑请闭眼'}</span>
-          <span className="hint">夜里无人发言</span>
+          <span className="hint">{round > 0 ? `第 ${round} 夜` : '入夜'}</span>
         </div>
       ) : null}
 

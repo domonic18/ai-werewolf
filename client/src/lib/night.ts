@@ -25,20 +25,38 @@ export function nightLabel(round: number): string {
 export interface NightTiming {
   /** 第一句口令出现前的静场：让月亮先起来，别一进来就刷字 */
   leadInMs: number;
+  /** 续演时的静场：这一夜已经开过场，别再走一遍「月亮升起」 */
+  resumeMs: number;
   /** 后面每句之间至少隔多久 */
   gapMs: number;
   /** 最短停留：夜里可能一秒就演完（村民没事做，AI 又很快），
    *  不留这点时间，过场会变成「闪一下黑屏」，比不做还糟 */
   minMs: number;
-  /** 安全上限：夜里 AI 可能思考很久，过场不能无限压着屏幕 */
+  /** 待决策时的最短停留：让「女巫请睁眼」这句先落地再弹药盘，别闪一下就跳面板 */
+  pendingFloorMs: number;
+  /** 天亮后「天亮了」停多久再落幕 */
+  dawnMs: number;
+  /** 静场上限：超过这么久没有新口令，说明 AI 在思考，先让出屏幕 */
+  idleMs: number;
+  /** 硬上限：无论有没有新口令，都不能一直盖着 */
   maxMs: number;
 }
 
 export const NIGHT_TIMING: NightTiming = {
   leadInMs: 650,
+  resumeMs: 220,
   gapMs: 1100,
   minMs: 1100,
-  maxMs: 9000,
+  pendingFloorMs: 1400,
+  dawnMs: 1600,
+  /*
+   * 这两个数字是 2026-10-23 线上口径调出来的：
+   * 预言家一次查验实测要 10.8 秒（模型思考），旧上限 9 秒会在它闭眼之前落幕，
+   * 于是排在最后的女巫只剩扁平夜幕条 —— 而且落幕之后同一夜不再拉起，永远补不回来。
+   * 现在只要还有口令没演，就继续演；只有「静场过久」才让出屏幕，之后新口令还能拉起。
+   */
+  idleMs: 12000,
+  maxMs: 24000,
 };
 
 /**
@@ -77,58 +95,63 @@ export function nightCuesForRound(events: GameEvent[], round: number): string[] 
 }
 
 /** 已显示 index 句后，下一句要等多久（第一句是静场，其余是句间间隔） */
-export function nextCueDelay(index: number, timing: NightTiming = NIGHT_TIMING): number {
-  return index <= 0 ? timing.leadInMs : timing.gapMs;
+export function nextCueDelay(index: number, timing: NightTiming = NIGHT_TIMING, resumed = false): number {
+  if (index > 0) return timing.gapMs;
+  /* 续演时这一夜已经开过场、月亮也升过了，再走一遍静场会像「又过了一夜」 */
+  return resumed ? timing.resumeMs : timing.leadInMs;
 }
 
 export interface CurtainGate {
   phase: Phase;
-  round: number;
-  /** 有挂起的真人动作时必须让位：那是玩家自己要做的决定 */
-  hasPending: boolean;
-  /** 已经看过（或手动跳过）的夜晚 */
-  watchedRound: number;
+  /** 这一夜已经演过的口令数（跳过/落幕都算） */
+  shownCount: number;
   cueCount: number;
+  /** 玩家在这一夜手动跳过过：后面的口令不再拉起，别有完没完 */
+  skipped: boolean;
 }
 
 /**
- * 是否该拉起夜幕。四条不许放行的理由：
- * 天已经亮了、玩家正等你决策、这一夜已经演过、还没有任何口令可演。
+ * 是否该拉起夜幕。
+ *
+ * 判据只有一条：**这一夜还有没演过的口令**。
+ * 早期版本是「同一夜只演一次」，于是排在后面的角色（女巫在最后）永远赶不上 ——
+ * 夜幕在前一位思考时就落幕了，剩下的口令只能在扁平条里滚过去。
+ * 改成按口令计数之后，中场落幕也会在下一句到达时续演。
  */
-export function shouldRaiseCurtain({
-  phase,
-  round,
-  hasPending,
-  watchedRound,
-  cueCount,
-}: CurtainGate): boolean {
+export function shouldRaiseCurtain({ phase, shownCount, cueCount, skipped }: CurtainGate): boolean {
   if (phase !== 'night') return false;
-  if (hasPending) return false;
-  if (watchedRound >= round) return false;
-  return cueCount > 0;
+  if (skipped) return false;
+  return cueCount > shownCount;
 }
 
 export interface CurtainCloseGate {
   phase: Phase;
+  /** 从拉起（或续演）到现在 */
   elapsedMs: number;
+  /** 距上一句口令落屏多久 */
+  sinceCueMs: number;
   hasPending: boolean;
   timing?: NightTiming;
 }
 
 /**
  * 过场该不该收。
- * 玩家要决策一律立刻收（晚一拍就可能点错）；天亮要收，但先让最短停留走完，
- * 免得「闪一下就黑屏」；夜里太久（AI 在思考）到上限也收，交给常驻的夜幕条接管 ——
- * 宁可少一段戏，也不能把屏幕长期盖住。
+ *
+ * 顺序有讲究：
+ * 1. 玩家要决策 —— 走完最短停留就收（面板晚一步出现，但不闪）；
+ * 2. 天亮了 —— 让「天亮了」这句停一下再落幕；
+ * 3. 静场过久（AI 在思考）—— 先让出屏幕，等下一句口令到达再续演；
+ * 4. 硬上限 —— 无论如何不能长期盖住屏幕。
  */
 export function shouldCloseCurtain({
   phase,
   elapsedMs,
+  sinceCueMs,
   hasPending,
   timing = NIGHT_TIMING,
 }: CurtainCloseGate): boolean {
-  if (hasPending) return true;
-  if (elapsedMs >= timing.maxMs) return true;
-  if (phase !== 'night') return elapsedMs >= timing.minMs;
-  return false;
+  if (hasPending) return elapsedMs >= timing.pendingFloorMs;
+  if (phase !== 'night') return elapsedMs >= timing.dawnMs;
+  if (sinceCueMs >= timing.idleMs) return true;
+  return elapsedMs >= timing.maxMs;
 }
