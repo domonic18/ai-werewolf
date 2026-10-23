@@ -11,7 +11,7 @@ import type {
   SpectateResponse,
   WhoAmIResponse,
 } from '@shared/types';
-import { readShareCode, withShareCode } from '../lib/url';
+import { currentShareCode, withShareCode } from '../lib/url';
 import { resolveAuthToken } from '../auth/session';
 
 /** 大厅查询：字段与 src/server/lobby.ts 的 LobbyQuery 一一对应 */
@@ -37,7 +37,7 @@ export class ApiError extends Error {
  * 平台发布网关要求请求带分享码：同域 GET 放行，**POST 不放行**（直接 403 链接不完整页）。
  * 浏览器里表现为 fetch 直接失败，所以每个请求都要把当前页面的 sharecode 带上。
  */
-const SHARE_CODE = typeof window === 'undefined' ? '' : readShareCode(window.location.search);
+const SHARE_CODE = typeof window === 'undefined' ? '' : currentShareCode();
 
 async function request<T>(path: string, body?: unknown, token?: string): Promise<T> {
   /* 登录态自动带上：token 由 SDK 提供（必要时自动续期），没有就匿名 */

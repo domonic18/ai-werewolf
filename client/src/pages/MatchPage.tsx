@@ -7,7 +7,7 @@ import { ShareSheet } from '../components/ShareSheet';
 import { SiteFooter } from '../components/SiteFooter';
 import { nightCuesForRound, nightLabel, shouldRaiseCurtain } from '../lib/night';
 import { qrDataUrl, watchUrl } from '../lib/share';
-import { readShareCode } from '../lib/url';
+import { currentShareCode } from '../lib/url';
 import { playDawnChime, setSoundEnabled, soundEnabled } from '../lib/sound';
 import { highlightNames } from '../lib/highlight';
 import { useDocTitle } from '../lib/doc-title';
@@ -344,7 +344,7 @@ function PlayView(): JSX.Element {
    * 观众是只读投影，不占座、也不消耗模型调用。
    */
   const [shareOpen, setShareOpen] = useState(false);
-  const spectateUrl = gameId ? watchUrl(gameId, readShareCode(window.location.search)) : '';
+  const spectateUrl = gameId ? watchUrl(gameId, currentShareCode()) : '';
 
   return (
     <section className="screen page-game">

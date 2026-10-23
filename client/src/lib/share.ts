@@ -7,16 +7,13 @@
  * 微信内置浏览器不支持 `navigator.share`，那边会落到「复制链接 + 提示去右上角」。
  */
 import qrcode from 'qrcode-generator';
+import { withShareCode } from './url';
+
+export { withShareCode };
 
 /** 站点根地址（带 sharecode，否则平台网关会 403） */
 export function siteOrigin(): string {
   return `${window.location.origin}${window.location.pathname}`;
-}
-
-/** 给链接补上分享码；本地开发没有就不补 */
-export function withShareCode(url: string, shareCode: string): string {
-  if (!shareCode) return url;
-  return `${url}${url.includes('?') ? '&' : '?'}sharecode=${encodeURIComponent(shareCode)}`;
 }
 
 /**

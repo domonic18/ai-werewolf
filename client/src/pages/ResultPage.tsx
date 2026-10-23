@@ -9,7 +9,7 @@ import { useSession } from '../auth/useSession';
 import { downloadBlob, pickCardQuote, renderShareCard } from '../lib/share-card';
 import { qrDataUrl, siteOrigin, withShareCode } from '../lib/share';
 import { useDocTitle } from '../lib/doc-title';
-import { readShareCode } from '../lib/url';
+import { currentShareCode } from '../lib/url';
 import { timelineFromRecords, timelineFromReview } from '../lib/timeline';
 import { useGameStore } from '../store/gameStore';
 
@@ -243,7 +243,7 @@ function ResultCard({
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
 
-  const shareCode = readShareCode(window.location.search);
+  const shareCode = currentShareCode();
   const url = withShareCode(siteOrigin(), shareCode);
   const qr = useMemo(() => qrDataUrl(url), [url]);
 
