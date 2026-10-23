@@ -2032,20 +2032,70 @@ button {
   pointer-events: none;
 }
 
+/*
+ * 月亮：不是「一个白圆」。
+ *
+ * 分四层画出来，每层各解决一个问题：
+ *   1. 球体 —— 左上受光、右下入影，边缘压暗（limb darkening），先立住"球"；
+ *   2. 月海 —— 不等大、不共线的暗斑，边缘要硬一点，软趴趴就成了"脏点"；
+ *   3. 环形山 —— 几个带高光的小坑，直径 1~3px 那种，靠它们读出"被撞过"；
+ *   4. 颗粒 —— feTurbulence 生成的噪点，极淡地叠一层，消掉塑料感。
+ * 颜色只在暖黑 / 陈纸白 / 黄铜这套里，不引入蓝色月光。
+ */
 .nc-moon {
   position: absolute;
   top: 13%;
   left: 50%;
-  width: 88px;
-  height: 88px;
-  margin-left: -44px;
+  width: 96px;
+  height: 96px;
+  margin-left: -48px;
   border-radius: 50%;
-  background: radial-gradient(circle at 38% 32%, #f4eee1 0%, #d3cab8 58%, #8d8677 100%);
+  overflow: hidden; /* 暗斑贴边时被月面裁掉 */
+  background: radial-gradient(circle at 32% 28%, #e9e2d3 0%, #d8cfbc 30%, #c0b5a1 58%, #988e80 82%, #807869 100%);
   box-shadow:
-    0 0 0 1px rgba(237, 231, 218, 0.16),
-    0 0 76px rgba(237, 231, 218, 0.12),
-    inset -12px -10px 26px rgba(0, 0, 0, 0.42);
+    /* 外圈光：近处紧、远处散，替代生硬的 1px 描边 */
+    0 0 0 1px rgba(237, 231, 218, 0.05),
+    0 0 32px 3px rgba(237, 231, 218, 0.12),
+    0 0 84px 16px rgba(237, 231, 218, 0.05),
+    /* 明暗交界：右下沉得比左上亮得多，球体才有体积 */
+    inset -18px -20px 32px rgba(0, 0, 0, 0.42),
+    inset -26px -26px 56px rgba(0, 0, 0, 0.3),
+    inset 12px 14px 30px rgba(255, 255, 255, 0.05);
   animation: moon-rise 1600ms var(--ease) both;
+}
+
+/* 月海：边缘收到 62%~78% 就住手，形状才硬；再点缀几个带亮边的小坑 */
+.nc-moon::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse 26% 21% at 32% 39%, rgba(72, 66, 58, 0.38) 0 46%, rgba(72, 66, 58, 0.14) 66%, rgba(72, 66, 58, 0) 80%),
+    radial-gradient(ellipse 16% 13% at 62% 26%, rgba(72, 66, 58, 0.34) 0 46%, rgba(72, 66, 58, 0.12) 68%, rgba(72, 66, 58, 0) 82%),
+    radial-gradient(ellipse 21% 17% at 68% 62%, rgba(66, 60, 52, 0.36) 0 46%, rgba(66, 60, 52, 0.13) 68%, rgba(66, 60, 52, 0) 80%),
+    radial-gradient(ellipse 13% 11% at 42% 73%, rgba(66, 60, 52, 0.28) 0 40%, rgba(66, 60, 52, 0) 76%),
+    radial-gradient(ellipse 10% 9% at 21% 56%, rgba(66, 60, 52, 0.24) 0 42%, rgba(66, 60, 52, 0) 78%),
+    /* 小坑：暗底 + 一圈亮沿，直径 2~3.5px */
+    radial-gradient(circle at 52% 44%, rgba(50, 45, 39, 0.34) 0 1.1px, rgba(255, 255, 255, 0.11) 1.6px 2px, rgba(255, 255, 255, 0) 2.6px),
+    radial-gradient(circle at 44% 33%, rgba(50, 45, 39, 0.26) 0 0.9px, rgba(255, 255, 255, 0.12) 1.4px 1.8px, rgba(255, 255, 255, 0) 2.4px),
+    radial-gradient(circle at 63% 52%, rgba(50, 45, 39, 0.28) 0 1.3px, rgba(255, 255, 255, 0.1) 1.8px 2.4px, rgba(255, 255, 255, 0) 3.2px),
+    radial-gradient(circle at 29% 65%, rgba(50, 45, 39, 0.22) 0 1px, rgba(255, 255, 255, 0.1) 1.5px 2px, rgba(255, 255, 255, 0) 2.8px);
+}
+
+/* 颗粒 + 边缘收暗：噪点用 feTurbulence 现画，不额外加载图片 */
+.nc-moon::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='1.3' numOctaves='4' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='120' height='120' filter='url(%23n)'/%3E%3C/svg%3E"),
+    radial-gradient(circle, rgba(0, 0, 0, 0) 56%, rgba(26, 22, 18, 0.24) 80%, rgba(20, 17, 14, 0.46) 100%);
+  background-size: 120px 120px, 100% 100%;
+  background-blend-mode: soft-light, normal;
+  opacity: 0.34;
+  pointer-events: none;
 }
 
 .nc-body {
@@ -2220,6 +2270,7 @@ button {
 @media (prefers-reduced-motion: reduce) {
   .nc-sun { animation: none; }
 }
+
 
 @keyframes moon-rise {
   from { opacity: 0; transform: translateY(14px) scale(0.94); }
