@@ -1396,15 +1396,34 @@ button {
    对局中
    ========================================================================== */
 
-.ig-status { display: flex; align-items: center; justify-content: space-between; height: 38px; }
+/*
+ * 状态条：五项（阶段 / 存活 / 我的身份 / 观战 / 退出）必须在一行里。
+ * 之前 .ig-badge 没写 nowrap，实测 390 宽下内容 365 > 容器 358，
+ * 只有 7px 的溢出，于是浏览器把「第 1 天 · 投/票」「存活 6 //6」压成了两行 —— 看着像坏了。
+ * 现在：单项绝不换行（nowrap + flex:none），宽度靠收紧内边距找回来；
+ * 真到了 320 这种极窄屏，整行横向可滚，也不折行。
+ */
+.ig-status {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  height: 38px;
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.ig-status::-webkit-scrollbar { display: none; }
 .ig-status-left,
-.ig-status-right { display: flex; align-items: center; gap: 8px; }
+.ig-status-right { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .ig-badge {
+  flex: none;
   display: inline-flex;
   align-items: center;
   gap: 5px;
   height: 24px;
-  padding: 0 9px;
+  padding: 0 6px;
+  white-space: nowrap;
   border-radius: var(--r-sm);
   border: 1px solid rgba(185, 154, 99, 0.36);
   background: rgba(185, 154, 99, 0.08);
@@ -1419,8 +1438,10 @@ button {
 }
 .ig-badge.role { border-color: rgba(113, 132, 155, 0.42); background: rgba(113, 132, 155, 0.1); color: #a5b6c8; }
 .ig-quit {
+  flex: none;
   height: 26px;
-  padding: 0 10px;
+  padding: 0 7px;
+  white-space: nowrap;
   border: 1px solid var(--line);
   border-radius: var(--r-sm);
   background: transparent;
@@ -2708,4 +2729,14 @@ button.me-row:hover { border-color: var(--line-strong); }
   display: flex;
   gap: 8px;
   margin-top: 10px;
+}
+
+/* 极窄屏（320/340）：再收一档间距，宁可紧一点也不折行 */
+@media (max-width: 360px) {
+  .ig-status-left,
+  .ig-status-right { gap: 4px; }
+  .ig-badge { padding: 0 6px; }
+  .ig-quit { padding: 0 6px; }
+  .ig-quit svg,
+  .ig-badge svg { display: none; }
 }

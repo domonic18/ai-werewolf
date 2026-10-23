@@ -365,7 +365,7 @@ function PlayView(): JSX.Element {
         <div className="ig-status-left">
           <span className="ig-badge">{roundBadge(phase, round)}</span>
           <span className="ig-badge plain">
-            存活 {alive} / {players.length}
+            存活 {alive}/{players.length}
           </span>
         </div>
         <div className="ig-status-right">
