@@ -7,17 +7,18 @@ import { MatchPage } from './pages/MatchPage';
 import { ResultPage } from './pages/ResultPage';
 import { SetupPage } from './pages/SetupPage';
 import { LoginPage } from './pages/LoginPage';
+import { MePage } from './pages/MePage';
 import { useMatchPolling } from './hooks/useMatchPolling';
 import { clearSavedGame, readSavedGame } from './lib/storage';
 import { useGameStore } from './store/gameStore';
 
-type Screen = 'home' | 'lobby' | 'setup' | 'login';
+type Screen = 'home' | 'lobby' | 'setup' | 'login' | 'me';
 
 /**
- * 页面与地址栏 hash 同步：刷新后停在原页面，深链也能直达（#lobby / #setup / #login）。
+ * 页面与地址栏 hash 同步：刷新后停在原页面，深链也能直达（#lobby / #setup / #login / #me）。
  * 用 replaceState 而不是 pushState —— 这几屏是同一页内的分屏，不该占浏览器历史。
  */
-const SCREENS: readonly Screen[] = ['home', 'lobby', 'setup', 'login'];
+const SCREENS: readonly Screen[] = ['home', 'lobby', 'setup', 'login', 'me'];
 
 function screenFromHash(): Screen {
   const raw = window.location.hash.replace(/^#\/?/, '');
@@ -30,6 +31,7 @@ export function App(): JSX.Element {
   const spectate = useGameStore((s) => s.spectate);
   const watching = useGameStore((s) => s.watching);
   const open = useGameStore((s) => s.open);
+  const close = useGameStore((s) => s.close);
   const { lost, reason } = useMatchPolling();
 
   const [screen, setScreen] = useState<Screen>(() => screenFromHash());
@@ -107,10 +109,19 @@ export function App(): JSX.Element {
           onOpenLobby={() => setScreen('lobby')}
           onNewGame={() => setScreen('setup')}
           onOpenLogin={() => setScreen('login')}
+          onOpenStats={() => setScreen('me')}
         />
       ) : null}
       {!gameId && screen === 'login' ? (
         <LoginPage onBack={() => setScreen('home')} onSignedIn={() => setScreen('home')} />
+      ) : null}
+      {!gameId && screen === 'me' ? (
+        <MePage
+          onBack={() => setScreen('home')}
+          onLogin={() => setScreen('login')}
+          onStart={() => setScreen('setup')}
+          onResume={resume}
+        />
       ) : null}
       {!gameId && screen === 'setup' ? (
         <SetupPage
@@ -127,7 +138,14 @@ export function App(): JSX.Element {
         />
       ) : null}
       {gameId && !finished ? <MatchPage lost={lost} lostReason={reason} /> : null}
-      {gameId && finished ? <ResultPage /> : null}
+      {gameId && finished ? (
+        <ResultPage
+          onOpenStats={() => {
+            close();
+            setScreen('me');
+          }}
+        />
+      ) : null}
     </div>
   );
 }

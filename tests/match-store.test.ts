@@ -75,17 +75,35 @@ describe('MatchStore 战绩归属', () => {
     expect(calls.some((c) => c.op === 'eq')).toBe(false);
   });
 
-  it('个人战绩按「自己那一局的身份」判胜负', async () => {
+  it('个人战绩按「自己那一局的身份」判胜负（表里存的是中文角色名）', async () => {
     const { db, result } = fakeDb();
+    /*
+     * 关键：引擎写库时 player_role 是 ROLES[...].name（「狼人」「黑狼王」「村民」），不是 key。
+     * 只认 'wolf' 会让 isWolf 永远为 false，狼人赢的局被判成输 —— 这条用例就是防这个。
+     */
     result.data = [
-      { result: 'good', player_role: 'villager' }, // 好人阵赢，我是好人 → 胜
-      { result: 'wolf', player_role: 'villager' }, // 狼人阵赢，我是好人 → 负
-      { result: 'wolf', player_role: 'wolf' }, // 狼人阵赢，我是狼 → 胜
-      { result: 'good', player_role: 'wolf' }, // 好人阵赢，我是狼 → 负
+      { result: 'good', player_role: '村民' }, // 好人阵赢，我是好人 → 胜
+      { result: 'wolf', player_role: '村民' }, // 狼人阵赢，我是好人 → 负
+      { result: 'wolf', player_role: '狼人' }, // 狼人阵赢，我是狼 → 胜
+      { result: 'good', player_role: '黑狼王' }, // 好人阵赢，我是狼王 → 负
+      { result: 'wolf', player_role: '黑狼王' }, // 狼人阵赢，我是狼王 → 胜
+      { result: 'aborted', player_role: '预言家' }, // 中止：不计入胜率
     ];
     const store = new MatchStore(db as never);
 
-    await expect(store.personalStats('user-1')).resolves.toEqual({ total: 4, wins: 2 });
+    await expect(store.personalStats('user-1')).resolves.toEqual({ total: 5, wins: 3, aborted: 1 });
+  });
+
+  it('兼容早期按角色 key 存的行', async () => {
+    const { db, result } = fakeDb();
+    result.data = [
+      { result: 'wolf', player_role: 'wolf' },
+      { result: 'good', player_role: 'villager' },
+      { result: 'good', player_role: 'wolf' },
+    ];
+    const store = new MatchStore(db as never);
+
+    await expect(store.personalStats('user-1')).resolves.toEqual({ total: 3, wins: 2, aborted: 0 });
   });
 
   it('staging 只读模式不写库', async () => {

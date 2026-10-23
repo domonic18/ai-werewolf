@@ -8,7 +8,7 @@ import { useSession } from '../auth/useSession';
 import { timelineFromRecords, timelineFromReview } from '../lib/timeline';
 import { useGameStore } from '../store/gameStore';
 
-export function ResultPage(): JSX.Element {
+export function ResultPage({ onOpenStats }: { onOpenStats?: () => void } = {}): JSX.Element {
   const events = useGameStore((s) => s.events);
   const snapshot = useGameStore((s) => s.snapshot);
   const spectate = useGameStore((s) => s.spectate);
@@ -159,7 +159,15 @@ export function ResultPage(): JSX.Element {
 
       {mine && mine.total > 0 ? (
         <div className="panel">
-          <div className="panel-title">我的累计战绩</div>
+          <div className="panel-head">
+            <span className="panel-title">我的累计战绩</span>
+            {onOpenStats ? (
+              <button className="panel-more" onClick={onOpenStats}>
+                全部战绩
+                <Icon name="chevronRight" size={11} />
+              </button>
+            ) : null}
+          </div>
           <div className="lobby-stats" style={{ marginTop: 10, marginBottom: 0 }}>
             <div className="lobby-stat">
               <b>{mine.total}</b>

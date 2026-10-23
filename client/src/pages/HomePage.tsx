@@ -20,9 +20,11 @@ interface HomePageProps {
   onNewGame: () => void;
   /** 登录入口（可选增强，不做登录墙） */
   onOpenLogin: () => void;
+  /** 我的战绩（#me）：登录后才有的入口 */
+  onOpenStats: () => void;
 }
 
-export function HomePage({ onWatch, onOpenLobby, onNewGame, onOpenLogin }: HomePageProps): JSX.Element {
+export function HomePage({ onWatch, onOpenLobby, onNewGame, onOpenLogin, onOpenStats }: HomePageProps): JSX.Element {
   const open = useGameStore((s) => s.open);
   const data = useHomeData();
   const { signedIn } = useSession();
@@ -203,7 +205,7 @@ export function HomePage({ onWatch, onOpenLobby, onNewGame, onOpenLogin }: HomeP
         </div>
       ) : null}
 
-      <AccountCard />
+      <AccountCard onOpenStats={onOpenStats} />
 
       <div className="stats-card">
         <div className="stat">

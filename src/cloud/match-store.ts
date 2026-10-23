@@ -7,6 +7,7 @@
 import type { WorkBuddyCloudClient } from '@tencent-ai/workbuddy-cloud-sdk';
 import type { ArchiveRow } from '../game/engine.js';
 import type { MatchRow } from '../shared/types.js';
+import { ROLES } from '../shared/roles.js';
 
 const TABLE = 'ww_matches';
 
@@ -37,6 +38,22 @@ export interface SaveResult {
 export interface MatchStoreOptions {
   /** 测试环境默认只读：避免压测/联调数据写进生产战绩墙 */
   readOnly?: boolean;
+}
+
+/**
+ * 表里 `player_role` 存的是**中文名**（引擎写的是 `ROLES[...].name`，如「狼人」「黑狼王」），
+ * 早期代码与测试里还出现过 key（`wolf`）。两种都要能认，否则胜负会全部判反：
+ * 只认 key 时 `isWolf` 永远为 false，狼人赢的局会被算成「好人赢 → 我输」。
+ */
+const WOLF_LABELS = new Set<string>(
+  Object.values(ROLES)
+    .filter((role) => role.team === 'wolf')
+    .flatMap((role) => [role.key as string, role.name]),
+);
+
+/** 这一行是不是「狼阵营」 */
+export function isWolfLabel(playerRole: string | null | undefined): boolean {
+  return WOLF_LABELS.has(playerRole ?? '');
 }
 
 export interface RecentResult {
@@ -102,10 +119,11 @@ export class MatchStore {
   }
 
   /**
-   * 个人累计战绩：本账号打了多少局、赢了多少。
-   * 「赢」要按自己那一局的身份判：狼人阵赢 = 自己是狼；好人阵赢 = 自己不是狼。
+   * 个人累计战绩：本账号打完了多少局、赢了多少。
+   * 「赢」按自己那一局的身份判：狼人阵赢 = 自己是狼；好人阵赢 = 自己不是狼。
+   * 中途中止的局（result=aborted）不计入胜率，单独给个数量，免得把胜率拖得莫名很低。
    */
-  async personalStats(ownerId: string): Promise<{ total: number; wins: number } | null> {
+  async personalStats(ownerId: string): Promise<{ total: number; wins: number; aborted: number } | null> {
     if (!this.db) return null;
     const { data, error } = await this.db
       .from(TABLE)
@@ -114,11 +132,21 @@ export class MatchStore {
       .limit(500);
     if (error) return null;
     const rows = Array.isArray(data) ? (data as { result?: string; player_role?: string }[]) : [];
-    const wins = rows.filter((row) => {
-      const isWolf = row.player_role === 'wolf';
-      return isWolf ? row.result === 'wolf' : row.result === 'good';
-    }).length;
-    return { total: rows.length, wins };
+
+    let total = 0;
+    let wins = 0;
+    let aborted = 0;
+    for (const row of rows) {
+      const result = row.result ?? '';
+      if (result !== 'good' && result !== 'wolf') {
+        aborted += 1;
+        continue;
+      }
+      total += 1;
+      const won = isWolfLabel(row.player_role) ? result === 'wolf' : result === 'good';
+      if (won) wins += 1;
+    }
+    return { total, wins, aborted };
   }
 
   /** 胜率统计；给 ownerId 时只统计这个账号的 */

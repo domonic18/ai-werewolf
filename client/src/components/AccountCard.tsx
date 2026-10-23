@@ -14,13 +14,13 @@ function maskId(id: string): string {
   return `${id.slice(0, 6)}…${id.slice(-4)}`;
 }
 
-export function AccountCard(): JSX.Element | null {
+export function AccountCard({ onOpenStats }: { onOpenStats?: () => void }): JSX.Element | null {
   const { session } = useSession();
   if (!session) return null;
 
   return (
     <div className="account-card">
-      <div className="account-left">
+      <button className="account-left account-link" onClick={onOpenStats} aria-label="查看我的战绩">
         <span className="avatar avatar-human">
           <Icon name="villager" size={15} />
         </span>
@@ -28,7 +28,13 @@ export function AccountCard(): JSX.Element | null {
           <b>已登录 · 战绩记在账号下</b>
           <span>{maskId(session.userId)}</span>
         </div>
-      </div>
+        {onOpenStats ? (
+          <span className="account-go">
+            我的战绩
+            <Icon name="chevronRight" size={12} />
+          </span>
+        ) : null}
+      </button>
       <button className="account-out" onClick={() => clearSession()}>
         退出
       </button>
