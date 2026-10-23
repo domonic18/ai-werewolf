@@ -69,6 +69,22 @@ function LostCard({ lostReason }: { lostReason: LostReason }): JSX.Element {
   );
 }
 
+/**
+ * 正在输出时的句末指示：三个点依次亮。
+ *
+ * 之前用的是闪烁竖线（`|`），玩家第一反应是「这里可以打字」——那是个输入光标的形状。
+ * 换成点阵之后语义就明确了：话还没说完，正在往外吐。
+ */
+function TypingDots(): JSX.Element {
+  return (
+    <span className="ig-dots" aria-hidden>
+      <i />
+      <i />
+      <i />
+    </span>
+  );
+}
+
 /** 发言列表 → 聊天气泡（只取最近几条，长局不撑爆屏幕） */
 function useMessages(events: GameEvent[]) {
   return useMemo(() => {
@@ -120,12 +136,12 @@ function ChatBubbles({
           <div className="ig-msg-head">
             <Avatar name={live.name} seat={live.playerId} isHuman={false} size={20} />
             <span className="nm">{live.name}</span>
-            <span className="tag live">正在说</span>
+            <span className="tag live">
+              输出中
+              <TypingDots />
+            </span>
           </div>
-          <div className="ig-bubble">
-            {highlightNames(live.text, names)}
-            <i className="ig-caret" aria-hidden />
-          </div>
+          <div className="ig-bubble">{highlightNames(live.text, names)}</div>
         </div>
       ) : null}
     </div>
@@ -589,7 +605,10 @@ function SpectateView({ players }: { players: Seat[] }): JSX.Element {
             <div className="sp-msg-head">
               <Avatar name={live.name} seat={live.playerId} isHuman={false} size={18} />
               <span className="nm">{live.name}</span>
-              <span className="tag live">正在说</span>
+              <span className="tag live">
+              输出中
+              <TypingDots />
+            </span>
             </div>
             <p>
               {highlightNames(live.text, names)}
